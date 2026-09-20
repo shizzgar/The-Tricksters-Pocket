@@ -307,6 +307,20 @@ private suspend fun ownedSession(context: Context, session: String, owner: Strin
         else "Session is unclaimed or belongs to another conversation. Claim an unowned legacy session explicitly with termux_session_manage."
 }
 
+private fun literalOccurrences(text: String, pattern: String): Int {
+    if (pattern.isEmpty()) return 0
+    val bounded = text.takeLast(64_000)
+    var offset = 0
+    var count = 0
+    while (offset < bounded.length) {
+        val found = bounded.indexOf(pattern, offset)
+        if (found < 0) break
+        count++
+        offset = found + pattern.length
+    }
+    return count
+}
+
 private data class ScreenRead(val screen: String, val reason: String)
 private suspend fun readScreen(context: Context, session: String, lines: Int, waitFor: String?, timeoutMs: Long,
     regex: Boolean = false, baseline: String? = null): ScreenRead {
@@ -323,7 +337,9 @@ private suspend fun readScreen(context: Context, session: String, lines: Int, wa
         val now = android.os.SystemClock.elapsedRealtime()
         if (screen != last) stableSince = now
         if (!changedSinceBaseline && !waitForMatches(screen, waitFor.orEmpty(), regex)) changedSinceBaseline = true
-        val matched = !waitFor.isNullOrEmpty() && changedSinceBaseline && waitForMatches(screen, waitFor, regex)
+        val additionalLiteralMatch = !regex && !waitFor.isNullOrEmpty() && baseline != null &&
+            literalOccurrences(screen, waitFor) > literalOccurrences(baseline, waitFor)
+        val matched = !waitFor.isNullOrEmpty() && (changedSinceBaseline || additionalLiteralMatch) && waitForMatches(screen, waitFor, regex)
         val reason = when {
             matched -> "matched"
             waitFor.isNullOrEmpty() && now - stableSince >= SETTLE_MS -> "settled"
@@ -409,10 +425,11 @@ fun termuxSessionSendTool(context: Context, owner: String? = null): Tool = Tool(
         val session = input.string("session_id").orEmpty()
         val text = input.string("input").orEmpty()
         HardlineCommandGuard.checkCommand(text)?.let { return@execute sessionErrorEnvelope("blocked_by_safety_floor", it) }
-        sessionLocks.getOrPut(session) { Mutex() }.withLock {
+        val wait = input.string("wait_for")
+        var baseline: String? = null
+        val sendError = sessionLocks.getOrPut(session) { Mutex() }.withLock {
             ownedSession(context, session, owner)?.let { return@withLock sessionErrorEnvelope("session_access_denied", it, session) }
-            val wait = input.string("wait_for")
-            val baseline = if (!wait.isNullOrEmpty() && !input.flag("match_existing")) {
+            baseline = if (!wait.isNullOrEmpty() && !input.flag("match_existing")) {
                 val cap = tmux(context, TmuxOps.capturePaneArgv(session, DEFAULT_READ_LINES))
                 if (cap !is CaptureResult.Success) return@withLock sessionErrorEnvelope("read_failed_before_send", captureError(cap), session)
                 cap.stdout
@@ -427,10 +444,13 @@ fun termuxSessionSendTool(context: Context, owner: String? = null): Tool = Tool(
                 val sent = tmux(context, op)
                 if (sent !is CaptureResult.Success) return@withLock sessionErrorEnvelope("input_outcome_unknown", captureError(sent) + " Earlier input may already have been delivered; read before resending.", session)
             }
-            try { screenEnvelope(session, readScreen(context, session, DEFAULT_READ_LINES, wait, resolveTimeoutMs(input), input.flag("wait_for_regex"), baseline), true) }
-            catch (c: kotlinx.coroutines.CancellationException) { throw c }
-            catch (e: IllegalStateException) { sessionErrorEnvelope("read_failed_after_send", "Input was sent; do not resend. ${e.message}", session) }
+            null
         }
+        if (sendError != null) return@execute sendError
+        // Only input is serialized. A long wait must not prevent C-c/kill from another call.
+        try { screenEnvelope(session, readScreen(context, session, DEFAULT_READ_LINES, wait, resolveTimeoutMs(input), input.flag("wait_for_regex"), baseline), true) }
+        catch (c: kotlinx.coroutines.CancellationException) { throw c }
+        catch (e: IllegalStateException) { sessionErrorEnvelope("read_failed_after_send", "Input was sent; do not resend. ${e.message}", session) }
     },
 )
 

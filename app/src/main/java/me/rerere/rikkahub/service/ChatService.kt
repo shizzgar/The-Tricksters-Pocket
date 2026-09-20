@@ -2640,28 +2640,36 @@ class ChatService(
                 )
             }
 
-            val result = runtimeLimits.request {
-                providerHandler.generateText(
-                    providerSetting = provider,
-                    messages = listOf(UIMessage.user(prompt)),
-                    params = backgroundTextGenerationParams(model,
-                        sessionId = "${conversation.id}:compaction:$compactionOperationId:${compactionPart.incrementAndGet()}",
-                        priority = if (isAuto) me.rerere.ai.provider.GenerationPriority.COMPACTION
-                            else me.rerere.ai.provider.GenerationPriority.BACKGROUND,
-                    ).copy(
-                        maxTokens = requestedTargetTokens,
-                        requestTimeoutMillis = runtimeLimits.requestTimeoutMs,
-                        isCompaction = true,
-                    ),
-                )
-            }
+            repeat(2) { attempt ->
+                val result = runtimeLimits.request {
+                    providerHandler.generateText(
+                        providerSetting = provider,
+                        messages = listOf(
+                            UIMessage.system(ContextCompactionPlanner.requiredToolRetentionInstructions()),
+                            UIMessage.user(prompt + if (attempt == 0) "" else
+                                "\n\nThe previous attempt exhausted its output allowance. Produce a shorter COMPLETE handoff; keep current scope, material evidence and next action. Omit routine history."),
+                        ),
+                        params = backgroundTextGenerationParams(model,
+                            sessionId = "${conversation.id}:compaction:$compactionOperationId:${compactionPart.incrementAndGet()}",
+                            priority = if (isAuto) me.rerere.ai.provider.GenerationPriority.COMPACTION
+                                else me.rerere.ai.provider.GenerationPriority.BACKGROUND,
+                        ).copy(
+                            maxTokens = requestedTargetTokens,
+                            requestTimeoutMillis = runtimeLimits.requestTimeoutMs,
+                            isCompaction = true,
+                        ),
+                    )
+                }
 
-            check(result.finishReason !in setOf("length", "max_tokens", "content_filter")) {
-                "Compaction answer was cut off (${result.finishReason}); original context has been preserved"
+                if (attempt == 0 && result.finishReason in setOf("length", "max_tokens")) return@repeat
+                check(result.finishReason !in setOf("length", "max_tokens", "content_filter")) {
+                    "Compaction answer was cut off (${result.finishReason}); original context has been preserved"
+                }
+                return result.message.toText().trim()
+                    .takeIf { it.isNotBlank() }
+                    ?: throw IllegalStateException("Failed to generate compressed summary")
             }
-            return result.message.toText().trim()
-                .takeIf { it.isNotBlank() }
-                ?: throw IllegalStateException("Failed to generate compressed summary")
+            error("Failed to produce a complete compaction handoff; original context has been preserved")
         }
 
         // Ordinary compression is a map pass over a small number of large groups. The full
@@ -2713,10 +2721,11 @@ class ChatService(
             }
 
         var reductionPasses = 0
+        var finalRequestCap = modelSummaryTargetTokens.coerceAtMost(COMPACTION_MAX_REQUEST_OUTPUT_TOKENS)
         var finalSummary: String? = null
         while (finalSummary == null) {
             val passTargetTokens = if (sourceGroups.size == 1) {
-                modelSummaryTargetTokens.coerceAtMost(COMPACTION_MAX_REQUEST_OUTPUT_TOKENS)
+                finalRequestCap
             } else {
                 ContextCompactionPlanner.mapOutputTargetTokens(
                     finalTargetTokens = ContextCompactionPlanner.intermediateTargetTokens(
@@ -2739,6 +2748,11 @@ class ChatService(
             ) {
                 finalSummary = combinedSummary
                 continue
+            }
+            if (summaries.size == 1) {
+                val measured = ContextCompactionPlanner.estimateTokens(combinedSummary)
+                finalRequestCap = (finalRequestCap.toLong() * modelSummaryTargetTokens * 3 / (measured.toLong() * 4))
+                    .toInt().coerceAtLeast(256)
             }
             // Even two map summaries that fit the input window require a reduce pass: a plain
             // concatenation retains contradictory interim diagnoses and duplicate next steps.
@@ -2780,6 +2794,9 @@ class ChatService(
             sourceTokenEstimate = ContextBudgetPlanner.estimateInputTokens(messagesToCompress),
             createdAt = Instant.now(),
         )
+        check(ContextCompactionPlanner.estimateTokens(compaction.summary) < compaction.sourceTokenEstimate) {
+            "Compaction did not reduce context size; original context has been preserved"
+        }
         check(ContextCompactionPlanner.estimateTokens(compaction.summary) <= targetTokens + 64) {
             "Compaction exceeded the complete handoff budget; original context has been preserved"
         }

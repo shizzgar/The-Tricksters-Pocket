@@ -29,11 +29,18 @@ fun conversationHistoryReadTool(repo: ConversationRepository, conversationId: St
         val limit = (args["max_chars"]?.jsonPrimitive?.intOrNull ?: 8000).coerceIn(256, 16000)
         val conversation = repo.getConversationById(Uuid.parse(conversationId))
         val records = conversation?.currentMessages.orEmpty().flatMap { message ->
-            val tools = message.parts.filterIsInstance<UIMessagePart.Tool>()
-                .filter { !ContextCompactionPresentation.isDisplayTool(it) }
-                .map { part -> Triple(part.toolCallId, part.toolName, "Input:\n${part.input}\nResult:\n" + part.output.joinToString("\n") {
-                    if (it is UIMessagePart.Text) it.text else "[non-text result]"
-                }) }
+            @Suppress("DEPRECATION")
+            val tools = message.parts.mapNotNull { part ->
+                when {
+                    part is UIMessagePart.Tool && !ContextCompactionPresentation.isDisplayTool(part) ->
+                        Triple(part.toolCallId, part.toolName, "Input:\n${part.input}\nResult:\n" + part.output.joinToString("\n") {
+                            if (it is UIMessagePart.Text) it.text else "[non-text result]"
+                        })
+                    part is UIMessagePart.ToolResult -> Triple(part.toolCallId, part.toolName, "Input:\n${part.arguments}\nResult:\n${part.content}")
+                    part is UIMessagePart.ServerTool -> Triple(part.toolCallId, part.toolName, "Input:\n${part.input}\nResult:\n${part.output}\nStatus: ${part.status}")
+                    else -> null
+                }
+            }
             listOf(Triple(message.id.toString(), message.role.name, ContextCompactionPlanner.sourceText(message))) + tools
         }
         val id = callId ?: messageId

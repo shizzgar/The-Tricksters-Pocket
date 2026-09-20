@@ -39,6 +39,7 @@ internal object CompactionEvidence {
                         if (it is UIMessagePart.Text) it.text else "[non-text output]"
                     })
                 part is UIMessagePart.ToolResult -> record(part.toolCallId, part.toolName, part.arguments.toString(), part.content.toString())
+                part is UIMessagePart.ServerTool && part.isFinished -> record(part.toolCallId, part.toolName, part.input.toString(), part.output.toString())
                 else -> null
             }
         }
@@ -79,7 +80,7 @@ internal object CompactionEvidence {
         val original = records(messages)
         // Compatibility for summaries made by this version. Production callers rebuild from
         // original messages, not from previews, so repeated compaction cannot erode evidence.
-        val inherited = messages.flatMap { m -> m.parts.filterIsInstance<UIMessagePart.Text>().flatMap { p ->
+        val inherited = messages.filter { it.isSynthetic }.flatMap { m -> m.parts.filterIsInstance<UIMessagePart.Text>().flatMap { p ->
             indexPattern.findAll(p.text).flatMap { block -> block.value.lineSequence().mapNotNull { line ->
                 runCatching { json.parseToJsonElement(line) as? JsonObject }.getOrNull()?.takeIf { "call_id" in it }
             } }.toList()
@@ -107,7 +108,7 @@ internal object CompactionEvidence {
 
     fun recentUserRequests(messages: List<UIMessage>, maxTokens: Int): String {
         if (maxTokens <= 0) return ""
-        val candidates = messages.filter { it.role.name == "USER" }.takeLast(6)
+        val candidates = messages.filter { it.role.name == "USER" && !it.isSynthetic }.takeLast(6)
         val selected = mutableListOf<String>()
         fun render() = "[Recent user requests — quoted context]\n" +
             "Earlier requests remain in conversation_history_read. Later corrections supersede earlier requests.\n" +

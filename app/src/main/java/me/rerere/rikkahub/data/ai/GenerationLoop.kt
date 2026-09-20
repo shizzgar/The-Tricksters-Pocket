@@ -27,6 +27,9 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import me.rerere.ai.core.MessageRole
 import me.rerere.ai.core.Tool
 import me.rerere.ai.provider.Model
@@ -381,6 +384,28 @@ private val FRESHNESS_TTL_MS_BY_TOOL: Map<String, Long> = mapOf(
  * reader). Keep it to genuine read-only observers: wrongly adding an ACTION tool here would
  * stop it from resetting the counter and reintroduce the false-positive loop_detected.
  */
+/** Reconnect to an interrupted job using its recorded operation ID; never launch it again. */
+private suspend fun reconcileTermuxJob(part: UIMessagePart.Tool, owner: String, tools: List<Tool>): List<UIMessagePart>? {
+    val observer = tools.firstOrNull { it.name == "termux_job_wait" } ?: return null
+    val operation = runCatching { Json.parseToJsonElement(part.input).jsonObject["operation_id"]?.jsonPrimitive?.content }.getOrNull() ?: return null
+    val ownerKey = me.rerere.rikkahub.data.ai.tools.local.sessionOwner(owner)
+    val id = java.security.MessageDigest.getInstance("SHA-256").digest("$ownerKey:$operation".toByteArray())
+        .joinToString("") { "%02x".format(it) }.take(24)
+    return try {
+        val result = observer.execute(buildJsonObject { put("job_id", id); put("timeout_seconds", 1) })
+        val text = result.filterIsInstance<UIMessagePart.Text>().firstOrNull()?.text ?: return null
+        val observed = Json.parseToJsonElement(text).jsonObject
+        if (observed["state"] == null || observed["error"] != null) return null
+        listOf(UIMessagePart.Text(buildJsonObject {
+            observed.forEach { (key, value) -> put(key, value) }
+            put("reconciled_after_interruption", true)
+            put("operation_id", operation)
+            put("note", "Recovered status of the existing job; the command was not relaunched.")
+        }.toString()))
+    } catch (c: kotlinx.coroutines.CancellationException) { throw c }
+    catch (_: Exception) { null }
+}
+
 private val READ_ONLY_OBSERVATION_TOOLS: Set<String> =
     FRESHNESS_TTL_MS_BY_TOOL.keys + "find_node"
 
@@ -491,14 +516,21 @@ class GenerationLoop(
         // re-overwrite a file. Flip them to Denied so the model sees a deterministic
         // envelope and decides whether to retry deliberately.
         var messages: List<UIMessage> = messages.map { msg ->
-            val newParts = msg.parts.map { part ->
+            val newParts = msg.parts.map parts@{ part ->
                 if (part is UIMessagePart.Tool && part.isInterruptedAttempt) {
                     Log.w(TAG, "replay: ${part.toolName} (${part.toolCallId}) had executionStartedAt set with empty output → Denied(interrupted_unknown_outcome)")
+                    if (part.toolName == "termux_job_start" && conversationId != null) {
+                        val recovered = reconcileTermuxJob(part, conversationId.toString(), tools)
+                        if (recovered != null) return@parts part.copy(output = recovered)
+                    }
                     part.copy(approvalState = ToolApprovalState.Denied(
                         "interrupted_unknown_outcome: a previous attempt to execute this tool started " +
                             "but did not complete (process killed mid-execute). The side effect MAY OR " +
                             "MAY NOT have happened. Verify the target state before retrying — do not " +
-                            "blindly re-run the same call."
+                            "blindly re-run the same call." +
+                            if (part.toolName.startsWith("termux_job_") || part.toolName == "termux_run_command")
+                                " For managed/background jobs, call termux_job_list, then read/wait the existing job. Reuse operation_id only for reconciling the same intended launch."
+                            else ""
                     ))
                 } else part
             }

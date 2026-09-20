@@ -220,7 +220,7 @@ class ContextCompactionPlannerTest {
         )
         val secondDigest = ContextCompactionPlanner.mandatoryToolExecutionDigest(
             messages = listOf(
-                UIMessage.user("[Summary of previous conversation]\n\n$firstDigest"),
+                UIMessage.user("[Summary of previous conversation]\n\n$firstDigest").copy(isSynthetic = true),
                 UIMessage(
                     role = MessageRole.ASSISTANT,
                     parts = listOf(executedTool("tool-c", "input-c", "result-c")),
@@ -281,7 +281,7 @@ class ContextCompactionPlannerTest {
                 These messages follow this summary in the active model context.
                 [End raw context retention report]
             """.trimIndent()
-        )
+        ).copy(isSynthetic = true)
 
         val source = ContextCompactionPlanner.sourceText(previousSummary)
 

@@ -371,7 +371,9 @@ fun termuxRunCommandTool(context: Context, owner: String? = null): Tool = Tool(
     description = """
         Execute a shell command in Termux. By default the command runs in the background and
         its stdout / stderr / exit_code are returned to you so you can reason on the output
-        (e.g. check if a package is installed, read a file, run a script). Pass
+        (e.g. check if a package is installed, read a file, run a script). Long batch work should
+        use termux_job_start/read/wait/cancel with durable IDs. background=true command mode also
+        uses this job supervisor when conversation identity is available. Pass
         interactive=true to instead open a visible Termux session - useful when the user
         explicitly wants to watch output live or when the command needs an interactive prompt;
         in that mode no output is returned. Termux must have allow-external-apps=true set in
@@ -405,7 +407,11 @@ fun termuxRunCommandTool(context: Context, owner: String? = null): Tool = Tool(
                 })
                 put("background", buildJsonObject {
                     put("type", "boolean")
-                    put("description", "Command mode only. If true, launch the command fully detached (nohup, streams redirected) and return immediately with its PID. Use for servers / long-running processes that would otherwise keep the capture pipe open and block until timeout. Default false.")
+                    put("description", "Command mode only. Start a managed background job, return job_id, and inspect with termux_job_read/wait. Default false. Python in Termux required for managed jobs.")
+                })
+                put("operation_id", buildJsonObject {
+                    put("type", "string")
+                    put("description", "Optional stable launch ID for background=true. Reuse on an uncertain retry to avoid duplicate execution.")
                 })
                 put("timeout_seconds", buildJsonObject {
                     put("type", "integer")
@@ -447,6 +453,10 @@ fun termuxRunCommandTool(context: Context, owner: String? = null): Tool = Tool(
                     buildJsonObject { put("error", "command and executable are mutually exclusive") }.toString()
                 )
             )
+        }
+
+        if (background && (interactive || rawCommand.isNullOrBlank())) {
+            return@Tool listOf(UIMessagePart.Text("{\"error\":\"background_requires_noninteractive_command\"}"))
         }
 
         // Pre-flight: Termux installed?
@@ -497,6 +507,15 @@ fun termuxRunCommandTool(context: Context, owner: String? = null): Tool = Tool(
             // background: detach so a long-running child doesn't keep the capture pipe open and
             // stall the result bundle until timeout. Same inherited-fd hazard as the SSH exec
             // channel; wrapDetachedCommand applies the identical nohup + redirect + echo-pid fix.
+            if (background && owner != null) {
+                val result = termuxJobRequest(context, owner, buildJsonObject {
+                    put("action", "start")
+                    put("operation_id", input.jsonObject["operation_id"]?.jsonPrimitive?.contentOrNull ?: UUID.randomUUID().toString())
+                    put("command", preamble + rawCommand)
+                    put("working_dir", workingDir)
+                })
+                return@Tool listOf(UIMessagePart.Text(result.toString()))
+            }
             val body = if (background) wrapDetachedCommand(rawCommand) else rawCommand
             "$TERMUX_BIN_DIR/bash" to arrayOf("-c", preamble + body)
         } else {

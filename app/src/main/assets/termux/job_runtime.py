@@ -148,6 +148,7 @@ def worker(folder):
     own = identity(os.getpid())
     state = {"state": "starting", "worker": own, "created_at": spec["created_at"], "started_at": time.time()}
     atomic(folder / "status.json", state)
+    process = None
     try:
         process = subprocess.Popen([BASH, "-c", spec["command"]], cwd=spec["working_dir"],
                                    stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -218,6 +219,11 @@ def worker(folder):
                      descendant_pipes_open=pipes_open)
         atomic(folder / "status.json", state)
     except BaseException as exc:
+        if process is not None and process.returncode is None:
+            with contextlib.suppress(ProcessLookupError, PermissionError):
+                os.killpg(process.pid, signal.SIGKILL)
+            with contextlib.suppress(subprocess.TimeoutExpired):
+                process.wait(timeout=2)
         state.update(state="unknown", error=type(exc).__name__, reason=str(exc), finished_at=time.time())
         atomic(folder / "status.json", state)
 
@@ -279,7 +285,8 @@ def dispatch(request):
             return dict(status(folder), success=True)
     if action == "cancel":
         current = status(folder)
-        if current["state"] in ACTIVE and same_process(current.get("worker")):
+        if current["state"] in ACTIVE and (same_process(current.get("worker")) or
+                                            (current["state"] == "starting" and not current.get("worker"))):
             (folder / "cancel.request").touch(mode=0o600)
         else:
             return dict(current, cancel_confirmed=current["state"] == "cancelled")

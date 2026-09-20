@@ -15,7 +15,7 @@ OWNER = 'a' * 24
 
 class JobRuntimeTest(unittest.TestCase):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory()
+        self.temp = tempfile.TemporaryDirectory(prefix="rikkahub-job-test-", dir=str(SOURCE.parents[6]))
         self.folder = Path(self.temp.name)
         self.helper = self.folder / 'runtime.py'
         shutil.copy(SOURCE, self.helper)
