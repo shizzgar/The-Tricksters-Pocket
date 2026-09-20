@@ -1,0 +1,76 @@
+name: Compaction debug APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [fix/configurable-compaction-runtime]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: compaction-debug-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v4
+      - name: Install the SDK used by this project
+        run: sdkmanager 'platforms;android-37' 'build-tools;37.0.0' 'cmake;3.22.1'
+      - uses: oven-sh/setup-bun@v2
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+      - uses: gradle/actions/setup-gradle@v6
+      - name: Run HTTP and provider tests
+        run: bash ./gradlew --no-daemon --max-workers=2 :common:testDebugUnitTest :ai:testDebugUnitTest
+      - name: Run compaction and settings tests
+        run: >-
+          bash ./gradlew --no-daemon --max-workers=2 :app:testDebugUnitTest
+          --tests 'me.rerere.rikkahub.data.ai.CompactionRuntimeTest'
+          --tests 'me.rerere.rikkahub.data.ai.GenerationTurnClockTest'
+          --tests 'me.rerere.rikkahub.data.ai.ContextCompaction*Test'
+          --tests 'me.rerere.rikkahub.data.ai.GenerationHandlerTurnBudgetTest'
+          --tests 'me.rerere.rikkahub.data.datastore.PreferencesStoreTest'
+      - name: Build debug APKs
+        run: bash ./gradlew --no-daemon --max-workers=2 :app:assembleDebug
+      - name: Verify ARM64 APK and record provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          apks=(app/build/outputs/apk/debug/*arm64-v8a*.apk)
+          test "${#apks[@]}" -eq 1
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose "${apks[0]}"
+          mkdir -p build/compaction-delivery
+          cp "${apks[0]}" build/compaction-delivery/rikkahub-compaction-arm64-debug.apk
+          git rev-parse HEAD > build/compaction-delivery/COMMIT.txt
+          cd build/compaction-delivery
+          sha256sum rikkahub-compaction-arm64-debug.apk > SHA256SUMS
+      - uses: actions/upload-artifact@v7
+        with:
+          name: rikkahub-compaction-arm64-debug
+          path: build/compaction-delivery/
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: compaction-test-results
+          path: |
+            common/build/test-results/
+            ai/build/test-results/
+            app/build/test-results/
+          if-no-files-found: warn
+          retention-days: 14
