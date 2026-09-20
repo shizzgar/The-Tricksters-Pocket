@@ -722,6 +722,9 @@ class LocalTools(
         invocationContext: ToolInvocationContext = ToolInvocationContext.EMPTY,
     ): List<Tool> {
         val tools = mutableListOf<Tool>()
+        invocationContext.callerConversationId?.let { id ->
+            tools.add(me.rerere.rikkahub.data.ai.tools.local.conversationHistoryReadTool(conversationRepo, id))
+        }
         if (options.contains(LocalToolOption.JavascriptEngine)) {
             tools.add(javascriptTool)
         }
@@ -880,14 +883,17 @@ class LocalTools(
             tools.add(me.rerere.rikkahub.data.ai.tools.local.openUrlTool(context, invocationContext, interactiveToolStreamer))
         }
         if (options.contains(LocalToolOption.Termux)) {
-            tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxRunCommandTool(context))
+            tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxRunCommandTool(context, invocationContext.callerConversationId))
             // Persistent interactive (tmux-backed) sessions: ssh-with-prompts, sudo, REPLs,
             // stateful shells. start is approval-gated; send is hardline-guarded per call.
-            tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxSessionStartTool(context))
-            tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxSessionSendTool(context))
-            tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxSessionReadTool(context))
-            tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxSessionKillTool(context))
-            tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxSessionListTool(context))
+            tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxSessionStartTool(context, invocationContext.callerConversationId))
+            tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxSessionSendTool(context, invocationContext.callerConversationId))
+            tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxSessionReadTool(context, invocationContext.callerConversationId))
+            tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxSessionKillTool(context, invocationContext.callerConversationId))
+            tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxSessionListTool(context, invocationContext.callerConversationId))
+            tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxSessionManageTool(context, invocationContext.callerConversationId))
+            tools.addAll(me.rerere.rikkahub.data.ai.tools.local.termuxJobTools(context, invocationContext.callerConversationId))
+            tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxOutputReadTool(context, invocationContext.callerConversationId))
             // transcribe_audio_file shells out to whisper-cli via Termux's RUN_COMMAND
             // service — it has a hard transitive dependency on Termux being present. No
             // separate toggle; it lives under the Termux toggle.

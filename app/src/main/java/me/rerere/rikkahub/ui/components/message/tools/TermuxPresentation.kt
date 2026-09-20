@@ -40,6 +40,10 @@ internal fun presentTermux(
     val status = when {
         denied -> TermuxStatus.DENIED
         pendingApproval -> TermuxStatus.APPROVAL
+        out.str("state") == "unknown" -> TermuxStatus.UNKNOWN
+        out.str("state") in setOf("starting", "running", "cancelling") -> TermuxStatus.RUNNING
+        out.str("state") == "timed_out" -> TermuxStatus.TIMEOUT
+        out.str("state") == "cancelled" -> TermuxStatus.SESSION_UPDATED
         out.str("error") == "timeout" || out.bool("timed_out") == true -> TermuxStatus.TIMEOUT
         out.str("error") != null || out.bool("success") == false || (exit != null && exit != 0) -> TermuxStatus.FAILED
         out == null && loading && started -> TermuxStatus.RUNNING

@@ -348,6 +348,10 @@ private const val IMAGE_KEEP_LAST_N_TOOL_RESULTS = 2
  * identical args is a loop, not a refresh. Add new freshness-sensitive tools here.
  */
 private val FRESHNESS_TTL_MS_BY_TOOL: Map<String, Long> = mapOf(
+    "termux_job_wait" to 1_000L,
+    "termux_job_read" to 2_000L,
+    "termux_job_list" to 5_000L,
+    "termux_session_read" to 2_000L,
     "get_battery_status" to 30_000L,
     "get_audio_info" to 30_000L,
     "get_telephony_info" to 30_000L,

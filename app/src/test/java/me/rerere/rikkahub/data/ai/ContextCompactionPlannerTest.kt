@@ -134,7 +134,7 @@ class ContextCompactionPlannerTest {
         assertTrue(source.contains("read_file"))
         assertTrue(source.contains("notes.txt"))
         assertTrue(source.contains("important file content"))
-        assertTrue(source.contains("must be retained in summary"))
+        assertTrue(source.contains("retain material outcome"))
     }
 
     @Test

@@ -28,6 +28,8 @@ internal object ContextCompactionPresentation {
         input = buildJsonObject {
             put("mode", JsonPrimitive("automatic"))
             put("source_token_estimate", JsonPrimitive(compaction.sourceTokenEstimate))
+            put("summary_token_estimate", JsonPrimitive(ContextCompactionPlanner.estimateTokens(compaction.summary)))
+            put("original_history_available", JsonPrimitive(true))
             put("summary_model_id", JsonPrimitive(compaction.summaryModelId.toString()))
             put(
                 "retained_raw_tool_calls",

@@ -33,6 +33,8 @@ jobs:
         with:
           version: 10
       - uses: gradle/actions/setup-gradle@v6
+      - name: Test durable Termux supervisor
+        run: python3 -m unittest discover -s tests -p 'test_termux_job_runtime.py' -v
       - name: Run HTTP and provider tests
         run: bash ./gradlew --no-daemon --max-workers=2 :common:testDebugUnitTest :ai:testDebugUnitTest
       - name: Run runtime, Termux presentation and settings tests
@@ -41,6 +43,8 @@ jobs:
           --tests 'me.rerere.rikkahub.data.ai.CompactionRuntimeTest'
           --tests 'me.rerere.rikkahub.data.ai.GenerationTurnClockTest'
           --tests 'me.rerere.rikkahub.data.ai.ContextCompaction*Test'
+          --tests 'me.rerere.rikkahub.data.ai.CompactionEvidenceTest'
+          --tests 'me.rerere.rikkahub.data.ai.tools.local.Termux*Test'
           --tests 'me.rerere.rikkahub.data.ai.GenerationHandlerTurnBudgetTest'
           --tests 'me.rerere.rikkahub.data.datastore.PreferencesStoreTest'
           --tests 'me.rerere.rikkahub.data.preferences.TermuxDefaultsTest'

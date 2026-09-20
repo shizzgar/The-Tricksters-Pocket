@@ -158,7 +158,7 @@ object HardlineCommandGuard {
      */
     fun checkToolParsed(toolName: String, input: JsonObject): String? {
         return when {
-            toolName == "termux_run_command" -> {
+            toolName in setOf("termux_run_command", "termux_job_start") -> {
                 val cmd = input["command"]?.jsonPrimitive?.contentOrNull
                 checkCommand(cmd)?.let { return it }
                 val exe = input["executable"]?.jsonPrimitive?.contentOrNull

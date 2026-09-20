@@ -1303,8 +1303,12 @@ class ChatService(
 
             val startedAt = System.currentTimeMillis()
             val output = try {
-                withTimeoutOrNull(60_000L) { tool.execute(toolPart.inputAsJson()) }
-                    ?: return RerunToolResult.Failure("timed out after 60s")
+                if (toolPart.toolName.startsWith("termux_")) {
+                    tool.execute(toolPart.inputAsJson())
+                } else {
+                    withTimeoutOrNull(60_000L) { tool.execute(toolPart.inputAsJson()) }
+                        ?: return RerunToolResult.Failure("timed out after 60s; execution outcome is unknown")
+                }
             } catch (c: CancellationException) {
                 throw c
             } catch (t: Throwable) {
@@ -2588,16 +2592,19 @@ class ChatService(
         val rawContextRetentionReport = ContextCompactionPlanner.rawContextRetentionReport(
             conversation.currentMessages.drop(rawTailStartIndex)
         )
-        // Reserve roughly one third of the configured target for a deterministic ledger of
-        // completed tool results. This remains in the request even if the model's prose summary
-        // ignores a tool record.
+        // Rebuild deterministic evidence from originals, never from an already truncated digest.
+        val originalPrefix = conversation.currentMessages.take(rawTailStartIndex)
         val toolDigest = ContextCompactionPlanner.mandatoryToolExecutionDigest(
-            messages = messagesToCompress,
-            maxTokens = (targetTokens / 3).coerceAtLeast(1),
+            messages = originalPrefix,
+            maxTokens = (targetTokens / 4).coerceAtLeast(1),
         )
-        // The deterministic tool digest is appended after the model response. It does not
-        // consume the model's output budget, so keep the configured prose target intact.
-        val modelSummaryTargetTokens = targetTokens.coerceAtLeast(1)
+        val userRequests = me.rerere.rikkahub.data.ai.CompactionEvidence.recentUserRequests(
+            originalPrefix, (targetTokens / 6).coerceAtMost(1600),
+        )
+        val fixedContext = listOf(toolDigest, userRequests, rawContextRetentionReport)
+            .filter { it.isNotBlank() }.joinToString("\n\n")
+        val modelSummaryTargetTokens = (targetTokens -
+            ContextCompactionPlanner.estimateTokens(fixedContext) - 128).coerceAtLeast(256)
 
         val compactionOperationId = Uuid.random()
         val compactionPart = java.util.concurrent.atomic.AtomicInteger()
@@ -2649,6 +2656,9 @@ class ChatService(
                 )
             }
 
+            check(result.finishReason !in setOf("length", "max_tokens", "content_filter")) {
+                "Compaction answer was cut off (${result.finishReason}); original context has been preserved"
+            }
             return result.message.toText().trim()
                 .takeIf { it.isNotBlank() }
                 ?: throw IllegalStateException("Failed to generate compressed summary")
@@ -2724,22 +2734,22 @@ class ChatService(
             )
             val summaries = compressGroups(sourceGroups, passTargetTokens)
             val combinedSummary = summaries.joinToString("\n\n")
-            if (
-                summaries.size == 1 ||
-                ContextCompactionPlanner.estimateTokens(combinedSummary) <= mapInputBudgetTokens
+            if (summaries.size == 1 &&
+                ContextCompactionPlanner.estimateTokens(combinedSummary) <= modelSummaryTargetTokens
             ) {
-                // Preserve group order. For the common two-group case this is the final result,
-                // so no extra reduce request is needed.
                 finalSummary = combinedSummary
                 continue
             }
+            // Even two map summaries that fit the input window require a reduce pass: a plain
+            // concatenation retains contradictory interim diagnoses and duplicate next steps.
+            // An over-budget final answer is re-summarized, never cut in the middle of evidence.
 
             sourceGroups = ContextCompactionPlanner.partitionSources(
                 sources = summaries,
                 maxInputTokens = mapInputBudgetTokens,
             )
             reductionPasses++
-            check(reductionPasses <= 12) {
+            check(reductionPasses <= 4) {
                 "Compression model did not reduce the conversation enough to merge its summaries"
             }
         }
@@ -2757,7 +2767,8 @@ class ChatService(
         val compaction = ConversationCompaction(
             conversationId = conversation.id,
             summary = listOfNotNull(
-                finalSummary,
+                "[Summary of previous conversation]\n$finalSummary",
+                userRequests.takeIf { it.isNotBlank() },
                 toolDigest.takeIf { it.isNotBlank() },
                 rawContextRetentionReport.takeIf { it.isNotBlank() },
             )
@@ -2769,6 +2780,9 @@ class ChatService(
             sourceTokenEstimate = ContextBudgetPlanner.estimateInputTokens(messagesToCompress),
             createdAt = Instant.now(),
         )
+        check(ContextCompactionPlanner.estimateTokens(compaction.summary) <= targetTokens + 64) {
+            "Compaction exceeded the complete handoff budget; original context has been preserved"
+        }
         conversationRepo.upsertCompaction(compaction)
         compaction
     }

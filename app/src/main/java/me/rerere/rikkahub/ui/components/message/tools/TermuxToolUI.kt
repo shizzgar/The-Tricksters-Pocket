@@ -27,7 +27,8 @@ import me.rerere.rikkahub.utils.JsonInstantPretty
 
 internal val TermuxToolUIs: List<ToolUIRenderer> = listOf(
     "termux_run_command", "termux_session_start", "termux_session_send",
-    "termux_session_read", "termux_session_list", "termux_session_kill",
+    "termux_session_read", "termux_session_list", "termux_session_kill", "termux_session_manage",
+    "termux_job_start", "termux_job_read", "termux_job_wait", "termux_job_cancel", "termux_job_list", "termux_job_forget", "termux_output_read",
 ).map { TermuxToolUI(it) }
 
 private class TermuxToolUI(override val toolName: String) : ToolUIRenderer {
@@ -108,13 +109,16 @@ private class TermuxToolUI(override val toolName: String) : ToolUIRenderer {
             listOf("error", "reason", "note", "recovery").forEach { key ->
                 out?.get(key)?.let { value -> item { TerminalBlock(argumentLabel(key), displayValue(value)) } }
             }
-            listOf("stdout", "stderr", "screen").forEach { key ->
+            listOf("job_id", "operation_id", "state", "stop_reason", "output_ref", "archive_truncated", "logs_truncated", "wait_timed_out", "cancel_confirmed", "next_cursor", "has_more", "log_path", "cancel_scope").forEach { key ->
+                out?.get(key)?.let { value -> item { Field(argumentLabel(key), displayValue(value)) } }
+            }
+            listOf("stdout", "stderr", "screen", "text").forEach { key ->
                 out?.get(key)?.let { value -> item { TerminalBlock(argumentLabel(key), displayValue(value), key == "stderr") } }
             }
             out?.get("matched_wait_for")?.let { value ->
                 item { Field(stringResource(R.string.termux_preview_matched), displayValue(value)) }
             }
-            (out?.get("sessions") as? JsonArray)?.let { sessions ->
+            ((out?.get("sessions") ?: out?.get("jobs")) as? JsonArray)?.let { sessions ->
                 if (sessions.isEmpty()) item { Text(stringResource(R.string.termux_preview_no_sessions)) }
                 sessions.forEach { session -> item {
                     Surface(color = MaterialTheme.colorScheme.surfaceContainer, shape = MaterialTheme.shapes.large) {

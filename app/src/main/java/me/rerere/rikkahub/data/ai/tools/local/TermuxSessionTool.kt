@@ -2,6 +2,10 @@ package me.rerere.rikkahub.data.ai.tools.local
 
 import android.content.Context
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import java.util.concurrent.ConcurrentHashMap
+import java.security.MessageDigest
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.booleanOrNull
@@ -54,20 +58,20 @@ internal object TmuxOps {
 
     // -l sends the text literally (no tmux key-name interpretation); -- ends option parsing.
     fun sendTextArgv(session: String, text: String): Array<String> =
-        arrayOf("send-keys", "-t", session, "-l", "--", text)
+        arrayOf("send-keys", "-t", "=$session", "-l", "--", text)
 
     // Each element is a tmux key name (e.g. "C-c", "Enter", "Up", "Tab").
     fun sendKeysArgv(session: String, keys: List<String>): Array<String> =
-        (listOf("send-keys", "-t", session) + keys).toTypedArray()
+        (listOf("send-keys", "-t", "=$session") + keys).toTypedArray()
 
     fun enterArgv(session: String): Array<String> =
-        arrayOf("send-keys", "-t", session, "Enter")
+        arrayOf("send-keys", "-t", "=$session", "Enter")
 
     fun capturePaneArgv(session: String, lines: Int): Array<String> =
-        arrayOf("capture-pane", "-t", session, "-p", "-S", "-${lines.coerceAtLeast(0)}")
+        arrayOf("capture-pane", "-t", "=$session", "-p", "-S", "-${lines.coerceAtLeast(0)}")
 
     fun killArgv(session: String): Array<String> =
-        arrayOf("kill-session", "-t", session)
+        arrayOf("kill-session", "-t", "=$session")
 
     fun listArgv(): Array<String> =
         arrayOf("list-sessions", "-F", "#{session_name}\t#{session_created}\t#{session_activity}")
@@ -81,11 +85,25 @@ internal sealed interface PollResult {
     enum class Reason { SETTLED, MATCHED, TIMEOUT }
 }
 
-/** Regex match with substring fallback when the pattern is not a valid regex. */
-internal fun waitForMatches(pane: String, pattern: String): Boolean {
-    if (pattern.isEmpty()) return false
-    val rx = runCatching { Regex(pattern) }.getOrNull()
-    return if (rx != null) rx.containsMatchIn(pane) else pane.contains(pattern)
+/** Bounded matching: literal by default; explicit regex with an interruptible input. */
+internal fun waitForMatches(pane: String, pattern: String, regex: Boolean = false): Boolean {
+    if (pattern.isEmpty() || pattern.length > 512) return false
+    val text = pane.takeLast(64_000)
+    if (!regex) return text.contains(pattern)
+    val deadline = System.nanoTime() + 10_000_000L
+    class BoundedText(private val value: String) : CharSequence {
+        override val length: Int get() = value.length
+        override fun get(index: Int): Char {
+            check(System.nanoTime() < deadline) { "regex matching budget exceeded" }
+            return value[index]
+        }
+        override fun subSequence(startIndex: Int, endIndex: Int): CharSequence = BoundedText(value.substring(startIndex, endIndex))
+        override fun toString() = value
+    }
+    return try { java.util.regex.Pattern.compile(pattern).matcher(BoundedText(text)).find() }
+    catch (_: IllegalArgumentException) { false }
+    catch (_: IllegalStateException) { false }
+    catch (_: StackOverflowError) { false }
 }
 
 /**
@@ -107,7 +125,7 @@ internal fun evaluatePoll(
     for (i in samples.indices.reversed()) {
         if (samples[i].content == cur.content) stableSince = samples[i].elapsedMs else break
     }
-    if (samples.size >= 2 && cur.elapsedMs - stableSince >= settleMs) {
+    if (waitFor.isNullOrEmpty() && samples.size >= 2 && cur.elapsedMs - stableSince >= settleMs) {
         return PollResult.Done(PollResult.Reason.SETTLED, cur.content)
     }
     if (cur.elapsedMs >= timeoutMs) {
@@ -152,13 +170,16 @@ internal fun isSessionNotFound(stderr: String): Boolean {
         s.contains("no current session")
 }
 
-private suspend fun tmux(context: Context, argv: Array<String>, timeoutMs: Long = TMUX_OP_TIMEOUT_MS): CaptureResult =
-    runCommandCapture(context, "$TERMUX_BIN/tmux", argv, TERMUX_HOME, timeoutMs)
+internal suspend fun tmux(context: Context, argv: Array<String>, timeoutMs: Long = TMUX_OP_TIMEOUT_MS): CaptureResult {
+    val result = runCommandCapture(context, "$TERMUX_BIN/tmux", argv, TERMUX_HOME, timeoutMs)
+    return if (result is CaptureResult.Success && result.exitCode != 0)
+        CaptureResult.OtherError("tmux exit=${result.exitCode}: ${result.stderr.ifBlank { result.stdout }}") else result
+}
 
 /** Ensure tmux is installed; auto-install on first use. Returns null on success, an error string otherwise. */
 private suspend fun ensureTmux(context: Context): String? {
     val check = runCommandCapture(context, "$TERMUX_BIN/sh", arrayOf("-c", "command -v tmux"), TERMUX_HOME, TMUX_OP_TIMEOUT_MS)
-    if (check is CaptureResult.Success && check.stdout.isNotBlank()) return null
+    if (check is CaptureResult.Success && check.exitCode == 0 && check.stdout.isNotBlank()) return null
     // The install can run for the full INSTALL_TIMEOUT_MS (~180s). Keep the bound but surface
     // each outcome distinctly instead of silently blocking ~3 min and then reporting a generic
     // failure: a Denied means the permission path, a Timeout means the install is still going
@@ -167,7 +188,7 @@ private suspend fun ensureTmux(context: Context): String? {
     if (install is CaptureResult.Denied) return "termux_permission_denied"
     if (install is CaptureResult.Timeout) return "tmux_installing"
     val recheck = runCommandCapture(context, "$TERMUX_BIN/sh", arrayOf("-c", "command -v tmux"), TERMUX_HOME, TMUX_OP_TIMEOUT_MS)
-    return if (recheck is CaptureResult.Success && recheck.stdout.isNotBlank()) null else "tmux_install_failed"
+    return if (recheck is CaptureResult.Success && recheck.exitCode == 0 && recheck.stdout.isNotBlank()) null else "tmux_install_failed"
 }
 
 private fun resolveTimeoutMs(input: JsonElement): Long {
@@ -252,269 +273,254 @@ private fun truncateOut(s: String): String {
     }
 }
 
-private fun reasonTag(r: PollResult.Reason): String = when (r) {
-    PollResult.Reason.MATCHED -> "MATCHED"
-    PollResult.Reason.SETTLED -> "SETTLED"
-    PollResult.Reason.TIMEOUT -> "TIMEOUT"
+private val sessionLocks = ConcurrentHashMap<String, Mutex>()
+private val creationLock = Mutex()
+internal fun sessionOwner(conversationId: String): String = MessageDigest.getInstance("SHA-256")
+    .digest(conversationId.toByteArray()).joinToString("") { "%02x".format(it) }.take(24)
+
+private fun sessionErrorEnvelope(error: String, recovery: String, session: String? = null) = listOf(
+    UIMessagePart.Text(buildJsonObject {
+        put("success", false); put("error", error); put("recovery", recovery)
+        session?.let { put("session_id", it) }
+    }.toString())
+)
+
+private fun captureError(result: CaptureResult): String = when (result) {
+    is CaptureResult.OtherError -> result.message
+    CaptureResult.Timeout -> "Result wait timed out; external execution outcome is unknown. Inspect before retrying."
+    CaptureResult.Denied -> "Termux RUN_COMMAND permission denied. Check integration permissions."
+    is CaptureResult.Success -> "exit=${result.exitCode}"
 }
 
-/**
- * Poll capture-pane until settled / matched / timed out. Encodes the outcome in a
- * [CaptureResult.Success] where stdout is the screen and stderr carries the reason tag
- * (MATCHED / SETTLED / TIMEOUT). A capture failure (e.g. session gone) is returned as-is.
- */
-private suspend fun readUntilDone(
-    context: Context,
-    session: String,
-    lines: Int,
-    waitFor: String?,
-    timeoutMs: Long,
-): CaptureResult {
+private fun preflight(context: Context): List<UIMessagePart>? = when (TermuxIntegration.state(context)) {
+    TermuxIntegration.State.NOT_INSTALLED -> sessionErrorEnvelope("termux_not_installed", "Install Termux first.")
+    TermuxIntegration.State.NO_PERMISSION -> sessionErrorEnvelope("termux_permission_not_granted", "Enable Termux in Assistant → Local tools and grant RUN_COMMAND permission.")
+    TermuxIntegration.State.READY -> null
+}
+
+private suspend fun ownedSession(context: Context, session: String, owner: String?): String? {
+    if (owner == null) return "Conversation identity is required for managed terminals."
+    if (!session.matches(Regex("rk_[A-Za-z0-9_]{1,80}"))) return "Invalid managed session id."
+    val result = tmux(context, arrayOf("show-options", "-t", "=$session", "-v", "@rk_owner"))
+    if (result !is CaptureResult.Success) return captureError(result)
+    return if (result.stdout.trim() == sessionOwner(owner)) null
+        else "Session is unclaimed or belongs to another conversation. Claim an unowned legacy session explicitly with termux_session_manage."
+}
+
+private data class ScreenRead(val screen: String, val reason: String)
+private suspend fun readScreen(context: Context, session: String, lines: Int, waitFor: String?, timeoutMs: Long,
+    regex: Boolean = false, baseline: String? = null): ScreenRead {
     val start = android.os.SystemClock.elapsedRealtime()
-    val samples = ArrayList<PaneSample>()
+    var last = ""
+    var stableSince = start
+    var changedSinceBaseline = baseline == null || !waitForMatches(baseline, waitFor.orEmpty(), regex)
     while (true) {
-        val cap = tmux(context, TmuxOps.capturePaneArgv(session, lines))
-        if (cap is CaptureResult.Success) {
-            val elapsed = android.os.SystemClock.elapsedRealtime() - start
-            samples.add(PaneSample(elapsed, cap.stdout))
-            when (val d = evaluatePoll(samples, SETTLE_MS, timeoutMs, waitFor)) {
-                is PollResult.Done -> return CaptureResult.Success(d.content, reasonTag(d.reason), 0)
-                PollResult.Continue -> {}
-            }
-        } else {
-            return cap
+        val elapsed = android.os.SystemClock.elapsedRealtime() - start
+        val cap = tmux(context, TmuxOps.capturePaneArgv(session, lines.coerceIn(0, 2000)),
+            (timeoutMs - elapsed).coerceIn(1, TMUX_OP_TIMEOUT_MS))
+        if (cap !is CaptureResult.Success) throw IllegalStateException(captureError(cap))
+        val screen = takeLastUtf8Bytes(cap.stdout, 128_000)
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (screen != last) stableSince = now
+        if (!changedSinceBaseline && !waitForMatches(screen, waitFor.orEmpty(), regex)) changedSinceBaseline = true
+        val matched = !waitFor.isNullOrEmpty() && changedSinceBaseline && waitForMatches(screen, waitFor, regex)
+        val reason = when {
+            matched -> "matched"
+            waitFor.isNullOrEmpty() && now - stableSince >= SETTLE_MS -> "settled"
+            now - start >= timeoutMs -> "timeout"
+            else -> null
         }
-        if (android.os.SystemClock.elapsedRealtime() - start >= timeoutMs) {
-            return CaptureResult.Success(samples.lastOrNull()?.content.orEmpty(), "TIMEOUT", 0)
-        }
+        if (reason != null) return ScreenRead(screen, reason)
+        last = screen
         delay(POLL_INTERVAL_MS)
     }
 }
 
-private fun sessionErrorEnvelope(error: String, recovery: String) = listOf(
+private fun screenEnvelope(session: String, read: ScreenRead, inputSent: Boolean = false) = listOf(
     UIMessagePart.Text(buildJsonObject {
-        put("error", error); put("recovery", recovery)
+        put("success", true); put("session_id", session); put("screen", truncateOut(read.screen))
+        put("stop_reason", read.reason); put("matched_wait_for", read.reason == "matched")
+        put("timed_out", read.reason == "timeout"); put("input_sent", inputSent)
+        put("command_completed", false)
+        put("note", "Screen observation only; a match may be terminal echo. Use managed jobs for verified command completion.")
     }.toString())
 )
 
-private fun preflight(context: Context): List<UIMessagePart>? =
-    when (TermuxIntegration.state(context)) {
-        TermuxIntegration.State.NOT_INSTALLED -> sessionErrorEnvelope(
-            "termux_not_installed",
-            "Install Termux from https://github.com/termux/termux-app/releases ."
-        )
-        TermuxIntegration.State.NO_PERMISSION -> sessionErrorEnvelope(
-            "termux_permission_not_granted",
-            "Toggle Termux on in Assistant -> Local tools, or run: adb shell pm grant ${context.packageName} com.termux.permission.RUN_COMMAND"
-        )
-        TermuxIntegration.State.READY -> null
-    }
+private fun JsonElement.string(key: String) = jsonObject[key]?.jsonPrimitive?.contentOrNull
+private fun JsonElement.flag(key: String, default: Boolean = false) = jsonObject[key]?.jsonPrimitive?.booleanOrNull ?: default
+private fun JsonElement.number(key: String, default: Int) = jsonObject[key]?.jsonPrimitive?.intOrNull ?: default
+private fun field(type: String, description: String) = buildJsonObject { put("type", type); put("description", description) }
+private fun waitFields() = mapOf(
+    "wait_for" to field("string", "Expected literal text; wait until matched or timed out, not until screen is quiet."),
+    "wait_for_regex" to field("boolean", "Explicit bounded regular expression mode. Default false."),
+    "match_existing" to field("boolean", "Allow existing screen text to satisfy wait_for; send defaults false, read true."),
+    "timeout_seconds" to field("integer", "Observation timeout, default 20, maximum 600 seconds. Does not stop the process."),
+)
 
-private suspend fun sessionNotFoundEnvelope(context: Context, session: String): List<UIMessagePart> {
-    val live = (tmux(context, TmuxOps.listArgv()) as? CaptureResult.Success)?.let { parseSessions(it.stdout) } ?: emptyList()
-    return sessionErrorEnvelope(
-        "session_not_found",
-        "Session '$session' is gone (killed or device rebooted). Live sessions: ${live.joinToString { it.name }.ifEmpty { "none" }}. Start a new one with termux_session_start."
-    )
-}
-
-fun termuxSessionStartTool(context: Context): Tool = Tool(
+fun termuxSessionStartTool(context: Context, owner: String? = null): Tool = Tool(
     name = "termux_session_start",
-    description = "Open a persistent, interactive Termux terminal session (tmux-backed, real pty). Use for ssh into a saved host, anything that prompts for a password/sudo, REPLs, or stateful shells. Returns a session_id; drive it with termux_session_send / termux_session_read. Auto-installs tmux on first use.",
-    parameters = {
-        InputSchema.Obj(properties = buildJsonObject {
-            put("name", buildJsonObject { put("type", "string"); put("description", "Optional friendly label for the session.") })
-            put("command", buildJsonObject { put("type", "string"); put("description", "Optional initial command line to run, e.g. 'ssh myhost'.") })
-            put("cols", buildJsonObject { put("type", "integer"); put("description", "Terminal width (default $DEFAULT_COLS).") })
-            put("rows", buildJsonObject { put("type", "integer"); put("description", "Terminal height (default $DEFAULT_ROWS).") })
-        })
+    description = "Create a persistent PTY owned by this conversation. Returns session_id even if reading fails. Sessions are never killed for being quiet. Use jobs for batch work; terminals for interactive programs.",
+    parameters = { InputSchema.Obj(properties = buildJsonObject {
+        put("name", field("string", "Friendly purpose/label")); put("command", field("string", "Optional initial command"))
+        put("cols", field("integer", "Width, 40–400; default 120")); put("rows", field("integer", "Height, 10–200; default 50"))
+        put("pinned", field("boolean", "Mark a long-lived service terminal; default true"))
+    }) },
+    execute = execute@{ input ->
+        preflight(context)?.let { return@execute it }
+        if (owner == null) return@execute sessionErrorEnvelope("missing_context", "Conversation identity is required.")
+        val initial = input.string("command")
+        initial?.let { HardlineCommandGuard.checkCommand(it) }?.let { return@execute sessionErrorEnvelope("blocked_by_safety_floor", it) }
+        ensureTmux(context)?.let { return@execute sessionErrorEnvelope(it, "Check tmux installation in Termux; a timeout does not prove installation failed.") }
+        creationLock.withLock {
+            val listed = tmux(context, TmuxOps.listArgv())
+            if (listed !is CaptureResult.Success && !(listed is CaptureResult.OtherError && listed.message.contains("no server running")))
+                return@withLock sessionErrorEnvelope("list_failed", captureError(listed))
+            val live = (listed as? CaptureResult.Success)?.let { parseSessions(it.stdout) }.orEmpty()
+            if (live.size >= MAX_SESSIONS) return@withLock sessionErrorEnvelope("too_many_sessions", "Limit $MAX_SESSIONS; explicitly close an owned session. No idle sessions were killed.")
+            val name = TmuxOps.sessionName(input.string("name"))
+            val started = tmux(context, TmuxOps.startArgv(name, input.number("cols", 120).coerceIn(40, 400), input.number("rows", 50).coerceIn(10, 200)))
+            if (started !is CaptureResult.Success) return@withLock sessionErrorEnvelope("session_start_unknown", captureError(started), name)
+            val claimed = tmux(context, arrayOf("set-option", "-t", "=$name", "@rk_owner", sessionOwner(owner)))
+            if (claimed !is CaptureResult.Success) return@withLock sessionErrorEnvelope("claim_failed", captureError(claimed), name)
+            tmux(context, arrayOf("set-option", "-t", "=$name", "@rk_pinned", input.flag("pinned", true).toString()))
+            if (!initial.isNullOrBlank()) {
+                // One tmux command chain: failed text delivery must never be followed by Enter.
+                val sent = tmux(context, TmuxOps.sendTextArgv(name, initial) + arrayOf(";") + TmuxOps.enterArgv(name))
+                if (sent !is CaptureResult.Success) return@withLock sessionErrorEnvelope("initial_input_unknown", captureError(sent) + " Session exists; inspect it before retrying input.", name)
+            }
+            try { screenEnvelope(name, readScreen(context, name, DEFAULT_READ_LINES, null, 3000), !initial.isNullOrBlank()) }
+            catch (c: kotlinx.coroutines.CancellationException) { throw c }
+            catch (e: IllegalStateException) { sessionErrorEnvelope("initial_read_failed", "Session was created. Read it instead of starting another: ${e.message}", name) }
+        }
     },
-    execute = { input ->
-        preflight(context)?.let { return@Tool it }
-        ensureTmux(context)?.let { err ->
-            val recovery = if (err == "tmux_installing") {
-                "tmux is still installing (download in progress). Wait a moment and call termux_session_start again."
-            } else {
-                "tmux could not be installed. Open Termux, run 'pkg install tmux', and retry."
-            }
-            return@Tool sessionErrorEnvelope(err, recovery)
-        }
-        var live = (tmux(context, TmuxOps.listArgv()) as? CaptureResult.Success)?.let { parseSessions(it.stdout) } ?: emptyList()
-        // Reap idle sessions before enforcing the cap: nothing else kills forgotten sessions,
-        // so without this the MAX_SESSIONS budget fills permanently. session_activity is epoch
-        // seconds, so compare against wall-clock seconds (not SystemClock.elapsedRealtime).
-        val nowSecs = System.currentTimeMillis() / 1000
-        val stale = staleSessionsToReap(live, nowSecs, SESSION_TTL_MS)
-        if (stale.isNotEmpty()) {
-            // Only drop a stale session from the live count if its kill actually succeeded.
-            // A failed kill (tmux error, session wedged) leaves the session occupying a slot,
-            // so optimistically subtracting it would let live.size dip below the true count and
-            // transiently blow past MAX_SESSIONS. isSessionNotFound also counts as reaped: the
-            // session is already gone, which is the outcome we wanted.
-            val reaped = stale.filter { s ->
-                val killed = tmux(context, TmuxOps.killArgv(s.name))
-                killed is CaptureResult.Success ||
-                    (killed is CaptureResult.OtherError && isSessionNotFound(killed.message))
-            }
-            live = live - reaped.toSet()
-        }
-        if (live.size >= MAX_SESSIONS) {
-            return@Tool sessionErrorEnvelope("too_many_sessions", "Max $MAX_SESSIONS sessions. Kill one with termux_session_kill first. Live: ${live.joinToString { it.name }}")
-        }
-        val name = TmuxOps.sessionName(input.jsonObject["name"]?.jsonPrimitive?.contentOrNull)
-        val cols = input.jsonObject["cols"]?.jsonPrimitive?.intOrNull ?: DEFAULT_COLS
-        val rows = input.jsonObject["rows"]?.jsonPrimitive?.intOrNull ?: DEFAULT_ROWS
-        val started = tmux(context, TmuxOps.startArgv(name, cols, rows))
-        if (started !is CaptureResult.Success) {
-            return@Tool sessionErrorEnvelope("session_start_failed", "tmux new-session failed.")
-        }
-        val initial = input.jsonObject["command"]?.jsonPrimitive?.contentOrNull
-        if (!initial.isNullOrBlank()) {
-            HardlineCommandGuard.checkCommand(initial)?.let {
-                return@Tool sessionErrorEnvelope("blocked_by_safety_floor", it)
-            }
-            tmux(context, TmuxOps.sendTextArgv(name, initial))
-            tmux(context, TmuxOps.enterArgv(name))
-        }
-        // The session is already created at this point, so a failed screen read (Timeout/
-        // Denied/OtherError from readUntilDone) must not crash or report start failure —
-        // the model would retry the start and hit too_many_sessions.
-        val read = readUntilDone(context, name, DEFAULT_READ_LINES, null, DEFAULT_TIMEOUT_S * 1000L) as? CaptureResult.Success
-        listOf(UIMessagePart.Text(buildJsonObject {
-            put("success", true); put("session_id", name)
-            put("screen", read?.let { truncateOut(it.stdout) } ?: "")
-            if (read == null) put("note", "Session created, but the initial screen read failed. Use termux_session_read to see the screen.")
-        }.toString()))
-    }
 )
 
-fun termuxSessionSendTool(context: Context): Tool = Tool(
+fun termuxSessionSendTool(context: Context, owner: String? = null): Tool = Tool(
     name = "termux_session_send",
-    description = "Type input into a session and read what comes back. Set enter=false to type without a newline (e.g. answering a prompt). Use keys for control keys (tmux names: 'C-c', 'Enter', 'Up', 'Tab'). Pass wait_for (substring/regex) to return as soon as expected text appears (e.g. 'password:'). Returns the screen, matched_wait_for, timed_out.",
-    parameters = {
-        InputSchema.Obj(properties = buildJsonObject {
-            put("session_id", buildJsonObject { put("type", "string"); put("description", "Session id from termux_session_start.") })
-            put("input", buildJsonObject { put("type", "string"); put("description", "Text to type. Optional if keys is given.") })
-            put("enter", buildJsonObject { put("type", "boolean"); put("description", "Press Enter after input. Default true.") })
-            put("keys", buildJsonObject { put("type", "array"); put("description", "tmux key names to send (e.g. ['C-c']).") ; put("items", buildJsonObject { put("type", "string") }) })
-            put("wait_for", buildJsonObject { put("type", "string"); put("description", "Return as soon as this substring/regex appears on screen.") })
-            put("timeout_seconds", buildJsonObject { put("type", "integer"); put("description", "Default $DEFAULT_TIMEOUT_S, max $MAX_TIMEOUT_S.") })
-        })
+    description = "Send literal input/control keys to this conversation's PTY, serialized per session. Read failure does not mean input failed. wait_for waits until a match or deadline. A screen match is not process completion.",
+    parameters = { InputSchema.Obj(properties = buildJsonObject {
+        put("session_id", field("string", "Exact managed session ID")); put("input", field("string", "Literal text"))
+        put("enter", field("boolean", "Send Enter; default true (set false for control keys only)"))
+        put("keys", buildJsonObject { put("type", "array"); put("items", field("string", "tmux key name")) })
+        waitFields().forEach { (k,v) -> put(k,v) }
+    }, required = listOf("session_id")) },
+    execute = execute@{ input ->
+        preflight(context)?.let { return@execute it }
+        val session = input.string("session_id").orEmpty()
+        val text = input.string("input").orEmpty()
+        HardlineCommandGuard.checkCommand(text)?.let { return@execute sessionErrorEnvelope("blocked_by_safety_floor", it) }
+        sessionLocks.getOrPut(session) { Mutex() }.withLock {
+            ownedSession(context, session, owner)?.let { return@withLock sessionErrorEnvelope("session_access_denied", it, session) }
+            val wait = input.string("wait_for")
+            val baseline = if (!wait.isNullOrEmpty() && !input.flag("match_existing")) {
+                val cap = tmux(context, TmuxOps.capturePaneArgv(session, DEFAULT_READ_LINES))
+                if (cap !is CaptureResult.Success) return@withLock sessionErrorEnvelope("read_failed_before_send", captureError(cap), session)
+                cap.stdout
+            } else null
+            val operations = mutableListOf<Array<String>>()
+            if (text.isNotEmpty()) operations += TmuxOps.sendTextArgv(session, text)
+            val keys = input.jsonObject["keys"]?.jsonArray?.map { it.jsonPrimitive.content }.orEmpty()
+            if (keys.any { !it.matches(Regex("[A-Za-z0-9+_-]{1,32}")) }) return@withLock sessionErrorEnvelope("invalid_key", "Use tmux key names such as C-c or Enter.", session)
+            if (keys.isNotEmpty()) operations += TmuxOps.sendKeysArgv(session, keys)
+            if (input.flag("enter", true)) operations += TmuxOps.enterArgv(session)
+            for (op in operations) {
+                val sent = tmux(context, op)
+                if (sent !is CaptureResult.Success) return@withLock sessionErrorEnvelope("input_outcome_unknown", captureError(sent) + " Earlier input may already have been delivered; read before resending.", session)
+            }
+            try { screenEnvelope(session, readScreen(context, session, DEFAULT_READ_LINES, wait, resolveTimeoutMs(input), input.flag("wait_for_regex"), baseline), true) }
+            catch (c: kotlinx.coroutines.CancellationException) { throw c }
+            catch (e: IllegalStateException) { sessionErrorEnvelope("read_failed_after_send", "Input was sent; do not resend. ${e.message}", session) }
+        }
     },
-    execute = { input ->
-        preflight(context)?.let { return@Tool it }
-        val session = input.jsonObject["session_id"]?.jsonPrimitive?.contentOrNull
-            ?: return@Tool sessionErrorEnvelope("missing_session_id", "Pass session_id from termux_session_start.")
-        val text = input.jsonObject["input"]?.jsonPrimitive?.contentOrNull
-        val enter = input.jsonObject["enter"]?.jsonPrimitive?.booleanOrNull ?: true
-        val keys = input.jsonObject["keys"]?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList()
-        val waitFor = input.jsonObject["wait_for"]?.jsonPrimitive?.contentOrNull
-        val timeoutMs = resolveTimeoutMs(input)
-        if (!text.isNullOrEmpty()) {
-            HardlineCommandGuard.checkCommand(text)?.let {
-                return@Tool sessionErrorEnvelope("blocked_by_safety_floor", it)
-            }
-            val sent = tmux(context, TmuxOps.sendTextArgv(session, text))
-            if (sent is CaptureResult.OtherError && isSessionNotFound(sent.message)) {
-                return@Tool sessionNotFoundEnvelope(context, session)
-            }
-        }
-        // Check the keys/enter sends for a dead session too. Previously these failures were
-        // swallowed and only surfaced indirectly by the later read, so a not-found returned a
-        // generic read_failed instead of the actionable session_not_found envelope.
-        if (keys.isNotEmpty()) {
-            val sentKeys = tmux(context, TmuxOps.sendKeysArgv(session, keys))
-            if (sentKeys is CaptureResult.OtherError && isSessionNotFound(sentKeys.message)) {
-                return@Tool sessionNotFoundEnvelope(context, session)
-            }
-        }
-        if (enter) {
-            val sentEnter = tmux(context, TmuxOps.enterArgv(session))
-            if (sentEnter is CaptureResult.OtherError && isSessionNotFound(sentEnter.message)) {
-                return@Tool sessionNotFoundEnvelope(context, session)
-            }
-        }
-        val read = readUntilDone(context, session, DEFAULT_READ_LINES, waitFor, timeoutMs)
-        if (read is CaptureResult.OtherError && isSessionNotFound(read.message)) {
-            return@Tool sessionNotFoundEnvelope(context, session)
-        }
-        val r = read as? CaptureResult.Success
-            ?: return@Tool sessionErrorEnvelope("read_failed", "Input was sent, but the screen read failed. Use termux_session_read to see the result.")
-        listOf(UIMessagePart.Text(buildJsonObject {
-            put("success", true)
-            put("screen", truncateOut(r.stdout))
-            put("matched_wait_for", r.stderr == "MATCHED")
-            put("timed_out", r.stderr == "TIMEOUT")
-        }.toString()))
-    }
 )
 
-fun termuxSessionReadTool(context: Context): Tool = Tool(
-    name = "termux_session_read",
-    description = "Re-read a session's screen without sending input (e.g. check on a long-running command). Optional wait_for + timeout_seconds to wait for expected text; otherwise returns the current screen immediately. lines sets scrollback depth (default $DEFAULT_READ_LINES).",
-    parameters = {
-        InputSchema.Obj(properties = buildJsonObject {
-            put("session_id", buildJsonObject { put("type", "string"); put("description", "Session id.") })
-            put("wait_for", buildJsonObject { put("type", "string"); put("description", "Optional substring/regex to wait for.") })
-            put("timeout_seconds", buildJsonObject { put("type", "integer"); put("description", "Used only with wait_for. Default $DEFAULT_TIMEOUT_S.") })
-            put("lines", buildJsonObject { put("type", "integer"); put("description", "Scrollback lines (default $DEFAULT_READ_LINES).") })
-        })
+fun termuxSessionReadTool(context: Context, owner: String? = null): Tool = Tool(
+    name = "termux_session_read", description = "Observe this conversation's terminal without input. Wait for a literal pattern or an explicit bounded regex. Returns stop_reason and timed_out; does not claim command completion.",
+    parameters = { InputSchema.Obj(properties = buildJsonObject {
+        put("session_id", field("string", "Exact managed session ID")); put("lines", field("integer", "0–2000 scrollback lines, default 200"))
+        waitFields().forEach { (k,v) -> put(k,v) }
+    }, required = listOf("session_id")) },
+    execute = execute@{ input ->
+        preflight(context)?.let { return@execute it }
+        val session = input.string("session_id").orEmpty()
+        ownedSession(context, session, owner)?.let { return@execute sessionErrorEnvelope("session_access_denied", it, session) }
+        try {
+            val wait = input.string("wait_for")
+            val lines = input.number("lines", 200).coerceIn(0, 2000)
+            if (wait.isNullOrEmpty()) {
+                val cap = tmux(context, TmuxOps.capturePaneArgv(session, lines))
+                if (cap !is CaptureResult.Success) return@execute sessionErrorEnvelope("read_failed", captureError(cap), session)
+                screenEnvelope(session, ScreenRead(cap.stdout, "snapshot"))
+            } else {
+                val baseline = if (!input.flag("match_existing", true)) {
+                    val cap = tmux(context, TmuxOps.capturePaneArgv(session, lines))
+                    if (cap !is CaptureResult.Success) return@execute sessionErrorEnvelope("read_failed", captureError(cap), session)
+                    cap.stdout
+                } else null
+                screenEnvelope(session, readScreen(context, session, lines, wait, resolveTimeoutMs(input), input.flag("wait_for_regex"), baseline))
+            }
+        } catch (c: kotlinx.coroutines.CancellationException) { throw c }
+            catch (e: IllegalStateException) { sessionErrorEnvelope("read_failed", e.message.orEmpty(), session) }
     },
-    execute = { input ->
-        preflight(context)?.let { return@Tool it }
-        val session = input.jsonObject["session_id"]?.jsonPrimitive?.contentOrNull
-            ?: return@Tool sessionErrorEnvelope("missing_session_id", "Pass session_id from termux_session_start.")
-        val waitFor = input.jsonObject["wait_for"]?.jsonPrimitive?.contentOrNull
-        val lines = input.jsonObject["lines"]?.jsonPrimitive?.intOrNull ?: DEFAULT_READ_LINES
-        val read = if (waitFor.isNullOrEmpty()) {
-            tmux(context, TmuxOps.capturePaneArgv(session, lines))
-        } else {
-            readUntilDone(context, session, lines, waitFor, resolveTimeoutMs(input))
-        }
-        if (read is CaptureResult.OtherError && isSessionNotFound(read.message)) {
-            return@Tool sessionNotFoundEnvelope(context, session)
-        }
-        val r = read as? CaptureResult.Success
-            ?: return@Tool sessionErrorEnvelope("read_failed", "Could not read session.")
-        listOf(UIMessagePart.Text(buildJsonObject {
-            put("success", true); put("screen", truncateOut(r.stdout))
-        }.toString()))
-    }
 )
 
-fun termuxSessionKillTool(context: Context): Tool = Tool(
-    name = "termux_session_kill",
-    description = "End a Termux session opened by termux_session_start.",
-    parameters = {
-        InputSchema.Obj(properties = buildJsonObject {
-            put("session_id", buildJsonObject { put("type", "string"); put("description", "Session id to kill.") })
-        })
+fun termuxSessionKillTool(context: Context, owner: String? = null): Tool = Tool(
+    name = "termux_session_kill", description = "Close only a terminal owned by this conversation. Verifies tmux exit status; no idle cleanup.",
+    parameters = { InputSchema.Obj(properties = buildJsonObject { put("session_id", field("string", "Exact managed session ID")) }, required = listOf("session_id")) },
+    execute = execute@{ input ->
+        val session = input.string("session_id").orEmpty()
+        sessionLocks.getOrPut(session) { Mutex() }.withLock {
+            ownedSession(context, session, owner)?.let { return@withLock sessionErrorEnvelope("session_access_denied", it, session) }
+            val result = tmux(context, TmuxOps.killArgv(session))
+            if (result !is CaptureResult.Success) sessionErrorEnvelope("kill_failed", captureError(result), session)
+            else listOf(UIMessagePart.Text(buildJsonObject { put("success", true); put("killed", session) }.toString()))
+        }
     },
-    execute = { input ->
-        preflight(context)?.let { return@Tool it }
-        val session = input.jsonObject["session_id"]?.jsonPrimitive?.contentOrNull
-            ?: return@Tool sessionErrorEnvelope("missing_session_id", "Pass session_id.")
-        tmux(context, TmuxOps.killArgv(session))
-        listOf(UIMessagePart.Text(buildJsonObject { put("success", true); put("killed", session) }.toString()))
-    }
 )
 
-fun termuxSessionListTool(context: Context): Tool = Tool(
-    name = "termux_session_list",
-    description = "List live Termux sessions opened by the agent (id, name, last activity).",
+fun termuxSessionListTool(context: Context, owner: String? = null): Tool = Tool(
+    name = "termux_session_list", description = "List this conversation's terminals plus unclaimed legacy terminals. Other conversations' terminals are not exposed. Listing failure is distinct from an empty list.",
     parameters = { InputSchema.Obj(properties = buildJsonObject {}) },
-    execute = { _ ->
-        preflight(context)?.let { return@Tool it }
-        val list = (tmux(context, TmuxOps.listArgv()) as? CaptureResult.Success)?.let { parseSessions(it.stdout) } ?: emptyList()
-        listOf(UIMessagePart.Text(buildJsonObject {
-            put("success", true)
-            put("sessions", buildJsonArray {
-                list.forEach { s ->
-                    add(buildJsonObject {
-                        put("session_id", s.name); put("created", s.created); put("last_activity", s.lastActivity)
-                    })
-                }
-            })
-        }.toString()))
-    }
+    execute = execute@{ _ ->
+        preflight(context)?.let { return@execute it }
+        if (owner == null) return@execute sessionErrorEnvelope("missing_context", "Conversation identity is required.")
+        val result = tmux(context, TmuxOps.listArgv())
+        val emptyServer = result is CaptureResult.OtherError && result.message.contains("no server running")
+        if (result !is CaptureResult.Success && !emptyServer) return@execute sessionErrorEnvelope("list_failed", captureError(result))
+        val sessions = (result as? CaptureResult.Success)?.let { parseSessions(it.stdout) }.orEmpty()
+        val items = mutableListOf<JsonElement>()
+        for (s in sessions) {
+            val owned = tmux(context, arrayOf("show-options", "-t", "=${s.name}", "-qv", "@rk_owner"))
+            if (owned !is CaptureResult.Success) return@execute sessionErrorEnvelope("list_failed", captureError(owned))
+            val key = owned.stdout.trim()
+            if (key.isEmpty() || key == sessionOwner(owner)) items += buildJsonObject {
+                put("session_id", s.name); put("created", s.created); put("last_activity", s.lastActivity)
+                put("ownership", if (key.isEmpty()) "unclaimed" else "this_conversation")
+            }
+        }
+        listOf(UIMessagePart.Text(buildJsonObject { put("success", true); put("sessions", kotlinx.serialization.json.JsonArray(items)) }.toString()))
+    },
+)
+
+fun termuxSessionManageTool(context: Context, owner: String? = null): Tool = Tool(
+    name = "termux_session_manage", description = "Explicitly claim an unowned legacy rk_ terminal or change its pinned flag. Cannot take a terminal owned by another conversation. Does not send input.",
+    parameters = { InputSchema.Obj(properties = buildJsonObject {
+        put("session_id", field("string", "Managed rk_ terminal ID")); put("claim", field("boolean", "Explicitly claim an unowned terminal")); put("pinned", field("boolean", "Mark as long-lived"))
+    }, required = listOf("session_id")) },
+    execute = execute@{ input ->
+        if (owner == null) return@execute sessionErrorEnvelope("missing_context", "Conversation identity is required.")
+        val session = input.string("session_id").orEmpty()
+        if (!session.matches(Regex("rk_[A-Za-z0-9_]{1,80}"))) return@execute sessionErrorEnvelope("invalid_session", "Only rk_ managed terminals can be claimed.")
+        creationLock.withLock {
+            val current = tmux(context, arrayOf("show-options", "-t", "=$session", "-qv", "@rk_owner"))
+            if (current !is CaptureResult.Success) return@withLock sessionErrorEnvelope("session_not_found", captureError(current), session)
+            val key = current.stdout.trim()
+            if (key != sessionOwner(owner) && (key.isNotEmpty() || !input.flag("claim"))) return@withLock sessionErrorEnvelope("session_access_denied", "Only explicitly claimed unowned sessions can change ownership.", session)
+            val claimed = tmux(context, arrayOf("set-option", "-t", "=$session", "@rk_owner", sessionOwner(owner)))
+            if (claimed !is CaptureResult.Success) return@withLock sessionErrorEnvelope("claim_failed", captureError(claimed), session)
+            val pinned = tmux(context, arrayOf("set-option", "-t", "=$session", "@rk_pinned", input.flag("pinned", true).toString()))
+            if (pinned !is CaptureResult.Success) return@withLock sessionErrorEnvelope("pin_failed", captureError(pinned), session)
+            listOf(UIMessagePart.Text(buildJsonObject { put("success", true); put("session_id", session); put("ownership", "this_conversation"); put("pinned", input.flag("pinned", true)) }.toString()))
+        }
+    },
 )
