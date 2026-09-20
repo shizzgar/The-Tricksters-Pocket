@@ -35,7 +35,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.jsonObject
 import me.rerere.ai.core.MessageRole
@@ -70,6 +69,7 @@ import me.rerere.rikkahub.utils.sendNotification
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.ai.GenerationChunk
 import me.rerere.rikkahub.data.ai.GenerationLoop
+import me.rerere.rikkahub.data.ai.CompactionRuntimeLimits
 import me.rerere.rikkahub.data.ai.ContextBudgetPlanner
 import me.rerere.rikkahub.data.ai.ContextCompactionPlanner
 import me.rerere.rikkahub.data.ai.ContextCompactionPresentation
@@ -100,6 +100,7 @@ import me.rerere.rikkahub.data.event.AppEvent
 import me.rerere.rikkahub.data.event.AppEventBus
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.datastore.Settings
+import me.rerere.rikkahub.data.datastore.compactionRuntimeLimits
 import me.rerere.rikkahub.data.datastore.AutoCompactionThresholdMode
 import me.rerere.rikkahub.data.datastore.DEFAULT_AUTO_MODEL_ID
 import me.rerere.rikkahub.data.datastore.findModelById
@@ -134,10 +135,7 @@ import java.util.concurrent.atomic.AtomicLong
 import kotlin.uuid.Uuid
 
 private const val TAG = "ChatService"
-private const val COMPACTION_REQUEST_TIMEOUT_MS = 3 * 60_000L
-private const val COMPACTION_TOTAL_TIMEOUT_MS = 8 * 60_000L
 private const val COMPACTION_MAX_REQUEST_OUTPUT_TOKENS = 16_384
-private const val MAX_PARALLEL_COMPACTION_REQUESTS = 4
 private const val MAX_FULL_CONTEXT_MAP_GROUPS = 8
 /**
  * Cap the automatic-compaction raw tail at half of the trigger threshold (after reserving room
@@ -2485,6 +2483,8 @@ class ChatService(
             }
         }.also {
             releaseForegroundWork()
+        }.onFailure {
+            if (it is CancellationException) throw it
         }
     }
 
@@ -2534,7 +2534,8 @@ class ChatService(
         additionalPrompt: String,
         targetTokens: Int,
         isAuto: Boolean,
-    ): ConversationCompaction = withTimeout(COMPACTION_TOTAL_TIMEOUT_MS) {
+        runtimeLimits: CompactionRuntimeLimits = settings.compactionRuntimeLimits(),
+    ): ConversationCompaction = runtimeLimits.operation {
         require(messagesToCompress.isNotEmpty()) { "No messages selected for compression" }
         require(rawTailStartIndex in 1..conversation.messageNodes.size) {
             "Invalid compaction boundary"
@@ -2617,12 +2618,13 @@ class ChatService(
                 )
             }
 
-            val result = withTimeout(COMPACTION_REQUEST_TIMEOUT_MS) {
+            val result = runtimeLimits.request {
                 providerHandler.generateText(
                     providerSetting = provider,
                     messages = listOf(UIMessage.user(prompt)),
                     params = backgroundTextGenerationParams(model).copy(
                         maxTokens = requestedTargetTokens,
+                        requestTimeoutMillis = runtimeLimits.requestTimeoutMs,
                     ),
                 )
             }
@@ -2660,14 +2662,16 @@ class ChatService(
             "Compaction plan: model=${model.modelId}, contextLimit=" +
                 "${compressionContextLength ?: "default"}, inputBudget=$mapInputBudgetTokens, " +
                 "fullGroups=${fullSourceGroups.size}, selectedGroups=${sourceGroups.size}, " +
-                "parallelism=$MAX_PARALLEL_COMPACTION_REQUESTS, mapPreviews=$usingMapPreviews",
+                "parallelism=${runtimeLimits.parallelRequests}, " +
+                "requestTimeoutMs=${runtimeLimits.requestTimeoutMs}, " +
+                "totalTimeoutMs=${runtimeLimits.totalTimeoutMs}, mapPreviews=$usingMapPreviews",
         )
 
         suspend fun compressGroups(
             groups: List<List<String>>,
             requestedTargetTokens: Int,
         ): List<String> = groups
-            .chunked(MAX_PARALLEL_COMPACTION_REQUESTS)
+            .chunked(runtimeLimits.parallelRequests)
             .flatMap { batch ->
                 coroutineScope {
                     batch.map { group ->

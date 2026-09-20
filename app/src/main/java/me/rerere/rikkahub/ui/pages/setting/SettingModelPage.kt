@@ -179,6 +179,9 @@ private fun ModelSettingsPage(settings: Settings, vm: SettingVM, contentPadding:
             AutoCompactionSettingItem(settings = settings, vm = vm)
         }
         item {
+            CompactionRuntimeSettingItem(settings = settings, vm = vm)
+        }
+        item {
             ResponseStreamRetrySettingItem(settings = settings, vm = vm)
         }
     }

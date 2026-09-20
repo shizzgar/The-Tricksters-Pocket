@@ -12,6 +12,29 @@ import org.junit.Test
 
 class PreferencesStoreTest {
     @Test
+    fun `old backups inherit shared compaction runtime defaults`() {
+        val fullJson = JsonInstant.encodeToString(Settings())
+        val legacy = JsonObject(JsonInstant.parseToJsonElement(fullJson).jsonObject.filterKeys {
+            it !in setOf("compactionRequestTimeoutMinutes", "compactionTotalTimeoutMinutes", "compactionParallelRequests")
+        })
+        val restored = JsonInstant.decodeFromString<Settings>(legacy.toString()).compactionRuntimeLimits()
+        assertEquals(15 * 60_000L, restored.requestTimeoutMs)
+        assertEquals(60 * 60_000L, restored.totalTimeoutMs)
+        assertEquals(2, restored.parallelRequests)
+    }
+
+    @Test
+    fun `custom compaction limits survive settings backup roundtrip`() {
+        val settings = Settings(
+            compactionRequestTimeoutMinutes = 30,
+            compactionTotalTimeoutMinutes = 90,
+            compactionParallelRequests = 1,
+        )
+        val restored = JsonInstant.decodeFromString<Settings>(JsonInstant.encodeToString(settings))
+        assertEquals(settings.compactionRuntimeLimits(), restored.compactionRuntimeLimits())
+    }
+
+    @Test
     fun `compression target defaults to one percent of the active context`() {
         val settings = Settings()
 

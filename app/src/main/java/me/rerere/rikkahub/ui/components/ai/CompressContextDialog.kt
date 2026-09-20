@@ -1,5 +1,7 @@
 package me.rerere.rikkahub.ui.components.ai
 
+import android.os.SystemClock
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -26,6 +28,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.delay
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.ui.components.ui.OutlinedNumberInput
 import me.rerere.rikkahub.ui.components.ui.RabbitLoadingIndicator
@@ -41,7 +44,18 @@ fun CompressContextDialog(
     var keepRecentMessages by remember { mutableStateOf(32) }
     var currentDeferred by remember { mutableStateOf<Deferred<Result<Unit>>?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var elapsedSeconds by remember { mutableStateOf(0L) }
     val isLoading = currentDeferred?.isActive == true
+
+    LaunchedEffect(currentDeferred) {
+        elapsedSeconds = 0
+        val deferred = currentDeferred ?: return@LaunchedEffect
+        val started = SystemClock.elapsedRealtime()
+        while (deferred.isActive) {
+            delay(1_000)
+            elapsedSeconds = (SystemClock.elapsedRealtime() - started) / 1_000
+        }
+    }
 
     // Monitor compression completion. Only dismiss on success -- a failed compression used to
     // complete this coroutine "normally" (Result.failure, not a thrown exception), so the
@@ -80,7 +94,7 @@ fun CompressContextDialog(
                             modifier = Modifier.size(32.dp)
                         )
                         Spacer(modifier = Modifier.width(12.dp))
-                        Text(stringResource(R.string.chat_page_compressing))
+                        Text(stringResource(R.string.compaction_elapsed, elapsedSeconds / 60, elapsedSeconds % 60))
                     }
                 } else {
                     Text(stringResource(R.string.chat_page_compress_context_desc))

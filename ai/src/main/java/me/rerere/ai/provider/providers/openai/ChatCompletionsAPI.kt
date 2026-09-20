@@ -61,7 +61,7 @@ import me.rerere.ai.util.redactSecrets
 import me.rerere.ai.util.stringSafe
 import me.rerere.ai.util.toHeaders
 import me.rerere.common.android.Logging
-import me.rerere.common.http.await
+import me.rerere.ai.util.generateResponseBody
 import me.rerere.common.http.jsonArrayOrNull
 import me.rerere.common.http.jsonObjectOrNull
 import me.rerere.common.http.jsonPrimitiveOrNull
@@ -112,12 +112,7 @@ class ChatCompletionsAPI(
             Log.i(TAG, "generateText: ${json.encodeToString(redactSecrets(requestBody))}")
         }
 
-        val response = client.newCall(request).await()
-        if (!response.isSuccessful) {
-            throw Exception("Failed to get response: ${response.code} ${response.body.string()}")
-        }
-
-        val bodyStr = response.body.string()
+        val bodyStr = client.generateResponseBody(request, params)
         val bodyJson = json.parseToJsonElement(bodyStr).jsonObject
 
         // 从 JsonObject 中提取必要的信息

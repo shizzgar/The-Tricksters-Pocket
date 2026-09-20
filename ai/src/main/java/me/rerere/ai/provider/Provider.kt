@@ -77,6 +77,9 @@ data class TextGenerationParams(
     val customHeaders: List<CustomHeader> = emptyList(),
     val customBody: List<CustomBody> = emptyList(),
     val sessionId: String? = null,
+    /** Optional transport deadline for non-streaming HTTP generation; null keeps provider defaults.
+     * This is local execution metadata and must not be sent in the model request JSON. */
+    val requestTimeoutMillis: Long? = null,
 )
 
 @Serializable

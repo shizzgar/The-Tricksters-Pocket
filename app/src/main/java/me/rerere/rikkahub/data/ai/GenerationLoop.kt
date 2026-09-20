@@ -56,6 +56,7 @@ import me.rerere.rikkahub.data.ai.transformers.visualTransforms
 import me.rerere.rikkahub.data.ai.limits.ToolRuntimeLimits
 import me.rerere.rikkahub.data.ai.tools.buildMemoryTools
 import me.rerere.rikkahub.data.datastore.Settings
+import me.rerere.rikkahub.data.datastore.compactionRuntimeLimits
 import me.rerere.rikkahub.data.datastore.findProvider
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.AssistantMemory
@@ -311,9 +312,9 @@ private const val TAG_GH_LOOP = "GenHandlerLoop"
  */
 private const val LOOP_GUARD_REPEAT_THRESHOLD = 3
 
-// The per-turn wall-clock budget was hardcoded here (most recently 10 min). It now lives in
+// The per-turn model/tool time budget was hardcoded here (most recently 10 min). It now lives in
 // ToolRuntimeLimits.turnBudgetMs (default 10 min), user-configurable via Settings -> Termux;
-// every read site below uses that holder directly.
+// automatic compaction is accounted for separately by GenerationTurnClock.
 
 /**
  * Max number of times the loop guard can trip in a single turn before we force-end the
@@ -500,18 +501,20 @@ class GenerationLoop(
             if (newParts == msg.parts) msg else msg.copy(parts = newParts)
         }
 
-        val turnStartMs = android.os.SystemClock.elapsedRealtime()
+        val turnClock = GenerationTurnClock(settings.compactionRuntimeLimits().totalTimeoutMs) {
+            android.os.SystemClock.elapsedRealtime()
+        }
         var loopGuardTripCount = 0
 
         for (stepIndex in 0 until maxSteps) {
-            // Wall-clock cap: any single user turn that has been running longer than the
-            // budget is force-ended, regardless of whether the model wants more steps.
+            // Model/tool time has its own cap; compaction has a separately bounded,
+            // cumulative allowance so a successful long compaction can resume this turn.
             // This is the second line of defence after maxSteps; without it a model that
             // discovers many distinct tool calls (each within the loop guard) can still
             // run for hours.
-            val elapsedMs = android.os.SystemClock.elapsedRealtime() - turnStartMs
+            val elapsedMs = turnClock.activeElapsedMs()
             if (elapsedMs > ToolRuntimeLimits.turnBudgetMs) {
-                Log.w(TAG, "generateText: wall-clock cap (${ToolRuntimeLimits.turnBudgetMs}ms) hit at step #$stepIndex; force-ending turn")
+                Log.w(TAG, "generateText: model/tool time cap (${ToolRuntimeLimits.turnBudgetMs}ms) hit at step #$stepIndex; force-ending turn")
                 break
             }
             // Repeated loop-guard trips mean the model is flailing: it bumps into the
@@ -976,14 +979,14 @@ class GenerationLoop(
                                     emit(GenerationChunk.Messages(messages))
                                 }
                             }
-                            // Hard-cap individual tool execution at the remaining wall-clock
+                            // Hard-cap individual tool execution at the remaining model/tool
                             // budget so a single tool with its OWN long timeout (camera 5min,
                             // ssh_exec timeout_seconds=300) can't carry the turn past the
                             // global ${ToolRuntimeLimits.turnBudgetMs}ms cap. If the budget is
                             // already blown when we start the tool, return a structured
                             // wall-clock envelope instead of even attempting.
                             val remainingMs = ToolRuntimeLimits.turnBudgetMs -
-                                (android.os.SystemClock.elapsedRealtime() - turnStartMs)
+                                turnClock.activeElapsedMs()
                             val result = if (remainingMs <= 0L) {
                                 Log.w(TAG, "generateText: ${toolDef.name} skipped — wall-clock budget already exceeded")
                                 listOf(UIMessagePart.Text(json.encodeToString(buildJsonObject {
@@ -1077,7 +1080,7 @@ class GenerationLoop(
                 )
             )
 
-            onAfterToolExecution(messages)?.let { compactedMessages ->
+            turnClock.duringCompaction { onAfterToolExecution(messages) }?.let { compactedMessages ->
                 Log.i(TAG, "generateText: replacing request history after tool execution")
                 messages = compactedMessages
             }
