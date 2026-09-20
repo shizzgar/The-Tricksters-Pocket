@@ -9,7 +9,7 @@ import org.junit.Test
 class ScheduledProviderTest {
     private val setting = ProviderSetting.OpenAI()
     private val model = Model(modelId = "test")
-    private class FakeProvider : Provider<ProviderSetting.OpenAI> {
+    private class FakeProvider(private val reply: Boolean = false) : Provider<ProviderSetting.OpenAI> {
         var calls = 0
         var cancelled = false
         val opened = CompletableDeferred<Unit>()
@@ -22,8 +22,24 @@ class ScheduledProviderTest {
         override suspend fun streamText(providerSetting: ProviderSetting.OpenAI, messages: List<UIMessage>, params: TextGenerationParams): Flow<StreamChunk> = flow {
             calls++
             opened.complete(Unit)
+            if (reply) {
+                emit(StreamChunk.TextDelta("text", "hello"))
+                delay(100) // Longer than the first-response timer; it must now be disarmed.
+                emit(StreamChunk.TextDelta("text", " world"))
+                return@flow
+            }
             try { awaitCancellation() } finally { cancelled = true }
         }
+    }
+
+    @Test fun `successful stream preserves chunks and disarms first response deadline`() = runBlocking {
+        val fake = FakeProvider(reply = true)
+        val provider = ScheduledProvider(fake, GenerationRequestQueue()) { GenerationRuntimeSettings(parallelRequests = 1) }
+        val result = provider.streamText(setting, emptyList(), TextGenerationParams(model,
+            firstResponseTimeoutMillis = 50, requestTimeoutMillis = 5_000)).toList()
+        assertEquals(listOf(StreamChunk.TextDelta("text", "hello"), StreamChunk.TextDelta("text", " world")), result)
+        withTimeout(5_000) { provider.generateText(setting, emptyList(), TextGenerationParams(model)) }
+        assertEquals(2, fake.calls)
     }
 
     @Test fun `stream holds its slot and timed out queued background request never reaches provider`() = runBlocking {
