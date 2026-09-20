@@ -578,45 +578,49 @@ class GenerationLoop(
             if (pendingTools.isEmpty()) {
                 try {
                     onBeforeModelRequest()
-                    generateInternal(
-                        assistant = assistant,
-                        settings = settings,
-                        systemAddendum = systemAddendum,
-                        messages = messages,
-                        onUpdateMessages = {
-                            messages = it.transforms(
-                                transformers = outputTransformers,
-                                context = context,
-                                model = model,
-                                assistant = assistant,
-                                settings = settings
-                            )
-                            emit(
-                                GenerationChunk.Messages(
-                                    messages.visualTransforms(
-                                        transformers = outputTransformers,
-                                        context = context,
-                                        model = model,
-                                        assistant = assistant,
-                                        settings = settings
+                    kotlinx.coroutines.withTimeout((ToolRuntimeLimits.turnBudgetMs - turnClock.activeElapsedMs()).coerceAtLeast(1L)) {
+                        generateInternal(
+                            assistant = assistant,
+                            settings = settings,
+                            systemAddendum = systemAddendum,
+                            messages = messages,
+                            onUpdateMessages = {
+                                messages = it.transforms(
+                                    transformers = outputTransformers,
+                                    context = context,
+                                    model = model,
+                                    assistant = assistant,
+                                    settings = settings
+                                )
+                                emit(
+                                    GenerationChunk.Messages(
+                                        messages.visualTransforms(
+                                            transformers = outputTransformers,
+                                            context = context,
+                                            model = model,
+                                            assistant = assistant,
+                                            settings = settings
+                                        )
                                     )
                                 )
-                            )
-                        },
-                        transformers = inputTransformers,
-                        model = model,
-                        providerImpl = providerImpl,
-                        provider = provider,
-                        tools = toolsInternal,
-                        memories = memories ?: emptyList(),
-                        stream = assistant.streamOutput,
-                        processingStatus = processingStatus,
-                        conversationSystemPrompt = conversationSystemPrompt,
-                        conversationId = conversationId,
-                        conversationModeInjectionIds = conversationModeInjectionIds,
-                        conversationLorebookIds = conversationLorebookIds,
-                        workspaceCwd = workspaceCwd,
-                    )
+                            },
+                            transformers = inputTransformers,
+                            model = model,
+                            providerImpl = providerImpl,
+                            provider = provider,
+                            tools = toolsInternal,
+                            memories = memories ?: emptyList(),
+                            stream = assistant.streamOutput,
+                            processingStatus = processingStatus,
+                            conversationSystemPrompt = conversationSystemPrompt,
+                            conversationId = conversationId,
+                            conversationModeInjectionIds = conversationModeInjectionIds,
+                            conversationLorebookIds = conversationLorebookIds,
+                            workspaceCwd = workspaceCwd,
+                            generationPriority = if (stepIndex > 0) me.rerere.ai.provider.GenerationPriority.CONTINUATION
+                                else me.rerere.ai.provider.GenerationPriority.INTERACTIVE,
+                        )
+                    }
                 } catch (t: Throwable) {
                     // CancellationException is honoured verbatim — stopGeneration has its
                     // own cancelToolByUser path that marks tools cancelled. We only need
@@ -1146,6 +1150,7 @@ class GenerationLoop(
     }
 
     private suspend fun generateInternal(
+        generationPriority: me.rerere.ai.provider.GenerationPriority,
         assistant: Assistant,
         settings: Settings,
         systemAddendum: String? = null,
@@ -1233,6 +1238,7 @@ class GenerationLoop(
                 addAll(model.customBodies)
             },
             sessionId = conversationId?.toString(),
+            priority = generationPriority,
         )
         try {
             if (stream) {

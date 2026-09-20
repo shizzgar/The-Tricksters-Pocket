@@ -179,6 +179,7 @@ private fun ModelSettingsPage(settings: Settings, vm: SettingVM, contentPadding:
             AutoCompactionSettingItem(settings = settings, vm = vm)
         }
         item {
+            GenerationRuntimeSettingItem(settings = settings, vm = vm)
             CompactionRuntimeSettingItem(settings = settings, vm = vm)
         }
         item {

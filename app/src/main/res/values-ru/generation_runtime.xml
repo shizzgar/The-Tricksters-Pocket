@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="generation_first_response_timeout">Первый ответ модели · минуты</string>
+    <string name="generation_first_response_description">Для стриминга: время от отправки до первого события модели. Комментарии heartbeat не сбрасывают этот таймер. Полный бюджет также включает очередь приложения.</string>
+    <string name="generation_runtime_title">Генерация текста · выполнение</string>
+    <string name="generation_runtime_description">Для чата, заголовков и сжатия контекста. Не меняет таймауты инструментов. Отмена запроса в очереди предотвращает его отправку.</string>
+    <string name="generation_connect_timeout">Таймаут подключения · секунды</string>
+    <string name="generation_connect_description">Время установления соединения: 5–120 секунд.</string>
+    <string name="generation_read_timeout">Таймаут чтения / простоя SSE · минуты</string>
+    <string name="generation_read_description">Допустимое отсутствие данных при ожидании заголовков, prefill или следующих байтов. Для длинного локального контекста: 30 минут.</string>
+    <string name="generation_request_timeout">Полный бюджет запроса · минуты</string>
+    <string name="generation_request_description">Включает очередь приложения и генерацию. Для сжатия действует отдельный бюджет ниже. Бюджет всего агентского хода находится в настройках Termux.</string>
+    <string name="generation_parallel_requests">Одновременные генерации</string>
+    <string name="generation_parallel_description">Общий лимит всех текстовых провайдеров: 1–8. Для двух реплик vLLM: 2. Приоритет ожидания: продолжение, обязательное сжатие, чат, фоновые задачи, заголовки. Начатые запросы не прерываются.</string>
+</resources>

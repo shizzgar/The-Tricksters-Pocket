@@ -11,6 +11,14 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PreferencesStoreTest {
+    @Test fun `generation runtime persists without changing legacy network settings`() {
+        val legacy = JsonInstant.decodeFromString<NetworkSetting>("""{"proxyUrl":"http://proxy","enableAutoRetry":false}""")
+        assertEquals(30, legacy.generationRuntime.readTimeoutMinutes)
+        assertEquals(2, legacy.generationRuntime.parallelRequests)
+        val custom = legacy.copy(generationRuntime = legacy.generationRuntime.copy(readTimeoutMinutes = 45, parallelRequests = 1))
+        val restored = JsonInstant.decodeFromString<NetworkSetting>(JsonInstant.encodeToString(custom))
+        assertEquals(custom, restored)
+    }
     @Test
     fun `old backups inherit shared compaction runtime defaults`() {
         val fullJson = JsonInstant.encodeToString(Settings())
@@ -18,8 +26,8 @@ class PreferencesStoreTest {
             it !in setOf("compactionRequestTimeoutMinutes", "compactionTotalTimeoutMinutes", "compactionParallelRequests")
         })
         val restored = JsonInstant.decodeFromString<Settings>(legacy.toString()).compactionRuntimeLimits()
-        assertEquals(15 * 60_000L, restored.requestTimeoutMs)
-        assertEquals(60 * 60_000L, restored.totalTimeoutMs)
+        assertEquals(30 * 60_000L, restored.requestTimeoutMs)
+        assertEquals(90 * 60_000L, restored.totalTimeoutMs)
         assertEquals(2, restored.parallelRequests)
     }
 

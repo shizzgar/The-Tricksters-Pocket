@@ -10,7 +10,12 @@ import okhttp3.OkHttpClient
 /**
  * Provider管理器，负责注册和获取Provider实例
  */
-class ProviderManager(client: OkHttpClient, context: Context) {
+class ProviderManager(
+    client: OkHttpClient,
+    context: Context,
+    private val runtimeSettings: () -> GenerationRuntimeSettings = { GenerationRuntimeSettings() },
+) {
+    private val generationQueue = GenerationRequestQueue()
     // 存储已注册的Provider实例
     private val providers = mutableMapOf<String, Provider<*>>()
 
@@ -28,8 +33,8 @@ class ProviderManager(client: OkHttpClient, context: Context) {
      * @param name Provider名称
      * @param provider Provider实例
      */
-    fun registerProvider(name: String, provider: Provider<*>) {
-        providers[name] = provider
+    fun <T : ProviderSetting> registerProvider(name: String, provider: Provider<T>) {
+        providers[name] = ScheduledProvider(provider, generationQueue, runtimeSettings)
     }
 
     /**

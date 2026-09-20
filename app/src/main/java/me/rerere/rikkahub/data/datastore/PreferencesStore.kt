@@ -969,6 +969,7 @@ enum class AiLogLevel(val preferenceName: String) {
 
 @Serializable
 data class NetworkSetting(
+    val generationRuntime: me.rerere.ai.provider.GenerationRuntimeSettings = me.rerere.ai.provider.GenerationRuntimeSettings(),
     val userAgent: String = "",
     val proxyUrl: String = "",
     val proxyUsername: String = "",

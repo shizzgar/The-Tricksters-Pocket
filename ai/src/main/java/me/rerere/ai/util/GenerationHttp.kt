@@ -9,12 +9,16 @@ import java.util.concurrent.TimeUnit
 /** Derived clients share the connection pool/dispatcher and retain proxy/auth interceptors.
  * Do not change the application's singleton timeout for an unrelated chat or tool request. */
 internal fun OkHttpClient.forTextGeneration(params: TextGenerationParams): OkHttpClient {
-    val timeoutMs = params.requestTimeoutMillis ?: return this
-    require(timeoutMs in 1..Int.MAX_VALUE.toLong()) { "Invalid generation request timeout" }
-    return newBuilder()
-        .readTimeout(timeoutMs, TimeUnit.MILLISECONDS)
-        .callTimeout(timeoutMs, TimeUnit.MILLISECONDS)
-        .build()
+    if (params.requestTimeoutMillis == null && params.readTimeoutMillis == null && params.connectTimeoutMillis == null) return this
+    val builder = newBuilder().eventListenerFactory { GenerationTelemetry() }
+    fun checkTimeout(value: Long) = require(value in 1..Int.MAX_VALUE.toLong()) { "Invalid generation timeout" }
+    (params.readTimeoutMillis ?: params.requestTimeoutMillis)?.let {
+        checkTimeout(it)
+        builder.readTimeout(it, TimeUnit.MILLISECONDS)
+    }
+    params.requestTimeoutMillis?.let { checkTimeout(it); builder.callTimeout(it, TimeUnit.MILLISECONDS) }
+    params.connectTimeoutMillis?.let { checkTimeout(it); builder.connectTimeout(it, TimeUnit.MILLISECONDS) }
+    return builder.build()
 }
 
 /** Cancellation remains wired to the call until the complete response body has been read. */

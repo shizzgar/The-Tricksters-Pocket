@@ -24,8 +24,8 @@ data class CompactionRuntimeLimits(
             ?: throw CompactionTimeoutException("request", requestTimeoutMs)
 
     companion object {
-        const val DEFAULT_REQUEST_MINUTES = 15
-        const val DEFAULT_TOTAL_MINUTES = 60
+        const val DEFAULT_REQUEST_MINUTES = 30
+        const val DEFAULT_TOTAL_MINUTES = 90
         const val DEFAULT_PARALLEL_REQUESTS = 2
         const val MAX_REQUEST_MINUTES = 120
         const val MAX_TOTAL_MINUTES = 240

@@ -1,4 +1,4 @@
-name: Compaction debug APK
+name: Agent runtime debug APK
 
 on:
   workflow_dispatch:
@@ -35,7 +35,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
       - name: Run HTTP and provider tests
         run: bash ./gradlew --no-daemon --max-workers=2 :common:testDebugUnitTest :ai:testDebugUnitTest
-      - name: Run compaction and settings tests
+      - name: Run runtime, Termux presentation and settings tests
         run: >-
           bash ./gradlew --no-daemon --max-workers=2 :app:testDebugUnitTest
           --tests 'me.rerere.rikkahub.data.ai.CompactionRuntimeTest'
@@ -43,6 +43,9 @@ jobs:
           --tests 'me.rerere.rikkahub.data.ai.ContextCompaction*Test'
           --tests 'me.rerere.rikkahub.data.ai.GenerationHandlerTurnBudgetTest'
           --tests 'me.rerere.rikkahub.data.datastore.PreferencesStoreTest'
+          --tests 'me.rerere.rikkahub.ui.components.message.tools.TermuxPresentationTest'
+          --tests 'me.rerere.rikkahub.service.ChatServiceTest'
+          --tests 'me.rerere.rikkahub.service.ConversationSessionTest'
       - name: Build debug APKs
         run: bash ./gradlew --no-daemon --max-workers=2 :app:assembleDebug
       - name: Verify ARM64 APK and record provenance

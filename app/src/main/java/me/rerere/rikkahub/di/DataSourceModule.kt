@@ -323,7 +323,9 @@ val dataSourceModule = module {
         val settingsStore: me.rerere.rikkahub.data.datastore.SettingsStore = get()
         val codexRepository: CodexAccountRepository = get()
         val json: Json = get()
-        ProviderManager(client = get(), context = get()).also { pm ->
+        ProviderManager(client = get(), context = get(), runtimeSettings = {
+            settingsStore.settingsFlow.value.networkSetting.generationRuntime
+        }).also { pm ->
             pm.registerProvider(
                 "local_litert",
                 me.rerere.locallm.litert.LiteRtProvider(

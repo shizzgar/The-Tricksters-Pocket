@@ -30,6 +30,15 @@ import java.time.Instant
 import kotlin.uuid.Uuid
 
 class ChatServiceTest {
+    @Test fun `background requests carry independent routing namespaces`() {
+        val model = Model(modelId = "test")
+        val conversation = Uuid.random().toString()
+        val title = backgroundTextGenerationParams(model, sessionId = "$conversation:title:message")
+        val compaction = backgroundTextGenerationParams(model, sessionId = "$conversation:compaction:operation:1")
+        assertNotEquals(conversation, title.sessionId)
+        assertNotEquals(title.sessionId, compaction.sessionId)
+        assertEquals("$conversation:compaction:operation:1", compaction.sessionId)
+    }
     @Test
     fun `fork conversation inherits folder and workspace context`() {
         val source = Conversation(
@@ -46,7 +55,7 @@ class ChatServiceTest {
         assertEquals(source.assistantId, fork.assistantId)
         assertEquals(source.workspaceCwd, fork.workspaceCwd)
         assertEquals(source.folderId, fork.folderId)
-        assertEquals("", fork.title)
+        assertEquals("Source conversation(1)", fork.title)
         assertFalse(fork.isPinned)
     }
 

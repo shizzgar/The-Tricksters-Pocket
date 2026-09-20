@@ -185,9 +185,13 @@ private fun Throwable.isContextLimitError(): Boolean {
 internal fun backgroundTextGenerationParams(
     model: Model,
     reasoningLevel: ReasoningLevel = ReasoningLevel.OFF,
+    sessionId: String? = null,
+    priority: me.rerere.ai.provider.GenerationPriority = me.rerere.ai.provider.GenerationPriority.BACKGROUND,
 ): TextGenerationParams = TextGenerationParams(
     model = model,
     reasoningLevel = reasoningLevel,
+    sessionId = sessionId,
+    priority = priority,
     customHeaders = model.customHeaders,
     customBody = model.customBodies,
 )
@@ -314,9 +318,13 @@ internal fun isStalledTurn(succeeded: Boolean, lastMessage: UIMessage?): Boolean
 internal fun createForkConversation(
     source: Conversation,
     messageNodes: List<MessageNode>,
+    existingTitles: Set<String> = emptySet(),
 ): Conversation = Conversation(
     id = Uuid.random(),
     assistantId = source.assistantId,
+    title = generateSequence(1) { it + 1 }
+        .map { "${source.title}($it)" }
+        .first { it !in existingTitles },
     messageNodes = messageNodes,
     customSystemPrompt = source.customSystemPrompt,
     modeInjectionIds = source.modeInjectionIds,
@@ -2090,11 +2098,14 @@ class ChatService(
                                 .takeLast(4).joinToString("\n\n") { it.summaryAsText(maxLength = 500) })
                     ),
                 ),
-                params = backgroundTextGenerationParams(model, settings.fastModelReasoningLevel),
+                params = backgroundTextGenerationParams(model, settings.fastModelReasoningLevel,
+                    sessionId = "$conversationId:title:${conversation.currentMessages.lastOrNull()?.id ?: Uuid.random()}",
+                    priority = me.rerere.ai.provider.GenerationPriority.TITLE),
             )
 
             applyTitle(result.message.toText().trim().ifBlank { fallback })
         }.onFailure {
+            if (it is CancellationException) throw it
             // Title generation is auxiliary — a failure here doesn't block the chat
             // and surfaces visibly as a blank conversation title in the list. Don't
             // push it onto the user-facing error stream: when the title model 429s,
@@ -2140,7 +2151,8 @@ class ChatService(
                                 .takeLast(8).joinToString("\n\n") { it.summaryAsText(maxLength = 500) }),
                     )
                 ),
-                params = backgroundTextGenerationParams(model, settings.fastModelReasoningLevel),
+                params = backgroundTextGenerationParams(model, settings.fastModelReasoningLevel,
+                    sessionId = "$conversationId:suggestions:${conversation.currentMessages.lastOrNull()?.id ?: Uuid.random()}"),
             )
             val suggestions =
                 result.message.toText().split("\n").map { it.trim() }
@@ -2158,6 +2170,7 @@ class ChatService(
                 )
             )
         }.onFailure {
+            if (it is CancellationException) throw it
             // Suggestion generation is auxiliary — log only, don't push onto the
             // user-facing error stream (mirrors the generateTitle failure handling).
             Log.w(TAG, "generateSuggestion failed", it)
@@ -2586,6 +2599,8 @@ class ChatService(
         // consume the model's output budget, so keep the configured prose target intact.
         val modelSummaryTargetTokens = targetTokens.coerceAtLeast(1)
 
+        val compactionOperationId = Uuid.random()
+        val compactionPart = java.util.concurrent.atomic.AtomicInteger()
         suspend fun compressSources(
             sources: List<String>,
             requestedTargetTokens: Int,
@@ -2622,9 +2637,14 @@ class ChatService(
                 providerHandler.generateText(
                     providerSetting = provider,
                     messages = listOf(UIMessage.user(prompt)),
-                    params = backgroundTextGenerationParams(model).copy(
+                    params = backgroundTextGenerationParams(model,
+                        sessionId = "${conversation.id}:compaction:$compactionOperationId:${compactionPart.incrementAndGet()}",
+                        priority = if (isAuto) me.rerere.ai.provider.GenerationPriority.COMPACTION
+                            else me.rerere.ai.provider.GenerationPriority.BACKGROUND,
+                    ).copy(
                         maxTokens = requestedTargetTokens,
                         requestTimeoutMillis = runtimeLimits.requestTimeoutMs,
+                        isCompaction = true,
                     ),
                 )
             }
@@ -3229,7 +3249,11 @@ class ChatService(
                 )
             }
 
-        val forkConversation = createForkConversation(currentConversation, copiedNodes)
+        val existingTitles = conversationRepo
+            .getConversationsOfAssistant(currentConversation.assistantId)
+            .first()
+            .mapTo(mutableSetOf()) { it.title }
+        val forkConversation = createForkConversation(currentConversation, copiedNodes, existingTitles)
 
         saveConversation(forkConversation.id, forkConversation)
         return forkConversation

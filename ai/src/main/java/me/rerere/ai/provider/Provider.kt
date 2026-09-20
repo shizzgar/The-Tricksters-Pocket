@@ -80,6 +80,11 @@ data class TextGenerationParams(
     /** Optional transport deadline for non-streaming HTTP generation; null keeps provider defaults.
      * This is local execution metadata and must not be sent in the model request JSON. */
     val requestTimeoutMillis: Long? = null,
+    val readTimeoutMillis: Long? = null,
+    val connectTimeoutMillis: Long? = null,
+    val firstResponseTimeoutMillis: Long? = null,
+    val priority: GenerationPriority = GenerationPriority.INTERACTIVE,
+    val isCompaction: Boolean = false,
 )
 
 @Serializable

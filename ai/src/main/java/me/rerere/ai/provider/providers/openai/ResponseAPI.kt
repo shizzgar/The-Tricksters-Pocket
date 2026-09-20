@@ -61,6 +61,7 @@ import me.rerere.ai.util.redactSecrets
 import me.rerere.ai.util.stringSafe
 import me.rerere.ai.util.toHeaders
 import me.rerere.common.android.Logging
+import me.rerere.ai.util.forTextGeneration
 import me.rerere.ai.util.generateResponseBody
 import me.rerere.common.http.jsonObjectOrNull
 import me.rerere.common.http.jsonPrimitiveOrNull
@@ -377,7 +378,7 @@ class ResponseAPI(
             }
         }
 
-        val eventSource = EventSources.createFactory(client)
+        val eventSource = EventSources.createFactory(client.forTextGeneration(params))
             .newEventSource(request, listener)
 
         awaitClose {

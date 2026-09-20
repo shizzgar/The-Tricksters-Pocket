@@ -73,7 +73,7 @@ internal fun CompactionRuntimeSettingItem(settings: Settings, vm: SettingVM) {
 }
 
 @Composable
-private fun CompactionIntegerField(
+internal fun CompactionIntegerField(
     label: String,
     description: String,
     value: Int,
