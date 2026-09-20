@@ -28,7 +28,7 @@ class JobRuntimeTest(unittest.TestCase):
         self.temp.cleanup()
 
     def rpc(self, action, **kwargs):
-        request = dict(action=action, owner=OWNER)
+        request = dict(action=action, owner=OWNER, platform_boot_marker='android-boot-count:10')
         request.update(kwargs)
         payload = base64.b64encode(json.dumps(request).encode()).decode()
         result = subprocess.run([sys.executable, str(self.helper), payload], capture_output=True, text=True, timeout=15)
@@ -116,6 +116,15 @@ class JobRuntimeTest(unittest.TestCase):
         self.assertEqual('unknown', observed['state'])
         self.assertFalse(observed['cancel_confirmed'])
         self.assertFalse((state_path.parent / 'cancel.request').exists())
+
+    def test_platform_boot_marker_and_reboot_observation(self):
+        job = self.start('sleep 2; printf survived')
+        self.assertEqual('android-boot-count:10', job['worker']['boot_id'])
+        after_reboot = self.rpc('cancel', job_id=job['job_id'], platform_boot_marker='android-boot-count:11')
+        self.assertEqual('unknown', after_reboot['state'])
+        self.assertFalse(after_reboot['cancel_confirmed'])
+        self.assertFalse((Path(job['log_path']) / 'cancel.request').exists())
+        self.assertEqual('completed', self.finish(job)['state'])
 
 
 if __name__ == '__main__':

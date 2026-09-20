@@ -21,8 +21,12 @@ internal suspend fun termuxJobRequest(context: Context, owner: String, request: 
     val helper = "$base/runtime-$hash.py"
     val encodedSource = Base64.getEncoder().encodeToString(source)
     val payload = buildJsonObject {
-        request.forEach { (key, value) -> put(key, value) }
+        request.filterKeys { it != "platform_boot_marker" }.forEach { (key, value) -> put(key, value) }
         put("owner", sessionOwner(owner))
+        val bootCount = runCatching {
+            android.provider.Settings.Global.getInt(context.contentResolver, android.provider.Settings.Global.BOOT_COUNT, -1)
+        }.getOrDefault(-1)
+        if (bootCount >= 0) put("platform_boot_marker", "android-boot-count:$bootCount")
     }
     val encodedRequest = Base64.getEncoder().encodeToString(payload.toString().toByteArray())
     // Every interpolated value is app-owned or base64. User commands are data in the RPC.

@@ -22,6 +22,7 @@ import time
 LOG_LIMIT = 8 * 1024 * 1024
 STORE_LIMIT = 256 * 1024 * 1024
 ACTIVE = {"starting", "running", "cancelling"}
+BOOT_MARKER = None
 BASE = Path(__file__).resolve().parent / "data"
 BASH = "/data/data/com.termux/files/usr/bin/bash"
 if not Path(BASH).exists():  # Host-side contract tests use the same supervisor.
@@ -43,7 +44,19 @@ def read(path):
 
 
 def boot_id():
+    # Android can deny proc_random. The app supplies BOOT_COUNT through its platform
+    # API, not model arguments. Workers keep their launch marker; observers get the
+    # current marker so a reboot invalidates the saved process identity.
+    if BOOT_MARKER is not None:
+        return BOOT_MARKER
     return Path("/proc/sys/kernel/random/boot_id").read_text().strip()
+
+
+def set_boot_marker(value):
+    global BOOT_MARKER
+    if value is not None and not re.fullmatch(r"android-boot-count:[0-9]+", str(value)):
+        raise ValueError("invalid platform boot marker")
+    BOOT_MARKER = value
 
 
 def identity(pid):
@@ -117,6 +130,9 @@ def start(request):
             if old["fingerprint"] != fingerprint:
                 return {"success": False, "error": "operation_id_conflict", "job_id": job_id}
             return dict(status(folder), reused=True)
+        if identity(os.getpid()) is None:
+            return {"success": False, "error": "process_identity_unavailable",
+                    "recovery": "No command launched: reliable boot and process identity are required."}
         stored = sum(p.stat().st_size for p in BASE.glob("*/*/*.log"))
         active = sum(status(p.parent)["state"] in ACTIVE for p in BASE.glob("*/*/request.json"))
         if active >= 4:
@@ -124,7 +140,8 @@ def start(request):
         if stored + (active + 1) * 2 * LOG_LIMIT > STORE_LIMIT:
             return {"success": False, "error": "log_quota_exhausted", "recovery": "Remove reviewed finished jobs with termux_job_forget."}
         folder.mkdir(parents=True, mode=0o700)
-        spec = dict(spec_key, owner=owner, operation_id=operation, fingerprint=fingerprint, created_at=time.time())
+        spec = dict(spec_key, owner=owner, operation_id=operation, fingerprint=fingerprint,
+                    platform_boot_marker=BOOT_MARKER, created_at=time.time())
         atomic(folder / "request.json", spec)
         atomic(folder / "status.json", {"state": "starting", "created_at": spec["created_at"]})
         try:
@@ -145,11 +162,14 @@ def start(request):
 
 def worker(folder):
     spec = read(folder / "request.json")
+    set_boot_marker(spec.get("platform_boot_marker"))
     own = identity(os.getpid())
     state = {"state": "starting", "worker": own, "created_at": spec["created_at"], "started_at": time.time()}
     atomic(folder / "status.json", state)
     process = None
     try:
+        if own is None:
+            raise RuntimeError("process_identity_unavailable; command was not launched")
         process = subprocess.Popen([BASH, "-c", spec["command"]], cwd=spec["working_dir"],
                                    stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                    start_new_session=True)
@@ -256,6 +276,7 @@ def page(folder, request):
 
 
 def dispatch(request):
+    set_boot_marker(request.get("platform_boot_marker"))
     action = request["action"]
     owner = validate_id(request["owner"])
     if action == "start":
