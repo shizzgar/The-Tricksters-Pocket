@@ -522,6 +522,8 @@ class ChatService(
 
     fun cleanup() = runCatching {
         ProcessLifecycleOwner.get().lifecycle.removeObserver(lifecycleObserver)
+        manualCompactionJobs.values.forEach { it.cancel() }
+        manualCompactionJobs.clear()
         sessions.values.forEach { it.cleanup() }
         sessions.clear()
         sessionMutexes.clear()
@@ -595,7 +597,10 @@ class ChatService(
      * user reset it. Safe to call when no session exists — no-op.
      */
     fun dropSession(conversationId: Uuid) {
-        val session = sessions.remove(conversationId) ?: return
+        val manualCompaction = manualCompactionJobs.remove(conversationId)
+        val session = sessions.remove(conversationId)
+        manualCompaction?.cancel()
+        if (session == null) return
         session.cleanup()
         sessionMutexes.remove(conversationId)
         compactionMutexes.remove(conversationId)
@@ -2543,13 +2548,25 @@ class ChatService(
         ContextCompactionPresentation.register(operationId, coroutineContext[Job]!!)
         suspend fun publish(next: UIMessagePart.Tool) {
             event = next
-            updateConversationState(conversation.id) { current ->
-                ContextCompactionPresentation.attachToMessage(
+            // Use the captured session. A reset/deletion must not resurrect it through
+            // getOrCreateSession while cancellation writes its final UI state.
+            session.state.update { current ->
+                if (sessions[conversation.id] !== session) current else ContextCompactionPresentation.attachToMessage(
                     if (current.messageNodes.isEmpty()) conversation else current, messageId, next,
                 )
             }
-            markStreamingPersistence(conversation.id)
-            persistStreamingStateNow(conversation.id)
+            if (sessions[conversation.id] !== session) return
+            try {
+                persistenceMutexFor(conversation.id).withLock {
+                    if (sessions[conversation.id] === session) {
+                        persistConversationSnapshot(conversation.id, session.state.value, updateSearchIndex = false)
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not persist compression event", e)
+            }
         }
         try {
             publish(event)

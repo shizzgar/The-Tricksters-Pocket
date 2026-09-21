@@ -13,6 +13,23 @@ import java.time.Instant
 import kotlin.uuid.Uuid
 
 class ContextCompactionPresentationTest {
+    @Test fun `cancel button targets its own operation only`() {
+        val parent = kotlinx.coroutines.Job()
+        val operation = kotlinx.coroutines.Job(parent)
+        val other = kotlinx.coroutines.Job(parent)
+        ContextCompactionPresentation.register("operation", operation)
+        try {
+            assertTrue(ContextCompactionPresentation.canCancel("operation"))
+            ContextCompactionPresentation.cancel("operation")
+            assertTrue(operation.isCancelled)
+            assertTrue(other.isActive)
+            assertTrue(parent.isActive)
+        } finally {
+            ContextCompactionPresentation.unregister("operation")
+            parent.cancel()
+        }
+    }
+
     @Test fun `progress updates keep source valid but same-id text edits invalidate it`() {
         val message = UIMessage.assistant("Original observation")
         val conversation = Conversation(assistantId = Uuid.random(), messageNodes = listOf(MessageNode(messages = listOf(message))))

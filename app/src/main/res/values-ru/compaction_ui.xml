@@ -13,7 +13,7 @@
     <string name="compression_cancelling">Остановка…</string>
     <string name="compression_cancel_auto_note">Отмена автосжатия также остановит текущий ответ.</string>
     <string name="compression_interrupted_note">Приложение перезапустилось до записи итогового статуса. Успех или отмена запроса на сервере не подтверждены.</string>
-    <string name="compression_failed_note">Предыдущий контекст сохранён.</string>
+    <string name="compression_failed_note">Исходные сообщения сохранены.</string>
     <string name="compression_before">Исходник · ≈ токенов</string>
     <string name="compression_after">Резюме · ≈ токенов</string>
     <string name="compression_inline_tokens">≈ %1$s → %2$s токенов</string>

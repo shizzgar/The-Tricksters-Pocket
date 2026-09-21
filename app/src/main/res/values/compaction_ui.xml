@@ -13,7 +13,7 @@
     <string name="compression_cancelling">Stopping…</string>
     <string name="compression_cancel_auto_note">Stopping automatic compression also stops the current reply.</string>
     <string name="compression_interrupted_note">The app restarted before a final status was recorded. This event does not confirm success or cancellation of the remote request.</string>
-    <string name="compression_failed_note">The previous context has been preserved.</string>
+    <string name="compression_failed_note">Original messages have been preserved.</string>
     <string name="compression_before">Source · ≈ tokens</string>
     <string name="compression_after">Summary · ≈ tokens</string>
     <string name="compression_inline_tokens">≈ %1$s → %2$s tokens</string>
