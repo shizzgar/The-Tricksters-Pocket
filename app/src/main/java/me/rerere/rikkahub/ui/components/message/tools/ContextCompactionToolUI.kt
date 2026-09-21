@@ -21,7 +21,6 @@ import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.MagicWand01
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.ai.ContextCompactionPresentation
-import me.rerere.rikkahub.ui.components.richtext.MarkdownBlock
 import java.text.DateFormat
 import java.text.NumberFormat
 import java.util.Date
@@ -65,6 +64,7 @@ internal object ContextCompactionToolUI : ToolUIRenderer {
     @Composable
     override fun Preview(context: ToolUIContext, onDismissRequest: () -> Unit) {
         val details = remember(context.tool) { compressionDetails(context.tool, ContextCompactionPresentation.runtimeId) }
+        val sections = remember(details.summary) { compressionSummarySections(details.summary) }
         val elapsed = rememberElapsed(details)
         var raw by remember(context.tool.toolCallId) { mutableStateOf(false) }
         var cancelling by remember(context.tool.toolCallId) { mutableStateOf(false) }
@@ -155,26 +155,18 @@ internal object ContextCompactionToolUI : ToolUIRenderer {
                         } }) { Text(stringResource(R.string.compression_copy)) }
                     }
                 }
-                item {
-                    Surface(color = MaterialTheme.colorScheme.surfaceContainerLow, shape = MaterialTheme.shapes.large) {
-                        SelectionContainer {
-                            MarkdownBlock(
-                                content = details.summary.removePrefix("[Summary of previous conversation]\n"),
-                                modifier = Modifier.fillMaxWidth().padding(12.dp),
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                        }
-                    }
-                }
+                compressionSummaryContent(sections)
             }
             item {
                 TextButton(onClick = { raw = !raw }) {
                     Text(stringResource(if (raw) R.string.compression_hide_metadata else R.string.compression_show_metadata))
                 }
             }
-            if (raw) item {
-                SelectionContainer { Text(context.tool.input, modifier = Modifier.fillMaxWidth(), softWrap = true,
-                    style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace) }
+            if (raw) {
+                item { CompressionPlainBlock(stringResource(R.string.compression_event_metadata), context.tool.input) }
+                if (details.summary.isNotBlank()) item {
+                    CompressionPlainBlock(stringResource(R.string.compression_original_summary), details.summary)
+                }
             }
         }
     }
