@@ -13,6 +13,7 @@ import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextDirection
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
@@ -33,6 +34,30 @@ internal val TermuxToolUIs: List<ToolUIRenderer> = listOf(
 
 private class TermuxToolUI(override val toolName: String) : ToolUIRenderer {
     override fun icon(context: ToolUIContext) = HugeIcons.ComputerTerminal01
+    override fun hasSummary(context: ToolUIContext) = true
+
+    @Composable
+    private fun presentation(context: ToolUIContext) = remember(context) {
+        presentTermux(toolName, context.arguments, context.content, context.loading,
+            context.tool.executionStartedAt != null, context.tool.output.isNotEmpty(),
+            denied = context.tool.approvalState is ToolApprovalState.Denied && !context.tool.isExecuted,
+            pendingApproval = context.tool.isPending)
+    }
+
+    @Composable
+    override fun Summary(context: ToolUIContext) {
+        val view = presentation(context)
+        Text(stringResource(view.status.label()) + (view.exitCode?.let { " · " + stringResource(R.string.termux_preview_exit, it) } ?: ""),
+            style = MaterialTheme.typography.labelMedium,
+            color = if (view.status.isFailure()) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
+        view.command?.takeIf { it.isNotBlank() }?.let {
+            Text(it, modifier = Modifier.fillMaxWidth(), maxLines = 2, overflow = TextOverflow.Ellipsis, softWrap = true,
+                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, textDirection = TextDirection.Ltr))
+        }
+        if (view.outputState in setOf(TermuxOutputState.TRUNCATED, TermuxOutputState.UNAVAILABLE)) {
+            Text(stringResource(view.outputState!!.label()), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+        }
+    }
 
     @Composable
     override fun title(context: ToolUIContext): String = stringResource(when (toolName) {
@@ -41,27 +66,30 @@ private class TermuxToolUI(override val toolName: String) : ToolUIRenderer {
         "termux_session_read" -> R.string.termux_preview_read
         "termux_session_list" -> R.string.termux_preview_list
         "termux_session_kill" -> R.string.termux_preview_kill
-        else -> R.string.termux_preview_command
+        "termux_session_manage" -> R.string.termux_preview_manage
+        "termux_job_start" -> R.string.termux_preview_job_start
+        "termux_job_read" -> R.string.termux_preview_job_read
+        "termux_job_wait" -> R.string.termux_preview_job_wait
+        "termux_job_cancel" -> R.string.termux_preview_job_cancel
+        "termux_job_list" -> R.string.termux_preview_job_list
+        "termux_job_forget" -> R.string.termux_preview_job_forget
+        "termux_output_read" -> R.string.termux_preview_archive_read
+        else -> R.string.termux_preview_execute
     })
 
     @Composable
     override fun Preview(context: ToolUIContext, onDismissRequest: () -> Unit) {
-        val view = remember(context) {
-            presentTermux(toolName, context.arguments, context.content, context.loading,
-                context.tool.executionStartedAt != null, context.tool.output.isNotEmpty(),
-                denied = context.tool.approvalState is ToolApprovalState.Denied && !context.tool.isExecuted,
-                pendingApproval = context.tool.isPending)
-        }
+        val view = presentation(context)
         val out = view.output
         var raw by remember(context.tool.toolCallId) { mutableStateOf(false) }
-        val failure = view.status in listOf(TermuxStatus.FAILED, TermuxStatus.TIMEOUT, TermuxStatus.DENIED)
+        val failure = view.status.isFailure()
         val statusColor = when {
             failure -> MaterialTheme.colorScheme.errorContainer
             view.status == TermuxStatus.COMPLETED -> MaterialTheme.colorScheme.primaryContainer
             else -> MaterialTheme.colorScheme.secondaryContainer
         }
         LazyColumn(
-            modifier = Modifier.fillMaxWidth().fillMaxHeight(0.85f),
+            modifier = Modifier.fillMaxWidth().fillMaxHeight(0.85f).navigationBarsPadding(),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -83,9 +111,20 @@ private class TermuxToolUI(override val toolName: String) : ToolUIRenderer {
                         if (view.status == TermuxStatus.TIMEOUT) Text(stringResource(R.string.termux_preview_timeout_note))
                         if (view.status == TermuxStatus.DISPATCHED) Text(stringResource(R.string.termux_preview_dispatch_note))
                         if (view.status == TermuxStatus.SESSION_UPDATED) Text(stringResource(R.string.termux_preview_session_note))
+                        if (view.isJobSnapshot) Text(stringResource(R.string.termux_preview_snapshot_note), style = MaterialTheme.typography.bodySmall)
+                        if (view.waitExpired) Text(stringResource(R.string.termux_preview_wait_expired))
+                        if (view.status == TermuxStatus.JOB_TIMEOUT) Text(stringResource(R.string.termux_preview_job_timeout_note))
+                        if (view.status == TermuxStatus.CANCELLED) Text(stringResource(R.string.termux_preview_cancelled_note))
                     }
                 }
             }
+            view.outputState?.let { state -> item {
+                Surface(color = if (state in setOf(TermuxOutputState.TRUNCATED, TermuxOutputState.UNAVAILABLE))
+                    MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondaryContainer,
+                    shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(state.label()), modifier = Modifier.padding(14.dp), style = MaterialTheme.typography.bodySmall)
+                }
+            } }
             view.command?.let { command ->
                 item { TerminalBlock(stringResource(R.string.termux_preview_command), command) }
             }
@@ -106,10 +145,10 @@ private class TermuxToolUI(override val toolName: String) : ToolUIRenderer {
                     }
                 }
             }
-            listOf("error", "reason", "note", "recovery").forEach { key ->
+            listOf("error", "reason", "note", "recovery", "archive_error", "archive_reason").forEach { key ->
                 out?.get(key)?.let { value -> item { TerminalBlock(argumentLabel(key), displayValue(value)) } }
             }
-            listOf("job_id", "operation_id", "state", "stop_reason", "output_ref", "archive_truncated", "logs_truncated", "wait_timed_out", "cancel_confirmed", "next_cursor", "has_more", "log_path", "cancel_scope").forEach { key ->
+            listOf("job_id", "operation_id", "stop_reason", "output_ref", "next_cursor", "log_path").forEach { key ->
                 out?.get(key)?.let { value -> item { Field(argumentLabel(key), displayValue(value)) } }
             }
             listOf("stdout", "stderr", "screen", "text").forEach { key ->
@@ -119,12 +158,26 @@ private class TermuxToolUI(override val toolName: String) : ToolUIRenderer {
                 item { Field(stringResource(R.string.termux_preview_matched), displayValue(value)) }
             }
             ((out?.get("sessions") ?: out?.get("jobs")) as? JsonArray)?.let { sessions ->
-                if (sessions.isEmpty()) item { Text(stringResource(R.string.termux_preview_no_sessions)) }
+                val jobs = out?.get("jobs") is JsonArray
+                if (sessions.isEmpty()) item { Text(stringResource(if (jobs) R.string.termux_preview_no_jobs else R.string.termux_preview_no_sessions)) }
                 sessions.forEach { session -> item {
                     Surface(color = MaterialTheme.colorScheme.surfaceContainer, shape = MaterialTheme.shapes.large) {
                         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            (session as? JsonObject)?.forEach { (key, value) -> Field(argumentLabel(key), displayValue(value)) }
-                                ?: Text(displayValue(session))
+                            if (jobs && session is JsonObject) {
+                                val job = presentTermux("termux_job_read", JsonObject(emptyMap()), session, loading = false, started = true)
+                                Text(stringResource(job.status.label()), style = MaterialTheme.typography.titleSmall,
+                                    color = if (job.status.isFailure()) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
+                                job.command?.let { Field(stringResource(R.string.termux_preview_command_preview), it) }
+                                job.exitCode?.let { Text(stringResource(R.string.termux_preview_exit, it), style = MaterialTheme.typography.labelMedium) }
+                                Text(stringResource(R.string.termux_preview_snapshot_note), style = MaterialTheme.typography.bodySmall)
+                                job.outputState?.let { Text(stringResource(it.label()), style = MaterialTheme.typography.bodySmall) }
+                                listOf("job_id", "operation_id", "working_dir", "stop_reason", "reason", "error").forEach { key ->
+                                    session[key]?.let { Field(argumentLabel(key), displayValue(it)) }
+                                }
+                            } else {
+                                (session as? JsonObject)?.forEach { (key, value) -> Field(argumentLabel(key), displayValue(value)) }
+                                    ?: Text(displayValue(session))
+                            }
                         }
                     }
                 } }
@@ -165,6 +218,24 @@ private fun TermuxStatus.label(): Int = when (this) {
     TermuxStatus.TIMEOUT -> R.string.termux_preview_timeout
     TermuxStatus.DISPATCHED -> R.string.termux_preview_dispatched
     TermuxStatus.SESSION_UPDATED -> R.string.termux_preview_session_updated
+    TermuxStatus.STARTING -> R.string.termux_preview_starting
+    TermuxStatus.OBSERVED_RUNNING -> R.string.termux_preview_observed_running
+    TermuxStatus.CANCELLING -> R.string.termux_preview_cancelling
+    TermuxStatus.CANCELLED -> R.string.termux_preview_cancelled
+    TermuxStatus.JOB_TIMEOUT -> R.string.termux_preview_job_timeout
+    TermuxStatus.RESPONSE_RECEIVED -> R.string.termux_preview_received
+    TermuxStatus.LOGS_REMOVED -> R.string.termux_preview_logs_removed
+}
+
+private fun TermuxStatus.isFailure() = this in setOf(TermuxStatus.FAILED, TermuxStatus.TIMEOUT, TermuxStatus.DENIED, TermuxStatus.JOB_TIMEOUT)
+
+private fun TermuxOutputState.label(): Int = when (this) {
+    TermuxOutputState.ARCHIVED -> R.string.termux_preview_archived
+    TermuxOutputState.MORE_AVAILABLE -> R.string.termux_preview_more_available
+    TermuxOutputState.PREVIEW_SHORTENED -> R.string.termux_preview_shortened
+    TermuxOutputState.TRUNCATED -> R.string.termux_preview_output_lost
+    TermuxOutputState.UNAVAILABLE -> R.string.termux_preview_archive_unavailable
+    TermuxOutputState.REMOVED -> R.string.termux_preview_output_removed
 }
 
 private fun displayValue(value: JsonElement): String =
@@ -185,6 +256,18 @@ private fun argumentLabel(key: String): String = when (key) {
     "reason" -> stringResource(R.string.termux_preview_reason)
     "note" -> stringResource(R.string.termux_preview_note)
     "recovery" -> stringResource(R.string.termux_preview_recovery)
+    "job_id" -> stringResource(R.string.termux_preview_job_id)
+    "operation_id" -> stringResource(R.string.termux_preview_operation_id)
+    "output_ref" -> stringResource(R.string.termux_preview_output_ref)
+    "next_cursor" -> stringResource(R.string.termux_preview_next_cursor)
+    "has_more" -> stringResource(R.string.termux_preview_has_more)
+    "log_path" -> stringResource(R.string.termux_preview_log_path)
+    "cancel_scope" -> stringResource(R.string.termux_preview_cancel_scope)
+    "execution_timeout_seconds" -> stringResource(R.string.termux_preview_job_limit)
+    "stream" -> stringResource(R.string.termux_preview_stream)
+    "state" -> stringResource(R.string.termux_preview_state)
+    "stop_reason" -> stringResource(R.string.termux_preview_stop_reason)
+    "archive_error", "archive_reason" -> stringResource(R.string.termux_preview_archive_error)
     else -> key
 }
 
