@@ -552,7 +552,9 @@ class ChatService(
                 if (automatically && !me.rerere.rikkahub.data.ai.mayRestoreAgentTask(saved,
                     conversationCheckpoint(getConversationFlow(id).value.currentMessages),
                     settingsStore.settingsFlow.first().networkSetting.generationRuntime.resumeTasksAfterRestart)) return@launchGenerationJob
-                handleMessageComplete(id, resumed = saved)
+                handleMessageComplete(id, resumed = if (automatically) saved else saved?.copy(
+                    loopGuardTrips = 0, startedAt = System.currentTimeMillis(),
+                ))
             }
             session.setJob(job)
             job.start()
@@ -3686,7 +3688,9 @@ class ChatService(
     // 停止当前会话生成任务（不清理会话缓存）
     suspend fun stopGeneration(conversationId: Uuid) {
         // Persist Stop even when a recovery coroutine has not acquired its in-memory task yet.
-        updateAgentTask(conversationId) { if (it.status == "completed") it else it.copy(status = "cancelled", reason = GenerationStopReason.CANCELLED) }
+        runCatching {
+            updateAgentTask(conversationId) { if (it.status == "completed") it else it.copy(status = "cancelled", reason = GenerationStopReason.CANCELLED) }
+        }.onFailure { Log.w(TAG, "Could not persist Stop; cancelling the live job anyway", it) }
         // Cancel BEFORE the mutex so the cancelled coroutines can drain their own writes
         // (which may try to acquire the same mutex via their save path). Also pause the
         // message queue so nothing auto-dispatches into the conversation we're stopping.
