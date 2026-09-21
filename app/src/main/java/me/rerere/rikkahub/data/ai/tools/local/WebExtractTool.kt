@@ -28,7 +28,9 @@ fun webExtractTool(client: OkHttpClient): Tool = Tool(
         Read a web page and return its readable content with navigation, ads and boilerplate
         removed. mode: 'article' (default, main prose), 'text' (all body text), 'links',
         or 'metadata'. max_chars caps the result (default 32768); when truncated=true pass
-        next_start_index back as start_index to continue reading. Use this instead of
+        next_start_index back as start_index when present to continue reading. Each continuation
+        refetches the URL and is not a stored snapshot; body_truncated means the source exceeded
+        the 256 KiB read limit. Use this instead of
         web_fetch when you want to read a page rather than inspect its markup. Pages that
         build their content with JavaScript may return empty_extraction, use the browser
         tools for those. Returns {status, final_url, title, text, truncated,
@@ -107,14 +109,14 @@ fun webExtractTool(client: OkHttpClient): Tool = Tool(
 
         val result = withTimeoutOrNull(WEB_EXTRACT_TIMEOUT_MS) {
             try {
-                guarded.newCall(Request.Builder().url(url).get().build()).execute().use { resp ->
-                    val (raw, bodyTruncated) = readBounded(resp.body.byteStream(), WEB_FETCH_EXTRACT_CAP * 8)
+                fetchWebResponse(guarded, Request.Builder().url(url).get().build()) { resp ->
+                    val (raw, bodyTruncated) = readBounded(resp.body.byteStream(), WEB_FETCH_READ_CAP)
                     val contentType = resp.header("Content-Type")
                     buildExtractEnvelope(
                         status = resp.code,
                         ok = resp.isSuccessful,
                         finalUrl = resp.request.url.toString(),
-                        html = decodeBody(raw, raw.size, contentType),
+                        html = decodeBody(raw, minOf(raw.size, WEB_FETCH_READ_CAP), contentType),
                         contentType = contentType,
                         mode = mode,
                         maxChars = maxChars,
@@ -124,9 +126,7 @@ fun webExtractTool(client: OkHttpClient): Tool = Tool(
                     )
                 }
             } catch (e: java.io.InterruptedIOException) {
-                // OkHttp's callTimeout (set in withEgressGuard) fires this when a call, including
-                // a trickling read, runs past the advertised 30s limit; withTimeoutOrNull cannot
-                // catch this itself since the blocking execute() call has no suspension point.
+                // OkHttp's transport deadline can fire before the coroutine deadline.
                 buildJsonObject {
                     put("error", "timeout")
                     put("detail", "Request exceeded the 30s limit.")

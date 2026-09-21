@@ -35,6 +35,14 @@ class WebFetchToolTest {
     @Test fun `missing url is rejected`() {
         assertEquals("missing_url", invoke("""{}""").error())
     }
+    @Test fun `malformed shapes and unsafe pagination fail before network dispatch`() {
+        assertEquals("bad_request", invoke("[]").error())
+        assertEquals("bad_request", invoke("""{"url":{}}""").error())
+        assertEquals("bad_start_index", invoke("""{"url":"https://example.com","start_index":-1}""").error())
+        assertEquals("bad_max_chars", invoke("""{"url":"https://example.com","max_chars":0}""").error())
+        assertEquals("bad_request", invoke("""{"url":"https://example.com","headers":{"x-bad":[]}}""").error())
+        assertEquals("post_pagination_not_supported", invoke("""{"url":"https://example.com","method":"POST","start_index":1}""").error())
+    }
 
     @Test fun `blank url is rejected`() {
         assertEquals("missing_url", invoke("""{"url":"   "}""").error())

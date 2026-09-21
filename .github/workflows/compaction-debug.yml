@@ -52,6 +52,9 @@ jobs:
           --tests 'me.rerere.rikkahub.data.datastore.PreferencesStoreTest'
           --tests 'me.rerere.rikkahub.data.preferences.TermuxDefaultsTest'
           --tests 'me.rerere.rikkahub.ui.components.message.tools.TermuxPresentationTest'
+          --tests 'me.rerere.rikkahub.ui.components.message.tools.WebFetchPresentationTest'
+          --tests 'me.rerere.rikkahub.data.ai.tools.local.WebFetch*Test'
+          --tests 'me.rerere.rikkahub.data.ai.tools.local.WebExtractToolTest'
           --tests 'me.rerere.rikkahub.service.ChatServiceTest'
           --tests 'me.rerere.rikkahub.service.ConversationSessionTest'
       - name: Build debug APKs
