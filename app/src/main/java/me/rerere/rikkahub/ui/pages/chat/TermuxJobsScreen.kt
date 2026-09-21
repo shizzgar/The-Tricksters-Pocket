@@ -41,6 +41,7 @@ internal fun TermuxJobsScreen(controller: TermuxJobsController, onDismiss: () ->
                     TextButton(onClick = { if (state.selected != null) controller.read() else controller.refresh() }, enabled = !state.busy) {
                         Text(stringResource(R.string.jobs_refresh))
                     }
+                    if (state.selected != null) TextButton(onClick = onDismiss) { Text(stringResource(R.string.jobs_close)) }
                 }
                 if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
                 LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {

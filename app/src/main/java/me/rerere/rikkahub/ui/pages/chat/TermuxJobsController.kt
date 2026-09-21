@@ -101,7 +101,7 @@ internal class TermuxJobsController(
         })
         require(page.jobString("job_id") == id && page.jobString("stream") == s.stream) { "mismatched_log_response" }
         val history = when { direction > 0 -> s.previousCursors + current; direction < 0 -> s.previousCursors.dropLast(1); else -> s.previousCursors }
-        mutable.value = mutable.value.copy(page = page, selected = page, previousCursors = history, pageCheckedAt = clock(), selectedCheckedAt = clock(),
+        mutable.value = mutable.value.copy(page = page, selected = page, mutation = null, mutationAction = null, previousCursors = history, pageCheckedAt = clock(), selectedCheckedAt = clock(),
             jobs = mutable.value.jobs.map { if (it.jobString("job_id") == id) page else it })
     }
 
