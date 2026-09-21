@@ -1521,6 +1521,7 @@ class ChatService(
         var networkFailures = 0
         val cycleState = AgentTaskCycleState(task.loopGuardTrips)
         try {
+            if (autonomous) generationLoop.beginTaskUi()
             journal.append(conversationId.toString(), if (resumed == null) "task.started" else "task.resumed", buildJsonObject {
                 put("run_id", task.runId); put("autonomous", autonomous); put("recovery_enabled", task.recoverAutomatically)
             })
@@ -1569,6 +1570,7 @@ class ChatService(
             updateAgentTask(conversationId, task.runId) { it.copy(status = "paused", reason = GenerationStopReason.FAILED, detail = error.message?.take(500)) }
             throw error
         } finally {
+            if (autonomous && activeAgentTasks[conversationId]?.runId == task.runId) generationLoop.endTaskUi()
             if (activeAgentTasks[conversationId]?.runId == task.runId) sessions[conversationId]?.processingStatus?.value = null
             activeAgentTasks.computeIfPresent(conversationId) { _, record -> record.takeUnless { it.runId == task.runId } }
         }
@@ -1692,6 +1694,7 @@ class ChatService(
             generationLoop.generateText(
                 generationProgress = session.generationProgress,
                 autonomousCycle = autonomousCycle,
+                manageUiLifecycle = !autonomousCycle,
                 maxSteps = me.rerere.rikkahub.data.ai.AgentTaskPolicy.stepLimit(conversationId.toString())
                     ?: me.rerere.rikkahub.data.ai.limits.ToolRuntimeLimits.maxToolSteps,
                 cycleState = cycleState,

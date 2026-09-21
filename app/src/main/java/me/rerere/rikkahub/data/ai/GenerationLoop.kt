@@ -483,6 +483,7 @@ class GenerationLoop(
         // evaluated per call, so a settings change takes effect on the next turn.
         maxSteps: Int = ToolRuntimeLimits.maxToolSteps,
         autonomousCycle: Boolean = false,
+        manageUiLifecycle: Boolean = true,
         cycleState: AgentTaskCycleState = AgentTaskCycleState(),
         onStopped: suspend (GenerationSliceOutcome) -> Unit = {},
         shouldYieldToQueuedMessage: () -> Boolean = { false },
@@ -1176,12 +1177,10 @@ class GenerationLoop(
         .onStart {
             // Reset per-turn navigation tracking and surface the overlay so the user
             // sees that automation is happening even when the agent runs from Telegram.
-            AgentTurnTracker.reset()
-            AgentOverlay.show(context)
+            if (manageUiLifecycle) beginTaskUi()
         }
         .onCompletion {
-            AgentOverlay.hide(context)
-            handleAutoReturnAfterTurn()
+            if (manageUiLifecycle) endTaskUi()
         }
         .flowOn(Dispatchers.IO)
 
@@ -1191,6 +1190,16 @@ class GenerationLoop(
      * user is not stranded inside Chrome / Termux / etc. If the user manually switched apps
      * mid-turn, we skip the auto-return and surface a Toast explaining the safety behavior.
      */
+    fun beginTaskUi() {
+        AgentTurnTracker.reset()
+        AgentOverlay.show(context)
+    }
+
+    fun endTaskUi() {
+        AgentOverlay.hide(context)
+        handleAutoReturnAfterTurn()
+    }
+
     private fun handleAutoReturnAfterTurn() {
         if (!AgentTurnTracker.didNavigateAway()) return
         // Only auto-return when the agent actually drove the destination app via screen
