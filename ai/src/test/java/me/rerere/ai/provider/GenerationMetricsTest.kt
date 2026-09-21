@@ -1,11 +1,30 @@
 package me.rerere.ai.provider
 
+import kotlinx.coroutines.launch
 import me.rerere.ai.core.TokenUsage
 import me.rerere.ai.ui.StreamChunk
 import org.junit.Assert.*
 import org.junit.Test
 
 class GenerationMetricsTest {
+    @Test fun `old queued work is not starved by perpetual high priority continuations`() = kotlinx.coroutines.runBlocking {
+        var now = 0L
+        val queue = GenerationRequestQueue { now }
+        val opened = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val release = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val order = mutableListOf<String>()
+        val first = launch { queue.withSlot(GenerationPriority.CONTINUATION, 1) { opened.complete(Unit); release.await() } }
+        opened.await()
+        val old = launch { queue.withSlot(GenerationPriority.TITLE, 1) { order.add("old") } }
+        kotlinx.coroutines.yield()
+        now = 240_000
+        val fresh = launch { queue.withSlot(GenerationPriority.CONTINUATION, 1) { order.add("fresh") } }
+        kotlinx.coroutines.yield()
+        release.complete(Unit)
+        first.join(); old.join(); fresh.join()
+        assertEquals(listOf("old", "fresh"), order)
+    }
+
     @Test fun `queue and cold prefill do not dilute decode rate and tool time cannot change it`() {
         var now = 0L
         val tracker = GenerationProgressTracker { now }

@@ -12,8 +12,10 @@ object GenerationTrace {
     @Volatile var sink: (suspend (String, String, JsonObject) -> Unit)? = null
 
     suspend fun record(session: String?, source: String, payload: JsonObject) {
-        if (session == null) return
-        sink?.invoke(session.substringBefore(':'), source, payload)
+        val conversation = session?.substringBefore(':') ?: return
+        if (runCatching { java.util.UUID.fromString(conversation).toString() == conversation }.getOrDefault(false)) {
+            sink?.invoke(conversation, source, payload)
+        }
     }
 
     suspend fun request(id: String, messages: List<UIMessage>, params: TextGenerationParams, stream: Boolean) {

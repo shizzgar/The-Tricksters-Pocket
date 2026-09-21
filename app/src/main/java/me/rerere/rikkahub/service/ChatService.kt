@@ -510,9 +510,10 @@ class ChatService(
     private val taskMutexes = ConcurrentHashMap<Uuid, Mutex>()
     private val recoveryStarted = java.util.concurrent.atomic.AtomicBoolean(false)
 
-    private suspend fun updateAgentTask(id: Uuid, transform: (AgentTaskRecord) -> AgentTaskRecord) {
+    private suspend fun updateAgentTask(id: Uuid, expectedRunId: String? = null, transform: (AgentTaskRecord) -> AgentTaskRecord) {
         taskMutexes.getOrPut(id) { Mutex() }.withLock {
             val old = activeAgentTasks[id] ?: journal.task(id.toString()) ?: return@withLock
+            if (expectedRunId != null && old.runId != expectedRunId) return@withLock
             val updated = transform(old).copy(updatedAt = System.currentTimeMillis())
             journal.saveTask(updated)
             if (activeAgentTasks.containsKey(id)) activeAgentTasks[id] = updated
@@ -526,14 +527,14 @@ class ChatService(
             if (!settingsStore.settingsFlow.first().networkSetting.generationRuntime.resumeTasksAfterRestart) return@launch
             journal.unfinished().forEach { task ->
                 val id = runCatching { Uuid.parse(task.conversationId) }.getOrNull() ?: return@forEach
-                if (getOrCreateSession(id).getJob()?.isActive == true) return@forEach
+                if (getOrCreateSession(id).getJob() != null) return@forEach
                 ensureHydrated(id)
                 val current = getConversationFlow(id).value
                 if (task.checkpoint == null || task.checkpoint != conversationCheckpoint(current.currentMessages)) {
                     journal.saveTask(task.copy(status = "paused", reason = GenerationStopReason.PROCESS_LOST,
                         detail = "Saved conversation differs from the task checkpoint; review before resuming."))
                 } else {
-                    resumeAgentTask(id)
+                    resumeAgentTask(id, automatically = true)
                 }
             }
         }
@@ -541,13 +542,17 @@ class ChatService(
 
     suspend fun agentTaskState(id: Uuid): AgentTaskRecord? = journal.task(id.toString())
 
-    fun resumeAgentTask(id: Uuid) {
+    fun resumeAgentTask(id: Uuid, automatically: Boolean = false) {
         val session = getOrCreateSession(id)
         synchronized(session) {
-            if (session.getJob()?.isActive == true) return
+            if (session.getJob() != null) return
             val job = launchGenerationJob(id) {
                 ensureHydrated(id)
-                handleMessageComplete(id, resumed = journal.task(id.toString()))
+                val saved = journal.task(id.toString())
+                if (automatically && !me.rerere.rikkahub.data.ai.mayRestoreAgentTask(saved,
+                    conversationCheckpoint(getConversationFlow(id).value.currentMessages),
+                    settingsStore.settingsFlow.first().networkSetting.generationRuntime.resumeTasksAfterRestart)) return@launchGenerationJob
+                handleMessageComplete(id, resumed = saved)
             }
             session.setJob(job)
             job.start()
@@ -1507,18 +1512,20 @@ class ChatService(
             checkpoint = conversationCheckpoint(current.currentMessages),
             recoverAutomatically = autonomous && config.resumeTasksAfterRestart,
         )
-        activeAgentTasks[conversationId] = task
-        journal.saveTask(task)
-        journal.append(conversationId.toString(), if (resumed == null) "task.started" else "task.resumed", buildJsonObject {
-            put("run_id", task.runId); put("autonomous", autonomous); put("recovery_enabled", task.recoverAutomatically)
-        })
+        taskMutexes.getOrPut(conversationId) { Mutex() }.withLock {
+            journal.saveTask(task)
+            activeAgentTasks[conversationId] = task
+        }
         var networkFailures = 0
         val cycleState = AgentTaskCycleState(task.loopGuardTrips)
         try {
+            journal.append(conversationId.toString(), if (resumed == null) "task.started" else "task.resumed", buildJsonObject {
+                put("run_id", task.runId); put("autonomous", autonomous); put("recovery_enabled", task.recoverAutomatically)
+            })
             while (true) {
                 val latest = requireNotNull(activeAgentTasks[conversationId])
                 if (config.taskTimeoutMinutes > 0 && System.currentTimeMillis() - latest.startedAt >= config.taskTimeoutMinutes * 60_000L) {
-                    updateAgentTask(conversationId) { it.copy(status = "paused", reason = GenerationStopReason.TASK_DEADLINE) }
+                    updateAgentTask(conversationId, task.runId) { it.copy(status = "paused", reason = GenerationStopReason.TASK_DEADLINE) }
                     break
                 }
                 val before = conversationCheckpoint(getConversationFlow(conversationId).value.currentMessages)
@@ -1529,7 +1536,7 @@ class ChatService(
                 val continueTask = waitingForNetwork || shouldContinueTask(autonomous && liveConfig.autonomousContinuation, result, before != after)
                 val reason = if (autonomous && result.reason.canContinueAutomatically() && before == after)
                     GenerationStopReason.NO_PROGRESS else result.reason
-                updateAgentTask(conversationId) { it.copy(
+                updateAgentTask(conversationId, task.runId) { it.copy(
                     status = if (waitingForNetwork) "waiting_network" else if (continueTask) "running" else if (reason == GenerationStopReason.COMPLETED) "completed" else "paused",
                     reason = reason, cycles = it.cycles + 1, loopGuardTrips = cycleState.loopGuardTrips, steps = it.steps + result.steps, checkpoint = after,
                 ) }
@@ -1543,25 +1550,25 @@ class ChatService(
                     val delayMs = minOf(300_000L, 5_000L * (1L shl networkFailures.coerceAtMost(6)))
                     getOrCreateSession(conversationId).processingStatus.value = context.getString(R.string.agent_network_wait, delayMs / 1000)
                     kotlinx.coroutines.delay(delayMs)
-                    updateAgentTask(conversationId) { it.copy(status = "running") }
+                    updateAgentTask(conversationId, task.runId) { it.copy(status = "running") }
                 } else networkFailures = 0
                 // Yield fairly without adding synthetic user messages or discarding approval state.
                 kotlinx.coroutines.yield()
             }
         } catch (cancel: CancellationException) {
             withContext(NonCancellable) {
-                updateAgentTask(conversationId) { it.copy(status = if (cancel is kotlinx.coroutines.TimeoutCancellationException) "paused" else "cancelled",
+                updateAgentTask(conversationId, task.runId) { it.copy(status = if (cancel is kotlinx.coroutines.TimeoutCancellationException) "paused" else "cancelled",
                     reason = if (cancel is kotlinx.coroutines.TimeoutCancellationException) GenerationStopReason.FAILED else GenerationStopReason.CANCELLED,
                     detail = if (cancel is kotlinx.coroutines.TimeoutCancellationException) "Operation deadline exceeded" else null) }
-                journal.append(conversationId.toString(), "task.cancelled", buildJsonObject { put("run_id", task.runId) })
+                journal.append(conversationId.toString(), if (cancel is kotlinx.coroutines.TimeoutCancellationException) "task.deadline" else "task.cancelled", buildJsonObject { put("run_id", task.runId) })
             }
             throw cancel
         } catch (error: Exception) {
-            updateAgentTask(conversationId) { it.copy(status = "paused", reason = GenerationStopReason.FAILED, detail = error.message?.take(500)) }
+            updateAgentTask(conversationId, task.runId) { it.copy(status = "paused", reason = GenerationStopReason.FAILED, detail = error.message?.take(500)) }
             throw error
         } finally {
-            getOrCreateSession(conversationId).processingStatus.value = null
-            activeAgentTasks.remove(conversationId)
+            if (activeAgentTasks[conversationId]?.runId == task.runId) sessions[conversationId]?.processingStatus?.value = null
+            activeAgentTasks.computeIfPresent(conversationId) { _, record -> record.takeUnless { it.runId == task.runId } }
         }
     }
 
@@ -3678,6 +3685,8 @@ class ChatService(
 
     // 停止当前会话生成任务（不清理会话缓存）
     suspend fun stopGeneration(conversationId: Uuid) {
+        // Persist Stop even when a recovery coroutine has not acquired its in-memory task yet.
+        updateAgentTask(conversationId) { if (it.status == "completed") it else it.copy(status = "cancelled", reason = GenerationStopReason.CANCELLED) }
         // Cancel BEFORE the mutex so the cancelled coroutines can drain their own writes
         // (which may try to acquire the same mutex via their save path). Also pause the
         // message queue so nothing auto-dispatches into the conversation we're stopping.

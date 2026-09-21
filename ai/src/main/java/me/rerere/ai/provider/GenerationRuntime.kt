@@ -55,8 +55,8 @@ data class GenerationRuntimeSettings(
 /** One queue across all text providers, including title and manual/automatic compaction.
  * Non-preemptive: a higher priority request does not abort an already running generation.
  * Cancelled waiters never dispatch; cancellation racing a grant returns the slot exactly once. */
-internal class GenerationRequestQueue {
-    private class Ticket(val priority: GenerationPriority, val sequence: Long) {
+internal class GenerationRequestQueue(private val clock: () -> Long = { System.nanoTime() / 1_000_000 }) {
+    private class Ticket(val priority: GenerationPriority, val sequence: Long, val queuedAt: Long) {
         val ready = CompletableDeferred<Unit>()
         var granted = false
     }
@@ -69,7 +69,7 @@ internal class GenerationRequestQueue {
     suspend fun <T> withSlot(priority: GenerationPriority, parallelism: Int, block: suspend () -> T): T {
         val ticket = synchronized(lock) {
             limit = parallelism.coerceIn(1, 8)
-            Ticket(priority, sequence++).also { waiting.add(it); drain() }
+            Ticket(priority, sequence++, clock()).also { waiting.add(it); drain() }
         }
         try {
             ticket.ready.await()
@@ -86,7 +86,11 @@ internal class GenerationRequestQueue {
 
     private fun drain() {
         while (active < limit && waiting.isNotEmpty()) {
-            val next = waiting.minWith(compareBy<Ticket> { it.priority.ordinal }.thenBy { it.sequence })
+            // Age waiting work one rank per minute so perpetual continuations cannot starve another chat.
+            val now = clock()
+            val next = waiting.minWith(compareBy<Ticket> {
+                (it.priority.ordinal - ((now - it.queuedAt).coerceAtLeast(0) / 60_000L)).coerceAtLeast(0)
+            }.thenBy { it.sequence })
             waiting.remove(next)
             active++
             next.granted = true

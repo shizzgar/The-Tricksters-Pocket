@@ -628,6 +628,7 @@ class GenerationLoop(
             }
 
             val toolsToProcess: List<UIMessagePart.Tool>
+            var modelFinishReason: String? = null
             val textBeforeRequest = messages.lastOrNull()?.takeIf { it.role == MessageRole.ASSISTANT }?.toText().orEmpty()
 
             // Skip generation if we have approved/denied tool calls to handle
@@ -676,6 +677,7 @@ class GenerationLoop(
                             conversationLorebookIds = conversationLorebookIds,
                             workspaceCwd = workspaceCwd,
                             generationProgress = generationProgress,
+                            onModelFinish = { modelFinishReason = it },
                             generationPriority = if (stepIndex > 0) me.rerere.ai.provider.GenerationPriority.CONTINUATION
                                 else me.rerere.ai.provider.GenerationPriority.INTERACTIVE,
                         )
@@ -730,8 +732,11 @@ class GenerationLoop(
 
                 val toolCalls = messages.last().getTools().filter { !it.isExecuted }
                 if (toolCalls.isEmpty()) {
-                    stopReason = if (messages.last().toText().isNotBlank() && messages.last().toText() != textBeforeRequest)
-                        GenerationStopReason.COMPLETED else GenerationStopReason.NO_PROGRESS
+                    stopReason = when {
+                        messages.last().toText().isBlank() || messages.last().toText() == textBeforeRequest -> GenerationStopReason.NO_PROGRESS
+                        modelFinishReason?.lowercase() in setOf("length", "max_tokens", "max_output_tokens") -> GenerationStopReason.OUTPUT_LIMIT
+                        else -> GenerationStopReason.COMPLETED
+                    }
                     break
                 }
 
@@ -1134,6 +1139,9 @@ class GenerationLoop(
                 break
             }
 
+            me.rerere.ai.provider.GenerationTrace.record(conversationId?.toString(), "tool.checkpoint", buildJsonObject {
+                put("tools", json.encodeToJsonElement(kotlinx.serialization.builtins.ListSerializer(UIMessagePart.Tool.serializer()), executedTools))
+            })
             // Update last message with executed tools (NOT create TOOL message)
             val lastMessage = messages.last()
             val updatedParts = lastMessage.parts.map { part ->
@@ -1224,6 +1232,7 @@ class GenerationLoop(
     }
 
     private suspend fun generateInternal(
+        onModelFinish: (String?) -> Unit = {},
         generationPriority: me.rerere.ai.provider.GenerationPriority,
         assistant: Assistant,
         settings: Settings,
@@ -1381,6 +1390,7 @@ class GenerationLoop(
                     }
                     shouldRetry
                 }.collect {
+                    if (it is StreamChunk.Finish) onModelFinish(it.finishReason)
                     receivedAnyChunk = true
                     if (isMeaningfulStreamChunk(it)) {
                         receivedMeaningfulOutput = true
@@ -1415,6 +1425,7 @@ class GenerationLoop(
                         params = params,
                     )
                 }
+                onModelFinish(result.finishReason)
                 messages = messages.handleTextGenerationResult(result = result, model = model)
                 onUpdateMessages(messages)
             }

@@ -7,7 +7,7 @@
     <string name="runtime_cached">Cached input tokens:</string>
     <string name="runtime_speed_explanation">Speed uses provider output tokens divided by the interval from first to last content. Queue, prefill and tools are excluded. Input is the latest request; output is summed across measured requests.</string>
     <string name="runtime_no_measurements">Request timing was not recorded for this message. TPS is unavailable.</string>
-    <string name="runtime_request_count">%1$d model requests</string>
+    <string name="runtime_request_count">%1$d measured chat requests</string>
     <string name="agent_auto_continue">Continue autonomous tasks</string>
     <string name="agent_auto_description">Step and turn-time limits become checkpoints. Approvals, repeated loops, errors and Stop still pause or finish the task.</string>
     <string name="agent_restore">Recover after application restart</string>

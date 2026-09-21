@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 enum class GenerationStopReason {
-    COMPLETED, USER_MESSAGE, STEP_LIMIT, CYCLE_DEADLINE, COMPACTION_LIMIT, WAITING_APPROVAL,
+    COMPLETED, USER_MESSAGE, OUTPUT_LIMIT, STEP_LIMIT, CYCLE_DEADLINE, COMPACTION_LIMIT, WAITING_APPROVAL,
     LOOP_DETECTED, NO_PROGRESS, NETWORK_WAIT, FAILED, CANCELLED, TASK_DEADLINE, PROCESS_LOST,
 }
 
@@ -13,7 +13,7 @@ class AgentTaskCycleState(var loopGuardTrips: Int = 0)
 data class GenerationSliceOutcome(val reason: GenerationStopReason, val steps: Int = 0)
 
 fun GenerationStopReason.canContinueAutomatically() = this in setOf(
-    GenerationStopReason.STEP_LIMIT, GenerationStopReason.CYCLE_DEADLINE, GenerationStopReason.COMPACTION_LIMIT,
+    GenerationStopReason.STEP_LIMIT, GenerationStopReason.CYCLE_DEADLINE, GenerationStopReason.COMPACTION_LIMIT, GenerationStopReason.OUTPUT_LIMIT,
 )
 
 @Serializable
@@ -61,3 +61,7 @@ internal fun canWaitForNetwork(failure: Throwable, hadContent: Boolean): Boolean
             it is java.net.UnknownHostException || it is java.io.EOFException
     }
 }
+
+internal fun mayRestoreAgentTask(task: AgentTaskRecord?, checkpoint: String, enabled: Boolean): Boolean =
+    enabled && task != null && task.recoverAutomatically && task.status in setOf("running", "waiting_network") &&
+        task.checkpoint != null && task.checkpoint == checkpoint

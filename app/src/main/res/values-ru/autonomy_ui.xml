@@ -7,7 +7,7 @@
     <string name="runtime_cached">Входных токенов из кеша:</string>
     <string name="runtime_speed_explanation">Скорость: выходные токены провайдера за время от первого до последнего содержательного фрагмента. Очередь, prefill и инструменты исключены. Вход — последний запрос; выход — сумма измеренных запросов.</string>
     <string name="runtime_no_measurements">Для этого сообщения не сохранены измерения запросов. TPS недоступен.</string>
-    <string name="runtime_request_count">Запросов к модели: %1$d</string>
+    <string name="runtime_request_count">Измеренных запросов чата: %1$d</string>
     <string name="agent_auto_continue">Продолжать автономные задачи</string>
     <string name="agent_auto_description">Лимиты шагов и времени хода становятся контрольными точками. Разрешения, зацикливание, ошибки и кнопка остановки по-прежнему приостанавливают или завершают задачу.</string>
     <string name="agent_restore">Восстанавливать после перезапуска приложения</string>
