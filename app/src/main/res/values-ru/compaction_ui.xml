@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="compression_mode_manual">Ручное сжатие</string>
+    <string name="compression_mode_auto">Автосжатие</string>
+    <string name="compression_running">Идёт сжатие контекста</string>
+    <string name="compression_completed">Сжатие завершено</string>
+    <string name="compression_failed">Ошибка сжатия</string>
+    <string name="compression_cancelled">Сжатие отменено</string>
+    <string name="compression_interrupted">Завершение не подтверждено</string>
+    <string name="compression_unknown">Статус неизвестен</string>
+    <string name="compression_duration">Длительность</string>
+    <string name="compression_not_recorded">Для этого события не записывалась</string>
+    <string name="compression_cancelling">Остановка…</string>
+    <string name="compression_cancel_auto_note">Отмена автосжатия также остановит текущий ответ.</string>
+    <string name="compression_interrupted_note">Приложение перезапустилось до записи итогового статуса. Успех или отмена запроса на сервере не подтверждены.</string>
+    <string name="compression_failed_note">Предыдущий контекст сохранён.</string>
+    <string name="compression_before">Исходник · ≈ токенов</string>
+    <string name="compression_after">Резюме · ≈ токенов</string>
+    <string name="compression_inline_tokens">≈ %1$s → %2$s токенов</string>
+    <string name="compression_estimate_note">Оценки для сжатой части, а не всего диалога. Несжатый хвост учитывается отдельно.</string>
+    <string name="compression_model">Модель для резюме</string>
+    <string name="compression_started">Начало</string>
+    <string name="compression_target">Целевой объём резюме в токенах</string>
+    <string name="compression_retained">Вызовов инструментов оставлено без сжатия</string>
+    <string name="compression_budget">Лимит времени операции</string>
+    <string name="compression_history_kept">Исходные сообщения сохранены в этом диалоге.</string>
+    <string name="compression_summary">Резюме</string>
+    <string name="compression_copy">Копировать Markdown</string>
+    <string name="compression_show_metadata">Показать технические данные</string>
+    <string name="compression_hide_metadata">Скрыть технические данные</string>
+    <string name="compression_phase_prepare">Подготовка контекста</string>
+    <string name="compression_phase_summary">Создание резюме</string>
+    <string name="compression_phase_merge">Объединение резюме</string>
+    <string name="compression_phase_save">Сохранение результата</string>
+    <string name="compression_pass">Проход %1$d · частей: %2$d</string>
+    <string name="compression_close">Закрыть</string>
+</resources>

@@ -13,6 +13,21 @@ import java.time.Instant
 import kotlin.uuid.Uuid
 
 class ContextCompactionPresentationTest {
+    @Test fun `manual event replaces its running card and remains display only`() {
+        val user = UIMessage.user("Keep the current objective")
+        val conversation = Conversation(assistantId = Uuid.random(), messageNodes = listOf(MessageNode(messages = listOf(user))))
+        val running = ContextCompactionPresentation.startTool(false, 10_000, 5_000, 10_000, 2_000)
+        val started = ContextCompactionPresentation.attachToMessage(conversation, user.id, running)
+        val finished = ContextCompactionPresentation.completeTool(running, sampleCompaction(conversation).copy(isAuto = false), 1234)
+        val ended = ContextCompactionPresentation.attachToMessage(started, user.id, finished)
+        assertEquals(1, ended.currentMessages.single().parts.filterIsInstance<UIMessagePart.Tool>().size)
+        assertTrue(finished.input.contains("\"mode\":\"manual\""))
+        assertTrue(finished.input.contains("\"elapsed_ms\":1234"))
+        assertEquals(running.toolCallId, finished.toolCallId)
+        assertFalse(ContextCompactionPresentation.hasAutomaticDisplayTool(ended.currentMessages.single()))
+        assertEquals(listOf(user), ContextCompactionPresentation.stripDisplayTools(ended.currentMessages))
+    }
+
     @Test
     fun `display-only compaction tool is retained in chat but removed from request view`() {
         val assistant = UIMessage.assistant("tool completed")

@@ -37,6 +37,10 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlin.coroutines.coroutineContext
 import me.rerere.ai.core.MessageRole
 import me.rerere.ai.core.ReasoningLevel
 import me.rerere.ai.core.Tool
@@ -403,6 +407,7 @@ class ChatService(
         sessionMutexes.getOrPut(conversationId) { Mutex() }
 
     private val compactionMutexes = ConcurrentHashMap<Uuid, Mutex>()
+    private val manualCompactionJobs = ConcurrentHashMap<Uuid, Deferred<Result<Unit>>>()
     private fun compactionMutexFor(conversationId: Uuid): Mutex =
         compactionMutexes.getOrPut(conversationId) { Mutex() }
 
@@ -1525,10 +1530,10 @@ class ChatService(
             }
             val messagesForGeneration = if (messageRange != null) {
                 compactedMessageView?.messages
-                    ?: conversation.currentMessages.subList(
+                    ?: ContextCompactionPresentation.stripDisplayTools(conversation.currentMessages.subList(
                         messageRange.start,
                         messageRange.endInclusive + 1,
-                    )
+                    ))
             } else {
                 compactedMessageView!!.messages
             }
@@ -1616,17 +1621,6 @@ class ChatService(
                                 processingStatus = session.processingStatus,
                                 force = true,
                             )
-                            compacted.newlyCreatedAutoCompaction?.let { compaction ->
-                                generatedMessages.lastOrNull()
-                                    ?.takeIf { it.role == MessageRole.ASSISTANT }
-                                    ?.let { sourceMessage ->
-                                        attachAutomaticCompactionPresentation(
-                                            conversationId = conversationId,
-                                            messageId = sourceMessage.id,
-                                            compaction = compaction,
-                                        )
-                                    }
-                            }
                             compactedMessageView = compacted
                             compacted.messages
                         }
@@ -1796,7 +1790,11 @@ class ChatService(
                                 generatedMessages = chunk.messages,
                             )
                         } else {
-                            currentConversation.updateCurrentMessages(chunk.messages)
+                            currentConversation.updateCurrentMessages(chunk.messages.map { replacement ->
+                                currentConversation.currentMessages.firstOrNull { it.id == replacement.id }
+                                    ?.let { ContextCompactionPresentation.preserveDisplayTools(it, replacement) }
+                                    ?: replacement
+                            })
                         }
                         updateConversation(conversationId, updatedConversation)
                         markStreamingPersistence(conversationId)
@@ -1865,17 +1863,6 @@ class ChatService(
                 Log.w(TAG, "Context-limit retry compaction failed", it)
             }.getOrNull()
             if (forcedView?.compaction != null) {
-                forcedView.newlyCreatedAutoCompaction?.let { compaction ->
-                    getConversationFlow(conversationId).value.currentMessages
-                        .lastOrNull { it.role == MessageRole.ASSISTANT }
-                        ?.let { sourceMessage ->
-                            attachAutomaticCompactionPresentation(
-                                conversationId = conversationId,
-                                messageId = sourceMessage.id,
-                                compaction = compaction,
-                            )
-                        }
-                }
                 handleMessageComplete(
                     conversationId = conversationId,
                     messageRange = null,
@@ -2299,7 +2286,7 @@ class ChatService(
     private suspend fun loadCompactedMessageView(conversation: Conversation): CompactedMessageView {
         val compaction = conversationRepo.getCompaction(conversation.id)
             ?: return CompactedMessageView(
-                messages = conversation.currentMessages,
+                messages = ContextCompactionPresentation.stripDisplayTools(conversation.currentMessages),
                 compaction = null,
                 rawTailStartIndex = 0,
             )
@@ -2422,24 +2409,6 @@ class ChatService(
                     .toInt()
         }
 
-    /**
-     * Keep the persisted compaction summary request-only, but show the user the automatic
-     * compression as an executed tool on the assistant message that triggered it.
-     */
-    private fun attachAutomaticCompactionPresentation(
-        conversationId: Uuid,
-        messageId: Uuid,
-        compaction: ConversationCompaction,
-    ) {
-        updateConversationState(conversationId) { current ->
-            ContextCompactionPresentation.attachToMessage(
-                conversation = current,
-                messageId = messageId,
-                tool = ContextCompactionPresentation.createTool(compaction),
-            )
-        }
-    }
-
     suspend fun compressConversation(
         conversationId: Uuid,
         conversation: Conversation,
@@ -2521,13 +2490,16 @@ class ChatService(
      * Manual compression can outlive the chat screen. Keep it on [AppScope] so removing the
      * activity from recents does not cancel an in-progress multi-pass compression request.
      */
+    @Synchronized
     fun compressConversationAsync(
         conversationId: Uuid,
         conversation: Conversation,
         additionalPrompt: String,
         targetTokens: Int,
         keepRecentMessages: Int = 32,
-    ): Deferred<Result<Unit>> = appScope.async {
+    ): Deferred<Result<Unit>> {
+        manualCompactionJobs[conversationId]?.takeUnless { it.isCompleted }?.let { return it }
+        val job = appScope.async(start = CoroutineStart.LAZY) {
         compressConversation(
             conversationId = conversationId,
             conversation = conversation,
@@ -2541,6 +2513,11 @@ class ChatService(
                 title = context.getString(R.string.error_title_compress_conversation),
             )
         }
+        }
+        manualCompactionJobs[conversationId] = job
+        job.invokeOnCompletion { manualCompactionJobs.remove(conversationId, job) }
+        job.start()
+        return job
     }
 
     private suspend fun generateAndStoreCompaction(
@@ -2552,6 +2529,66 @@ class ChatService(
         targetTokens: Int,
         isAuto: Boolean,
         runtimeLimits: CompactionRuntimeLimits = settings.compactionRuntimeLimits(),
+    ): ConversationCompaction = coroutineScope {
+        val messageId = conversation.currentMessages.lastOrNull()?.id
+            ?: error("No messages selected for compression")
+        val session = getOrCreateSession(conversation.id)
+        val started = SystemClock.elapsedRealtime()
+        var event = ContextCompactionPresentation.startTool(
+            isAuto, System.currentTimeMillis(), started,
+            ContextBudgetPlanner.estimateInputTokens(messagesToCompress), targetTokens,
+        )
+        val operationId = event.toolCallId
+        session.acquire()
+        ContextCompactionPresentation.register(operationId, coroutineContext[Job]!!)
+        suspend fun publish(next: UIMessagePart.Tool) {
+            event = next
+            updateConversationState(conversation.id) { current ->
+                ContextCompactionPresentation.attachToMessage(
+                    if (current.messageNodes.isEmpty()) conversation else current, messageId, next,
+                )
+            }
+            markStreamingPersistence(conversation.id)
+            persistStreamingStateNow(conversation.id)
+        }
+        try {
+            publish(event)
+            val result = generateCompactionContent(
+                conversation, settings, messagesToCompress, rawTailStartIndex,
+                additionalPrompt, targetTokens, isAuto, runtimeLimits,
+            ) { fields -> publish(ContextCompactionPresentation.update(event, fields)) }
+            // Once committed, cancellation of a caller must not turn a completed event into
+            // "cancelled". Persist the final duration even if its details sheet was closed.
+            withContext(NonCancellable) {
+                publish(ContextCompactionPresentation.completeTool(event, result, SystemClock.elapsedRealtime() - started))
+            }
+            result
+        } catch (e: Exception) {
+            withContext(NonCancellable) {
+                publish(ContextCompactionPresentation.update(event, buildJsonObject {
+                    put("state", if (e is CancellationException) "cancelled" else "failed")
+                    put("elapsed_ms", (SystemClock.elapsedRealtime() - started).coerceAtLeast(0))
+                    put("finished_at_ms", System.currentTimeMillis())
+                    if (e !is CancellationException) put("error", e.message.orEmpty().take(2000))
+                }, output = ""))
+            }
+            throw e
+        } finally {
+            ContextCompactionPresentation.unregister(operationId)
+            session.release()
+        }
+    }
+
+    private suspend fun generateCompactionContent(
+        conversation: Conversation,
+        settings: Settings,
+        messagesToCompress: List<UIMessage>,
+        rawTailStartIndex: Int,
+        additionalPrompt: String,
+        targetTokens: Int,
+        isAuto: Boolean,
+        runtimeLimits: CompactionRuntimeLimits,
+        onProgress: suspend (JsonObject) -> Unit,
     ): ConversationCompaction = runtimeLimits.operation {
         require(messagesToCompress.isNotEmpty()) { "No messages selected for compression" }
         require(rawTailStartIndex in 1..conversation.messageNodes.size) {
@@ -2573,6 +2610,12 @@ class ChatService(
         }
 
         val providerHandler = providerManager.getProviderByType(provider)
+        onProgress(buildJsonObject {
+            put("model", model.modelId)
+            put("request_timeout_ms", runtimeLimits.requestTimeoutMs)
+            put("operation_timeout_ms", runtimeLimits.totalTimeoutMs)
+            put("parallel_requests", runtimeLimits.parallelRequests)
+        })
         // In token-threshold mode the user has supplied an explicit request-size ceiling for
         // this model family. Prefer it over missing/stale provider metadata. In percent mode we
         // still use the model's advertised context, falling back to the planner's conservative
@@ -2741,6 +2784,11 @@ class ChatService(
                 "Compaction pass ${reductionPasses + 1}: groups=${sourceGroups.size}, " +
                     "targetTokens=$passTargetTokens",
             )
+            onProgress(buildJsonObject {
+                put("phase", if (reductionPasses == 0) "summarizing" else "merging")
+                put("pass", reductionPasses + 1)
+                put("parts", sourceGroups.size)
+            })
             val summaries = compressGroups(sourceGroups, passTargetTokens)
             val combinedSummary = summaries.joinToString("\n\n")
             if (summaries.size == 1 &&
@@ -2768,6 +2816,7 @@ class ChatService(
             }
         }
 
+        onProgress(buildJsonObject { put("phase", "saving") })
         val expectedBoundary = conversation.messageNodes
             .take(rawTailStartIndex)
             .map { node -> node.id to node.currentMessage.id }

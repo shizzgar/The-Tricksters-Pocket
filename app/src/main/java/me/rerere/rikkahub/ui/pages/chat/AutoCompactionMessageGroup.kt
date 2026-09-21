@@ -38,7 +38,7 @@ internal fun List<MessageNode>.groupAutomaticCompactionMessages(): List<AutoComp
         val groupedNodes = mutableListOf(this[index])
         while (
             groupedNodes.last().currentMessage.role == MessageRole.ASSISTANT &&
-            ContextCompactionPresentation.hasDisplayTool(groupedNodes.last().currentMessage) &&
+            ContextCompactionPresentation.hasAutomaticDisplayTool(groupedNodes.last().currentMessage) &&
             index + 1 < size &&
             this[index + 1].currentMessage.role == MessageRole.ASSISTANT
         ) {

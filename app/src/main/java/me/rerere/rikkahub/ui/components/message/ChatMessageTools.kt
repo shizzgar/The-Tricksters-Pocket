@@ -142,13 +142,15 @@ fun ChainOfThoughtScope.ChatMessageToolStep(
         return
     }
 
+    val compressionEvent = me.rerere.rikkahub.data.ai.ContextCompactionPresentation.isDisplayTool(tool)
+    val stepLoading = if (compressionEvent) me.rerere.rikkahub.data.ai.ContextCompactionPresentation.isRunning(tool) else loading
     val renderer = remember(tool.toolName) { ToolUIRegistry.resolve(tool.toolName) }
-    val context = remember(tool, loading) {
+    val context = remember(tool, stepLoading) {
         ToolUIContext(
             tool = tool,
             arguments = tool.inputAsJson(),
             content = parseToolOutputContent(tool),
-            loading = loading,
+            loading = stepLoading,
         )
     }
 
@@ -173,7 +175,7 @@ fun ChainOfThoughtScope.ChatMessageToolStep(
         expanded = expanded,
         onExpandedChange = { expanded = it },
         icon = {
-            if (loading) {
+            if (stepLoading) {
                 DotLoading(
                     size = 10.dp
                 )
@@ -191,7 +193,7 @@ fun ChainOfThoughtScope.ChatMessageToolStep(
                 text = renderer.title(context),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.secondary,
-                modifier = Modifier.shimmer(isLoading = loading),
+                modifier = Modifier.shimmer(isLoading = stepLoading),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -440,7 +442,7 @@ fun ChainOfThoughtScope.ChatMessageToolStep(
                     // never while a generation is in flight for this message - rerunTool
                     // itself refuses that case, but hiding the button keeps a click from
                     // spinning up just to be told no.
-                    if (tool.isExecuted && !generationActive && onRerunTool != null) {
+                    if (!compressionEvent && tool.isExecuted && !generationActive && onRerunTool != null) {
                         val rerunScope = rememberCoroutineScope()
                         val toaster = LocalToaster.current
                         // "context" in this scope is the ToolUIContext passed to renderer.Preview

@@ -44,6 +44,8 @@ jobs:
           --tests 'me.rerere.rikkahub.data.ai.GenerationTurnClockTest'
           --tests 'me.rerere.rikkahub.data.ai.ContextCompaction*Test'
           --tests 'me.rerere.rikkahub.data.ai.CompactionEvidenceTest'
+          --tests 'me.rerere.rikkahub.ui.components.message.tools.CompactionPresentationTest'
+          --tests 'me.rerere.rikkahub.ui.pages.chat.AutoCompactionMessageGroupTest'
           --tests 'me.rerere.rikkahub.data.ai.tools.local.Termux*Test'
           --tests 'me.rerere.rikkahub.data.ai.GenerationHandlerTurnBudgetTest'
           --tests 'me.rerere.rikkahub.data.datastore.PreferencesStoreTest'

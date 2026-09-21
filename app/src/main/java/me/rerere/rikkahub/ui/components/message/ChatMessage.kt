@@ -338,7 +338,8 @@ private fun MessagePartsBlock(
     // recomposition. During streaming the list grows one element at a time so size alone is
     // sufficient to detect a meaningful change; the lastOrNull() hash catches in-place edits
     // on the tail part (e.g. streaming text appended to the final Text part).
-    val partsKey = parts.size.toString() + (parts.lastOrNull()?.hashCode()?.toString() ?: "")
+    val partsKey = parts.size.toString() + (parts.lastOrNull()?.hashCode()?.toString() ?: "") +
+        parts.filter(me.rerere.rikkahub.data.ai.ContextCompactionPresentation::isDisplayTool).hashCode()
     val groupedParts = remember(partsKey) { parts.groupMessageParts() }
     groupedParts.fastForEach { block ->
         when (block) {
