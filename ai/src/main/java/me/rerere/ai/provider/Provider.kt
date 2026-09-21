@@ -85,6 +85,8 @@ data class TextGenerationParams(
     val firstResponseTimeoutMillis: Long? = null,
     val priority: GenerationPriority = GenerationPriority.INTERACTIVE,
     val isCompaction: Boolean = false,
+    @kotlinx.serialization.Transient val progressTracker: GenerationProgressTracker? = null,
+    @kotlinx.serialization.Transient val requestObserver: GenerationRequestObserver? = null,
 )
 
 @Serializable

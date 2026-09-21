@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="generation_progress_preparing">Preparing model request</string>
+    <string name="generation_progress_queued">In application queue</string>
+    <string name="generation_progress_waiting">Waiting for model response</string>
+    <string name="generation_progress_receiving">Receiving model response</string>
+    <string name="generation_progress_completed">Model request completed</string>
+    <string name="generation_progress_failed">Model request failed</string>
+    <string name="generation_progress_cancelled">Model request cancelled</string>
+    <string name="generation_progress_idle">Since last content: %1$s</string>
+    <string name="generation_progress_queue_time">Application queue: %1$s</string>
+    <string name="generation_progress_first_content">First content after dispatch: %1$s</string>
+    <string name="generation_progress_waiting_note">Waiting may include connection, server queue and prefill. Without server telemetry these stages cannot be separated. Times describe this request attempt; stream control events do not count as content.</string>
+    <string name="jobs_title">Background jobs</string>
+    <string name="jobs_entry_hint">Status, logs and cancellation for this conversation</string>
+    <string name="jobs_scope">Managed Termux jobs belonging to this conversation. Status is a snapshot; refresh to check again. Closing this screen leaves jobs running.</string>
+    <string name="jobs_close">Close</string>
+    <string name="jobs_back">Back</string>
+    <string name="jobs_refresh">Refresh</string>
+    <string name="jobs_observation_error">Could not confirm the current state. Refresh before repeating an action.</string>
+    <string name="jobs_empty">No managed jobs found in this conversation. Ordinary shell background commands and terminal sessions are separate.</string>
+    <string name="jobs_more">Load more jobs</string>
+    <string name="jobs_command">Command</string>
+    <string name="jobs_directory">Working directory</string>
+    <string name="jobs_cancel">Request cancellation</string>
+    <string name="jobs_forget">Delete finished job logs</string>
+    <string name="jobs_bytes">Bytes %1$d–%2$d of %3$d stored</string>
+    <string name="jobs_log_truncated">The storage limit was reached. Some output was permanently discarded.</string>
+    <string name="jobs_encoding">One UTF-8 page. Invalid byte sequences are replaced; copy preserves the displayed text.</string>
+    <string name="jobs_previous">Previous page</string>
+    <string name="jobs_next">Next page</string>
+    <string name="jobs_cancel_note">Cancel this managed process group? Detached or privileged child processes may survive. A request is not confirmation that the job stopped.</string>
+    <string name="jobs_forget_note">Permanently delete stdout and stderr for this finished job? Its launch receipt remains to prevent duplicate execution.</string>
+    <string name="jobs_confirm">Confirm</string>
+    <string name="jobs_checked">Last checked: %1$s</string>
+    <string name="jobs_copy">Copy text</string>
+    <string name="jobs_empty_page">No output on this page.</string>
+</resources>

@@ -108,6 +108,7 @@ internal fun FilesPicker(
     onPickAudio: () -> Unit,
     onPickFile: () -> Unit,
     onStartVoiceMode: (() -> Unit)? = null,
+    onOpenTermuxJobs: () -> Unit = {},
 ) {
     val settings = LocalSettings.current
     val provider = settings.getCurrentChatModel()?.findProvider(providers = settings.providers)
@@ -219,6 +220,13 @@ internal fun FilesPicker(
                 .clickable {
                     onShowInjectionSheetChange(true)
                 },
+        )
+
+        ListItem(
+            headlineContent = { Text(stringResource(R.string.jobs_title)) },
+            supportingContent = { Text(stringResource(R.string.jobs_entry_hint)) },
+            colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+            modifier = Modifier.clip(MaterialTheme.shapes.large).clickable { onOpenTermuxJobs() },
         )
 
         // Compress History Button

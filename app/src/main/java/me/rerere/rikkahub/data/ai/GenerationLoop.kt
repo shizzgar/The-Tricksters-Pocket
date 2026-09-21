@@ -480,6 +480,7 @@ class GenerationLoop(
         // Read live from the runtime holder, not captured once: the default expression is
         // evaluated per call, so a settings change takes effect on the next turn.
         maxSteps: Int = ToolRuntimeLimits.maxToolSteps,
+        generationProgress: me.rerere.ai.provider.GenerationProgressTracker? = null,
         processingStatus: MutableStateFlow<String?> = MutableStateFlow(null),
         // Called after a tool result has been emitted and persisted, before the next model
         // request is built. The callback may return a compacted request history; the returned
@@ -653,6 +654,7 @@ class GenerationLoop(
                             conversationModeInjectionIds = conversationModeInjectionIds,
                             conversationLorebookIds = conversationLorebookIds,
                             workspaceCwd = workspaceCwd,
+                            generationProgress = generationProgress,
                             generationPriority = if (stepIndex > 0) me.rerere.ai.provider.GenerationPriority.CONTINUATION
                                 else me.rerere.ai.provider.GenerationPriority.INTERACTIVE,
                         )
@@ -1199,6 +1201,7 @@ class GenerationLoop(
         tools: List<Tool>,
         memories: List<AssistantMemory>,
         stream: Boolean,
+        generationProgress: me.rerere.ai.provider.GenerationProgressTracker? = null,
         processingStatus: MutableStateFlow<String?> = MutableStateFlow(null),
         conversationSystemPrompt: String? = null,
         conversationId: Uuid? = null,
@@ -1206,6 +1209,7 @@ class GenerationLoop(
         conversationLorebookIds: Set<Uuid> = emptySet(),
         workspaceCwd: String? = null,
     ) {
+        generationProgress?.prepare()
         val internalMessages = buildList {
             // Conversation-level system prompt override (upstream): when the assistant
             // allows it and the conversation supplies one, it replaces the assistant prompt.
@@ -1275,6 +1279,7 @@ class GenerationLoop(
             },
             sessionId = conversationId?.toString(),
             priority = generationPriority,
+            progressTracker = generationProgress,
         )
         try {
             if (stream) {

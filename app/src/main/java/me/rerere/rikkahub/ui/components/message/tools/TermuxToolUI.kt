@@ -207,7 +207,7 @@ private class TermuxToolUI(override val toolName: String) : ToolUIRenderer {
     }
 }
 
-private fun TermuxStatus.label(): Int = when (this) {
+internal fun TermuxStatus.label(): Int = when (this) {
     TermuxStatus.PENDING -> R.string.termux_preview_pending
     TermuxStatus.APPROVAL -> R.string.termux_preview_approval
     TermuxStatus.DENIED -> R.string.termux_preview_denied

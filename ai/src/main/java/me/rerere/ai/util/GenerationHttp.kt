@@ -9,8 +9,8 @@ import java.util.concurrent.TimeUnit
 /** Derived clients share the connection pool/dispatcher and retain proxy/auth interceptors.
  * Do not change the application's singleton timeout for an unrelated chat or tool request. */
 internal fun OkHttpClient.forTextGeneration(params: TextGenerationParams): OkHttpClient {
-    if (params.requestTimeoutMillis == null && params.readTimeoutMillis == null && params.connectTimeoutMillis == null) return this
-    val builder = newBuilder().eventListenerFactory { GenerationTelemetry() }
+    if (params.requestTimeoutMillis == null && params.readTimeoutMillis == null && params.connectTimeoutMillis == null && params.requestObserver == null) return this
+    val builder = newBuilder().eventListenerFactory { GenerationTelemetry(params.requestObserver) }
     fun checkTimeout(value: Long) = require(value in 1..Int.MAX_VALUE.toLong()) { "Invalid generation timeout" }
     (params.readTimeoutMillis ?: params.requestTimeoutMillis)?.let {
         checkTimeout(it)

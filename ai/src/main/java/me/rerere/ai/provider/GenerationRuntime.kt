@@ -1,5 +1,7 @@
 package me.rerere.ai.provider
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.coroutineScope
@@ -95,20 +97,24 @@ internal class ScheduledProvider<T : ProviderSetting>(
 ) : Provider<T> by delegate {
     override suspend fun generateText(providerSetting: T, messages: List<UIMessage>, params: TextGenerationParams): TextGenerationResult {
         val config = settings().normalized()
-        val scoped = config.applyTo(params)
+        val observer = params.progressTracker?.begin()
+        val scoped = config.applyTo(params).copy(requestObserver = observer)
         // Includes local queue time, body read, and parsing; cancellation reaches the HTTP call.
-        return withTimeout(requireNotNull(scoped.requestTimeoutMillis)) {
+        return observeRequest(observer) { withTimeout(requireNotNull(scoped.requestTimeoutMillis)) {
             queue.withSlot(scoped.priority, config.parallelRequests) {
+                observer?.dispatched()
                 delegate.generateText(providerSetting, messages, scoped)
             }
-        }
+        } }
     }
 
     override suspend fun streamText(providerSetting: T, messages: List<UIMessage>, params: TextGenerationParams): Flow<StreamChunk> = flow {
         val config = settings().normalized()
-        val scoped = config.applyTo(params)
-        withTimeout(requireNotNull(scoped.requestTimeoutMillis)) {
+        val observer = params.progressTracker?.begin()
+        val scoped = config.applyTo(params).copy(requestObserver = observer)
+        observeRequest(observer) { withTimeout(requireNotNull(scoped.requestTimeoutMillis)) {
             queue.withSlot(scoped.priority, config.parallelRequests) {
+                observer?.dispatched()
                 coroutineScope {
                     val firstChunk = CompletableDeferred<Unit>()
                     // Heartbeat comments do not create provider chunks and cannot hide a
@@ -123,6 +129,7 @@ internal class ScheduledProvider<T : ProviderSetting>(
                     try {
                         delegate.streamText(providerSetting, messages, scoped).collect {
                             firstChunk.complete(Unit)
+                            observer?.chunk(it)
                             emit(it)
                         }
                     } finally {
@@ -130,7 +137,16 @@ internal class ScheduledProvider<T : ProviderSetting>(
                     }
                 }
             }
-        }
+        } }
+    }
+}
+
+private suspend fun <T> observeRequest(observer: GenerationRequestObserver?, block: suspend () -> T): T {
+    try {
+        return block().also { observer?.finish(GenerationPhase.COMPLETED) }
+    } catch (e: Throwable) {
+        observer?.finish(if (e is CancellationException && e !is TimeoutCancellationException) GenerationPhase.CANCELLED else GenerationPhase.FAILED)
+        throw e
     }
 }
 

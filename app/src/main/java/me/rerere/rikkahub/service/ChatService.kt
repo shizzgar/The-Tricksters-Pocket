@@ -644,6 +644,8 @@ class ChatService(
         return session.generationJob
     }
 
+    fun getGenerationProgressFlow(conversationId: Uuid) = getOrCreateSession(conversationId).generationProgress.state
+
     fun getProcessingStatusFlow(conversationId: Uuid): StateFlow<String?> {
         return getOrCreateSession(conversationId).processingStatus
     }
@@ -1542,7 +1544,9 @@ class ChatService(
             } else {
                 compactedMessageView!!.messages
             }
+            session.generationProgress.prepare()
             generationLoop.generateText(
+                generationProgress = session.generationProgress,
                 settings = settings,
                 model = model,
                 processingStatus = session.processingStatus,
