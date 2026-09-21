@@ -2500,19 +2500,19 @@ class ChatService(
     ): Deferred<Result<Unit>> {
         manualCompactionJobs[conversationId]?.takeUnless { it.isCompleted }?.let { return it }
         val job = appScope.async(start = CoroutineStart.LAZY) {
-        compressConversation(
-            conversationId = conversationId,
-            conversation = conversation,
-            additionalPrompt = additionalPrompt,
-            targetTokens = targetTokens,
-            keepRecentMessages = keepRecentMessages,
-        ).onFailure {
-            addError(
-                it,
+            compressConversation(
                 conversationId = conversationId,
-                title = context.getString(R.string.error_title_compress_conversation),
-            )
-        }
+                conversation = conversation,
+                additionalPrompt = additionalPrompt,
+                targetTokens = targetTokens,
+                keepRecentMessages = keepRecentMessages,
+            ).onFailure {
+                addError(
+                    it,
+                    conversationId = conversationId,
+                    title = context.getString(R.string.error_title_compress_conversation),
+                )
+            }
         }
         manualCompactionJobs[conversationId] = job
         job.invokeOnCompletion { manualCompactionJobs.remove(conversationId, job) }
@@ -2817,13 +2817,9 @@ class ChatService(
         }
 
         onProgress(buildJsonObject { put("phase", "saving") })
-        val expectedBoundary = conversation.messageNodes
-            .take(rawTailStartIndex)
-            .map { node -> node.id to node.currentMessage.id }
-        val latestBoundary = getConversationFlow(conversation.id).value.messageNodes
-            .take(rawTailStartIndex)
-            .map { node -> node.id to node.currentMessage.id }
-        check(expectedBoundary == latestBoundary) {
+        check(ContextCompactionPresentation.sourcePrefixUnchanged(
+            conversation, getConversationFlow(conversation.id).value, rawTailStartIndex,
+        )) {
             "Conversation changed while context was being compressed"
         }
 

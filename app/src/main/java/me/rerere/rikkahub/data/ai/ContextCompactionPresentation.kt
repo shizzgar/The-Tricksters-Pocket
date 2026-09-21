@@ -105,6 +105,15 @@ internal object ContextCompactionPresentation {
 
     fun hasDisplayTool(message: UIMessage): Boolean = message.parts.any(::isDisplayTool)
 
+    /** Progress cards may change during compression; edits to the selected source may not. */
+    fun sourcePrefixUnchanged(before: Conversation, after: Conversation, endExclusive: Int): Boolean {
+        if (endExclusive !in 1..before.messageNodes.size || endExclusive > after.messageNodes.size) return false
+        fun prefix(conversation: Conversation) = conversation.messageNodes.take(endExclusive).map { node ->
+            node.id to stripDisplayTools(listOf(node.currentMessage)).single()
+        }
+        return prefix(before) == prefix(after)
+    }
+
     /** Removes UI-only compaction cards before messages become model input. */
     fun stripDisplayTools(messages: List<UIMessage>): List<UIMessage> = messages.map { message ->
         val requestParts = message.parts.filterNot(::isDisplayTool)

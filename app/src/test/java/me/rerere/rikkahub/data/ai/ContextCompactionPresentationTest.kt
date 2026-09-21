@@ -13,6 +13,17 @@ import java.time.Instant
 import kotlin.uuid.Uuid
 
 class ContextCompactionPresentationTest {
+    @Test fun `progress updates keep source valid but same-id text edits invalidate it`() {
+        val message = UIMessage.assistant("Original observation")
+        val conversation = Conversation(assistantId = Uuid.random(), messageNodes = listOf(MessageNode(messages = listOf(message))))
+        val event = ContextCompactionPresentation.startTool(false, 100, 100, 1000, 500)
+        val withEvent = ContextCompactionPresentation.attachToMessage(conversation, message.id, event)
+        assertTrue(ContextCompactionPresentation.sourcePrefixUnchanged(conversation, withEvent, 1))
+        val changed = withEvent.updateCurrentMessages(listOf(message.copy(parts = listOf(UIMessagePart.Text("Correction")))))
+        assertFalse(ContextCompactionPresentation.sourcePrefixUnchanged(conversation, changed, 1))
+        assertFalse(ContextCompactionPresentation.sourcePrefixUnchanged(conversation, conversation.copy(messageNodes = emptyList()), 1))
+    }
+
     @Test fun `manual event replaces its running card and remains display only`() {
         val user = UIMessage.user("Keep the current objective")
         val conversation = Conversation(assistantId = Uuid.random(), messageNodes = listOf(MessageNode(messages = listOf(user))))
