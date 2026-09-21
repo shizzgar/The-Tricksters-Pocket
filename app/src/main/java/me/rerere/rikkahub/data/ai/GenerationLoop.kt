@@ -299,7 +299,9 @@ private fun List<UIMessage>.ageOldToolImages(): List<UIMessage> {
 @Serializable
 sealed interface GenerationChunk {
     data class Messages(
-        val messages: List<UIMessage>
+        val messages: List<UIMessage>,
+        @kotlinx.serialization.Transient
+        val persistenceReceipt: kotlinx.coroutines.CompletableDeferred<Unit>? = null,
     ) : GenerationChunk
 }
 
@@ -486,6 +488,8 @@ class GenerationLoop(
         // request is built. The callback may return a compacted request history; the returned
         // list is request-only and does not replace the conversation's original messages.
         onAfterToolExecution: suspend (List<UIMessage>) -> List<UIMessage>? = { null },
+        // ChatService acknowledges the completed result only after applying and saving it.
+        awaitToolResultPersistence: Boolean = false,
         // Called immediately before every model request, including the request after a tool
         // result. ChatService uses this to reassert the foreground service before a background
         // continuation opens a new socket.
@@ -1008,7 +1012,7 @@ class GenerationLoop(
                             // kill between mark-and-output leaves a clear breadcrumb on disk:
                             // on replay we'll see Approved + executionStartedAt + empty output
                             // and refuse to silently re-run. The mark survives via the
-                            // existing emit-and-persist plumbing — see ChatService chunk
+                            // acknowledged persistence checkpoint — see ChatService chunk
                             // handler's needsImmediatePersist branch.
                             val markedTool = tool.copy(executionStartedAt = System.currentTimeMillis())
                             run {
@@ -1018,7 +1022,7 @@ class GenerationLoop(
                                         if (p is UIMessagePart.Tool && p.toolCallId == tool.toolCallId) markedTool else p
                                     }
                                     messages = messages.dropLast(1) + lastMsg.copy(parts = markedParts)
-                                    emit(GenerationChunk.Messages(messages))
+                                    emitToolResultCheckpoint(messages, awaitToolResultPersistence)
                                 }
                             }
                             // Hard-cap individual tool execution at the remaining model/tool
@@ -1110,16 +1114,15 @@ class GenerationLoop(
                 } else part
             }
             messages = messages.dropLast(1) + lastMessage.copy(parts = updatedParts)
-            emit(
-                GenerationChunk.Messages(
-                    messages.transforms(
-                        transformers = outputTransformers,
-                        context = context,
-                        model = model,
-                        assistant = assistant,
-                        settings = settings
-                    )
-                )
+            emitToolResultCheckpoint(
+                messages = messages.transforms(
+                    transformers = outputTransformers,
+                    context = context,
+                    model = model,
+                    assistant = assistant,
+                    settings = settings,
+                ),
+                awaitPersistence = awaitToolResultPersistence,
             )
 
             turnClock.duringCompaction { onAfterToolExecution(messages) }?.let { compactedMessages ->

@@ -13,6 +13,44 @@ import java.time.Instant
 import kotlin.uuid.Uuid
 
 class ContextCompactionPresentationTest {
+    @Test fun `translation and completion bookkeeping do not invalidate compression`() {
+        val reasoning = UIMessagePart.Reasoning("Observed reasoning", finishedAt = null)
+        val message = UIMessage.assistant("Verified result").copy(parts = listOf(
+            reasoning, UIMessagePart.Text("Verified result"),
+        ))
+        val source = Conversation(assistantId = Uuid.random(), messageNodes = listOf(MessageNode(messages = listOf(message))))
+        val updated = source.updateCurrentMessages(listOf(message.copy(
+            translation = "Перевод результата", finishedAt = message.createdAt,
+            parts = listOf(reasoning.copy(finishedAt = kotlin.time.Instant.fromEpochMilliseconds(1000)), UIMessagePart.Text("Verified result")),
+        )))
+        assertTrue(ContextCompactionPresentation.sourcePrefixUnchanged(source, updated, 1))
+    }
+
+    @Test fun `same-id tool result and input edits still invalidate the source`() {
+        val tool = UIMessagePart.Tool("call", "termux_run_command", "{}", output = listOf(UIMessagePart.Text("old evidence")))
+        val message = UIMessage.assistant("").copy(parts = listOf(tool))
+        val source = Conversation(assistantId = Uuid.random(), messageNodes = listOf(MessageNode(messages = listOf(message))))
+        for (changed in listOf(tool.copy(input = "{\"command\":\"changed\"}"), tool.copy(output = listOf(UIMessagePart.Text("new evidence"))))) {
+            val after = source.updateCurrentMessages(listOf(message.copy(parts = listOf(changed))))
+            assertFalse(ContextCompactionPresentation.sourcePrefixUnchanged(source, after, 1))
+            assertEquals("source_content_changed:0", ContextCompactionPresentation.sourcePrefixChangeReason(source, after, 1))
+        }
+    }
+
+    @Test fun `tail updates are allowed but branch switches and attachments are not`() {
+        val original = UIMessage.user("Compress this").copy(parts = listOf(UIMessagePart.Image("file://original.png")))
+        val other = UIMessage.user("Different branch")
+        val source = Conversation(assistantId = Uuid.random(), messageNodes = listOf(
+            MessageNode(messages = listOf(original, other)), MessageNode(messages = listOf(UIMessage.user("raw tail"))),
+        ))
+        val tailChanged = source.copy(messageNodes = source.messageNodes.take(1) + MessageNode(messages = listOf(UIMessage.user("new raw tail"))))
+        assertTrue(ContextCompactionPresentation.sourcePrefixUnchanged(source, tailChanged, 1))
+        val switched = source.copy(messageNodes = listOf(source.messageNodes[0].copy(selectIndex = 1)) + source.messageNodes.drop(1))
+        assertEquals("source_branch_changed:0", ContextCompactionPresentation.sourcePrefixChangeReason(source, switched, 1))
+        val attachmentChanged = source.updateCurrentMessages(listOf(original.copy(parts = listOf(UIMessagePart.Image("file://replacement.png")))))
+        assertFalse(ContextCompactionPresentation.sourcePrefixUnchanged(source, attachmentChanged, 1))
+    }
+
     @Test fun `cancel button targets its own operation only`() {
         val parent = kotlinx.coroutines.Job()
         val operation = kotlinx.coroutines.Job(parent)

@@ -105,14 +105,36 @@ internal object ContextCompactionPresentation {
 
     fun hasDisplayTool(message: UIMessage): Boolean = message.parts.any(::isDisplayTool)
 
-    /** Progress cards may change during compression; edits to the selected source may not. */
-    fun sourcePrefixUnchanged(before: Conversation, after: Conversation, endExclusive: Int): Boolean {
-        if (endExclusive !in 1..before.messageNodes.size || endExclusive > after.messageNodes.size) return false
-        fun prefix(conversation: Conversation) = conversation.messageNodes.take(endExclusive).map { node ->
-            node.id to stripDisplayTools(listOf(node.currentMessage)).single()
+    /** Presentation and accounting updates are not edits to the selected source. */
+    fun sourcePrefixUnchanged(before: Conversation, after: Conversation, endExclusive: Int): Boolean =
+        sourcePrefixChangeReason(before, after, endExclusive) == null
+
+    /** Content-free diagnostics: never put command text, tool output or private messages in errors. */
+    fun sourcePrefixChangeReason(before: Conversation, after: Conversation, endExclusive: Int): String? {
+        if (before.id != after.id) return "conversation_replaced"
+        if (endExclusive !in 1..before.messageNodes.size) return "invalid_source_boundary"
+        if (endExclusive > after.messageNodes.size) return "source_nodes_removed"
+        for (index in 0 until endExclusive) {
+            val previous = before.messageNodes[index]
+            val current = after.messageNodes[index]
+            if (previous.id != current.id) return "source_node_replaced:$index"
+            val original = previous.messages.getOrNull(previous.selectIndex) ?: return "invalid_source_selection:$index"
+            val latest = current.messages.getOrNull(current.selectIndex) ?: return "invalid_current_selection:$index"
+            if (original.id != latest.id) return "source_branch_changed:$index"
+            if (sourceMessage(original) != sourceMessage(latest)) return "source_content_changed:$index"
         }
-        return prefix(before) == prefix(after)
+        return null
     }
+
+    private fun sourceMessage(message: UIMessage): UIMessage = message.copy(
+        usage = null,
+        translation = null,
+        finishedAt = null,
+        parts = message.parts.filterNot(::isDisplayTool).map { part ->
+            // Finishing the reasoning stopwatch does not change its text or evidence.
+            if (part is UIMessagePart.Reasoning) part.copy(finishedAt = null) else part
+        },
+    )
 
     /** Removes UI-only compaction cards before messages become model input. */
     fun stripDisplayTools(messages: List<UIMessage>): List<UIMessage> = messages.map { message ->

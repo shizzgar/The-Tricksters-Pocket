@@ -71,6 +71,7 @@ import me.rerere.rikkahub.RouteActivity
 import me.rerere.rikkahub.utils.cancelNotification
 import me.rerere.rikkahub.utils.sendNotification
 import me.rerere.rikkahub.R
+import me.rerere.rikkahub.data.ai.applyAndAcknowledge
 import me.rerere.rikkahub.data.ai.GenerationChunk
 import me.rerere.rikkahub.data.ai.GenerationLoop
 import me.rerere.rikkahub.data.ai.CompactionRuntimeLimits
@@ -1596,6 +1597,7 @@ class ChatService(
                                 toolApprovalPreferences.current().contains(toolName))
                     }
                 },
+                awaitToolResultPersistence = true,
                 onAfterToolExecution = { generatedMessages ->
                     if (messageRange != null || !settings.enableAutoCompaction) {
                         null
@@ -1790,7 +1792,7 @@ class ChatService(
                 }
             }.collect { chunk ->
                 when (chunk) {
-                    is GenerationChunk.Messages -> {
+                    is GenerationChunk.Messages -> chunk.applyAndAcknowledge {
                         val currentConversation = getConversationFlow(conversationId).value
                         val updatedConversation = if (compactedMessageView?.compaction != null) {
                             ContextCompactionView.mergeGeneratedMessages(
@@ -1807,7 +1809,11 @@ class ChatService(
                         }
                         updateConversation(conversationId, updatedConversation)
                         markStreamingPersistence(conversationId)
-                        persistStreamingStateIfDue(conversationId)
+                        if (chunk.persistenceReceipt != null) {
+                            persistStreamingStateNow(conversationId, requireSuccess = true)
+                        } else {
+                            persistStreamingStateIfDue(conversationId)
+                        }
 
                         // Persist immediately when a tool transitions to "execution
                         // started but no output yet" — this writes the executionStartedAt
@@ -2838,12 +2844,6 @@ class ChatService(
         }
 
         onProgress(buildJsonObject { put("phase", "saving") })
-        check(ContextCompactionPresentation.sourcePrefixUnchanged(
-            conversation, getConversationFlow(conversation.id).value, rawTailStartIndex,
-        )) {
-            "Conversation changed while context was being compressed"
-        }
-
         val compaction = ConversationCompaction(
             conversationId = conversation.id,
             summary = listOfNotNull(
@@ -2866,7 +2866,25 @@ class ChatService(
         check(ContextCompactionPlanner.estimateTokens(compaction.summary) <= targetTokens + 64) {
             "Compaction exceeded the complete handoff budget; original context has been preserved"
         }
-        conversationRepo.upsertCompaction(compaction)
+        // Serialize with conversation writes, and validate again after Room returns: an
+        // in-memory edit can occur while the database call is suspended. Never leave a stale
+        // replacement active when the selected source really changed.
+        persistenceMutexFor(conversation.id).withLock {
+            fun verifySource() {
+                val reason = ContextCompactionPresentation.sourcePrefixChangeReason(
+                    conversation, getConversationFlow(conversation.id).value, rawTailStartIndex,
+                )
+                check(reason == null) { "Conversation changed while context was being compressed ($reason)" }
+            }
+            verifySource()
+            conversationRepo.upsertCompaction(compaction)
+            try {
+                verifySource()
+            } catch (error: IllegalStateException) {
+                withContext(NonCancellable) { conversationRepo.clearCompaction(conversation.id) }
+                throw error
+            }
+        }
         compaction
     }
 
@@ -3131,9 +3149,10 @@ class ChatService(
     private suspend fun persistStreamingStateNow(
         conversationId: Uuid,
         updateSearchIndex: Boolean = false,
+        requireSuccess: Boolean = false,
     ) {
         val observedMarker = pendingStreamingPersistence[conversationId] ?: return
-        val persisted = runCatching {
+        val result = runCatching {
             persistenceMutexFor(conversationId).withLock {
                 persistConversationSnapshot(
                     conversationId = conversationId,
@@ -3143,7 +3162,11 @@ class ChatService(
             }
         }.onFailure {
             Log.w(TAG, "persistStreamingStateNow failed for $conversationId", it)
-        }.getOrDefault(false)
+        }
+        // Periodic writes can retry at the next chunk. A compaction checkpoint cannot:
+        // its source must include the completed tool result before the producer resumes.
+        val persisted = if (requireSuccess) result.getOrThrow() else result.getOrDefault(false)
+        if (requireSuccess) check(persisted) { "Could not persist tool result before context compression" }
 
         if (persisted) {
             lastStreamingPersistAt[conversationId] = SystemClock.elapsedRealtime()
