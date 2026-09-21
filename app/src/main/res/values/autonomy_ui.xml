@@ -30,4 +30,7 @@
     <string name="trajectory_empty">No matching events recorded yet.</string>
     <string name="trajectory_private">Private local trace. It may contain prompts, commands and target data. Nothing is uploaded automatically.</string>
     <string name="trajectory_content">Recorded payload</string>
+    <string name="agent_network_recovery">Wait for network recovery</string>
+    <string name="agent_network_description">Retry transport failures with increasing pauses only before any response content. Partial answers and unknown tool outcomes are never replayed automatically.</string>
+    <string name="agent_network_wait">Network unavailable · retry in %1$d s</string>
 </resources>

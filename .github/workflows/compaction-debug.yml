@@ -33,6 +33,8 @@ jobs:
         with:
           version: 10
       - uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-read-only: false
       - name: Test durable Termux supervisor
         run: python3 -m unittest discover -s tests -p 'test_termux_job_runtime.py' -v
       - name: Run HTTP and provider tests
@@ -59,6 +61,7 @@ jobs:
           --tests 'me.rerere.rikkahub.data.ai.tools.local.WebExtractToolTest'
           --tests 'me.rerere.rikkahub.service.ChatServiceTest'
           --tests 'me.rerere.rikkahub.service.ConversationSessionTest'
+          --tests 'me.rerere.rikkahub.subagent.*Test'
       - name: Build debug APKs
         run: bash ./gradlew --no-daemon --max-workers=2 :app:assembleDebug
       - name: Verify ARM64 APK and record provenance

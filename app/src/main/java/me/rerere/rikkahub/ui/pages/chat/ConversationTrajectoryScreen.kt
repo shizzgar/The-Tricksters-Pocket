@@ -53,7 +53,7 @@ internal fun ConversationTrajectoryScreen(conversation: Conversation, active: Bo
     LaunchedEffect(selected) {
         payload = null
         selected?.let { record ->
-            try { payload = Json.parseToJsonElement(journal.payload(id, record)) }
+            try { payload = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { Json.parseToJsonElement(journal.payload(id, record)) } }
             catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e; error = e.message }
         }
     }
@@ -106,7 +106,7 @@ internal fun ConversationTrajectoryScreen(conversation: Conversation, active: Bo
                         item {
                             OutlinedTextField(value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.trajectory_search)) }, singleLine = true)
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                listOf(null, "model.request", "model.stream", "model.response", "tool", "task", "compaction").forEach { value ->
+                                listOf(null, "model.request", "model.stream", "model.response", "tool", "task", "compaction", "subagent", "conversation").forEach { value ->
                                     FilterChip(selected = source == value, onClick = { source = value }, label = { Text(value ?: stringResource(R.string.trajectory_all)) })
                                 }
                             }

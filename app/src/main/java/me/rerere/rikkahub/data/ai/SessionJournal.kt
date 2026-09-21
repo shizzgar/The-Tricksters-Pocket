@@ -7,6 +7,8 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
@@ -93,6 +95,7 @@ class SessionJournal(private val root: File) {
         }
     }
     suspend fun page(id: String, before: Long? = null, source: String? = null, query: String = "", limit: Int = 60): TracePage = withContext(Dispatchers.IO) {
+        val readerContext = currentCoroutineContext()
         run {
             // A reader observes only complete lines. Payloads are immutable; searching must not hold the writer lock.
             val result = ArrayDeque<TraceRecord>()
@@ -100,6 +103,7 @@ class SessionJournal(private val root: File) {
             var error: String? = null
             val file = File(directory(id), "events.jsonl")
             if (file.exists()) file.useLines { lines -> lines.forEach { line ->
+                readerContext.ensureActive()
                 val record = runCatching { json.decodeFromString<TraceRecord>(line) }.getOrElse { error = "Incomplete or damaged event record"; return@forEach }
                 if (!validHash(record)) { error = "Event hash mismatch"; return@forEach }
                 total = maxOf(total, record.sequence)

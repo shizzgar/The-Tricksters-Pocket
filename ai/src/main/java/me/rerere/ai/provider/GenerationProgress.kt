@@ -3,6 +3,7 @@ package me.rerere.ai.provider
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import me.rerere.ai.ui.StreamChunk
+import me.rerere.ai.core.merge
 
 enum class GenerationPhase { PREPARING, QUEUED, WAITING, RECEIVING, COMPLETED, FAILED, CANCELLED }
 
@@ -62,7 +63,7 @@ class GenerationRequestObserver internal constructor(private val tracker: Genera
     fun content() = tracker.update(id) { p, now ->
         p.copy(phase = GenerationPhase.RECEIVING, firstContentAt = p.firstContentAt ?: now, lastContentAt = now)
     }
-    fun usage(usage: me.rerere.ai.core.TokenUsage) = tracker.update(id) { p, _ -> p.copy(usage = usage) }
+    fun usage(usage: me.rerere.ai.core.TokenUsage) = tracker.update(id) { p, _ -> p.copy(usage = p.usage.merge(usage)) }
     fun chunk(chunk: StreamChunk) {
         if (chunk.hasProgressContent()) content()
         if (chunk is StreamChunk.Usage) usage(chunk.usage)

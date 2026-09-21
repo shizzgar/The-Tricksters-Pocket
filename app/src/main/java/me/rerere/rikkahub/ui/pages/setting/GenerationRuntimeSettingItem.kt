@@ -21,6 +21,9 @@ internal fun GenerationRuntimeSettingItem(settings: Settings, vm: SettingVM) {
         item(headlineContent = { Text(stringResource(R.string.agent_auto_continue)) },
             supportingContent = { Text(stringResource(R.string.agent_auto_description)) },
             trailingContent = { Switch(config.autonomousContinuation, { value -> update { it.copy(autonomousContinuation = value) } }) })
+        item(headlineContent = { Text(stringResource(R.string.agent_network_recovery)) },
+            supportingContent = { Text(stringResource(R.string.agent_network_description)) },
+            trailingContent = { Switch(config.waitForNetworkRecovery, { value -> update { it.copy(waitForNetworkRecovery = value) } }) })
         item(headlineContent = { Text(stringResource(R.string.agent_restore)) },
             supportingContent = { Text(stringResource(R.string.agent_restore_description)) },
             trailingContent = { Switch(config.resumeTasksAfterRestart, { value -> update { it.copy(resumeTasksAfterRestart = value) } }) })

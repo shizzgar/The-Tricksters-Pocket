@@ -485,6 +485,7 @@ class GenerationLoop(
         autonomousCycle: Boolean = false,
         cycleState: AgentTaskCycleState = AgentTaskCycleState(),
         onStopped: suspend (GenerationSliceOutcome) -> Unit = {},
+        shouldYieldToQueuedMessage: () -> Boolean = { false },
         generationProgress: me.rerere.ai.provider.GenerationProgressTracker? = null,
         processingStatus: MutableStateFlow<String?> = MutableStateFlow(null),
         // Called after a tool result has been emitted and persisted, before the next model
@@ -553,6 +554,10 @@ class GenerationLoop(
         var completedSteps = 0
 
         for (stepIndex in 0 until maxSteps) {
+            if (shouldYieldToQueuedMessage() && messages.none { msg -> msg.getTools().any { !it.isExecuted } }) {
+                stopReason = GenerationStopReason.USER_MESSAGE
+                break
+            }
             // Model/tool time has its own cap; compaction has a separately bounded,
             // cumulative allowance so a successful long compaction can resume this turn.
             // This is the second line of defence after maxSteps; without it a model that
@@ -623,6 +628,7 @@ class GenerationLoop(
             }
 
             val toolsToProcess: List<UIMessagePart.Tool>
+            val textBeforeRequest = messages.lastOrNull()?.takeIf { it.role == MessageRole.ASSISTANT }?.toText().orEmpty()
 
             // Skip generation if we have approved/denied tool calls to handle
             if (pendingTools.isEmpty()) {
@@ -724,7 +730,7 @@ class GenerationLoop(
 
                 val toolCalls = messages.last().getTools().filter { !it.isExecuted }
                 if (toolCalls.isEmpty()) {
-                    stopReason = if (messages.last().parts.filterIsInstance<UIMessagePart.Text>().any { it.text.isNotBlank() })
+                    stopReason = if (messages.last().toText().isNotBlank() && messages.last().toText() != textBeforeRequest)
                         GenerationStopReason.COMPLETED else GenerationStopReason.NO_PROGRESS
                     break
                 }

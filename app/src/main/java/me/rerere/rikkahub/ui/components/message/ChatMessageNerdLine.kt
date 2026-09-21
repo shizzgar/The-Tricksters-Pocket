@@ -47,7 +47,8 @@ fun ChatMessageNerdLine(
     val output = metrics.mapNotNull { it.usage }.takeIf { it.isNotEmpty() }?.sumOf { it.completionTokens.toLong() }
         ?: usage?.completionTokens?.toLong()
     val speed = metrics.generationTokensPerSecond()
-    val wallMs = message.finishedAt?.let { Duration.between(message.createdAt.toJavaLocalDateTime(), it.toJavaLocalDateTime()).toMillis().coerceAtLeast(0) }
+    val wallEnd = if (active) java.time.LocalDateTime.now() else message.finishedAt?.toJavaLocalDateTime()
+    val wallMs = wallEnd?.let { Duration.between(message.createdAt.toJavaLocalDateTime(), it).toMillis().coerceAtLeast(0) }
     val phase = progress?.let { stringResource(when (it.phase) {
         GenerationPhase.PREPARING -> R.string.generation_progress_preparing
         GenerationPhase.QUEUED -> R.string.generation_progress_queued
@@ -63,7 +64,7 @@ fun ChatMessageNerdLine(
             style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             usage?.let { Text("↑ ${it.promptTokens.formatNumber()} tokens", style = MaterialTheme.typography.labelSmall, color = color) }
-            output?.let { Text("↓ ${it.formatNumber()} tokens", style = MaterialTheme.typography.labelSmall, color = color) }
+            output?.let { Text("↓ ${java.text.NumberFormat.getIntegerInstance().format(it)} tokens", style = MaterialTheme.typography.labelSmall, color = color) }
             Text(speed?.let { "${it.toFixed(1)} tok/s" } ?: "— tok/s", style = MaterialTheme.typography.labelSmall, color = color)
             wallMs?.let { Text("${stringResource(R.string.runtime_overall)} ${progressDuration(it)}", style = MaterialTheme.typography.labelSmall, color = color) }
             Text(if (expanded) "▴" else "▾", color = color)

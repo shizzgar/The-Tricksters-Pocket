@@ -28,6 +28,7 @@ data class GenerationRuntimeSettings(
     val requestTimeoutMinutes: Int = 60,
     val parallelRequests: Int = 2,
     val autonomousContinuation: Boolean = true,
+    val waitForNetworkRecovery: Boolean = true,
     val resumeTasksAfterRestart: Boolean = true,
     val taskTimeoutMinutes: Int = 0,
 ) {

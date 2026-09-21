@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 enum class GenerationStopReason {
-    COMPLETED, STEP_LIMIT, CYCLE_DEADLINE, COMPACTION_LIMIT, WAITING_APPROVAL,
+    COMPLETED, USER_MESSAGE, STEP_LIMIT, CYCLE_DEADLINE, COMPACTION_LIMIT, WAITING_APPROVAL,
     LOOP_DETECTED, NO_PROGRESS, NETWORK_WAIT, FAILED, CANCELLED, TASK_DEADLINE, PROCESS_LOST,
 }
 
@@ -51,4 +51,13 @@ object AgentTaskPolicy {
     fun setStepLimit(id: String, limit: Int) { require(limit > 0); steps[id] = limit }
     fun stepLimit(id: String): Int? = steps[id]
     fun clear(id: String) { steps.remove(id) }
+}
+
+/** Only known transport failures before content can wait for network recovery. */
+internal fun canWaitForNetwork(failure: Throwable, hadContent: Boolean): Boolean {
+    if (hadContent || failure is kotlinx.coroutines.CancellationException) return false
+    return generateSequence(failure) { it.cause }.take(12).any {
+        it is java.net.SocketException || it is java.net.SocketTimeoutException ||
+            it is java.net.UnknownHostException || it is java.io.EOFException
+    }
 }

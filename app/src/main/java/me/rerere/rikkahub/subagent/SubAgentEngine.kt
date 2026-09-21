@@ -416,6 +416,10 @@ class SubAgentEngine(
         HeadlessConversations.mark(conv.id)
         me.rerere.rikkahub.data.ai.AgentTaskPolicy.setStepLimit(conv.id.toString(), request.maxTrips)
         try {
+            me.rerere.ai.provider.GenerationTrace.record(parentChatId, "subagent.started", buildJsonObject {
+                put("run_id", runId); put("child_conversation", conv.id.toString()); put("task", effectiveTask)
+                put("max_steps", request.maxTrips); put("timeout_seconds", request.timeoutSeconds)
+            })
             // Prepend a wrap-up instruction. Some models naturally write a summary paragraph
             // after their tool-call sequence; others stop after the last tool result and emit
             // no closing text. Without explicit text the parent has nothing to harvest and
@@ -522,7 +526,11 @@ class SubAgentEngine(
      * — better to interrupt than to silently lose the completion.
      */
     private suspend fun notifyParentIfBackground(parentChatId: String?, run: SubAgentRun?) {
-        if (parentChatId == null || run == null || !run.runInBackground) return
+        if (parentChatId == null || run == null) return
+        me.rerere.ai.provider.GenerationTrace.record(parentChatId, "subagent.result", buildJsonObject {
+            put("run_id", run.id); put("status", run.status.name); put("result", run.result); put("error", run.error)
+        })
+        if (!run.runInBackground) return
         val parentUuid = runCatching { Uuid.parse(parentChatId) }.getOrNull() ?: return
         if (HeadlessConversations.isHeadless(parentUuid)) return
 

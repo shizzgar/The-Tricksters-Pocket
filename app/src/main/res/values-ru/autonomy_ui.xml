@@ -30,4 +30,7 @@
     <string name="trajectory_empty">Подходящих событий пока нет.</string>
     <string name="trajectory_private">Локальная приватная запись: промпты, команды и данные задачи. Автоматически никуда не отправляется.</string>
     <string name="trajectory_content">Сохранённое содержимое</string>
+    <string name="agent_network_recovery">Ожидать восстановления сети</string>
+    <string name="agent_network_description">Повторять сетевой запрос с растущими паузами только до получения содержимого ответа. Частичные ответы и инструменты с неизвестным результатом не повторяются автоматически.</string>
+    <string name="agent_network_wait">Сеть недоступна · повтор через %1$d с</string>
 </resources>

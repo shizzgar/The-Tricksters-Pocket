@@ -1509,6 +1509,10 @@ class ChatService(
         )
         activeAgentTasks[conversationId] = task
         journal.saveTask(task)
+        journal.append(conversationId.toString(), if (resumed == null) "task.started" else "task.resumed", buildJsonObject {
+            put("run_id", task.runId); put("autonomous", autonomous); put("recovery_enabled", task.recoverAutomatically)
+        })
+        var networkFailures = 0
         val cycleState = AgentTaskCycleState(task.loopGuardTrips)
         try {
             while (true) {
@@ -1520,11 +1524,13 @@ class ChatService(
                 val before = conversationCheckpoint(getConversationFlow(conversationId).value.currentMessages)
                 val result = runGenerationSlice(conversationId, messageRange, allowContextRetry, autonomous, cycleState)
                 val after = conversationCheckpoint(getConversationFlow(conversationId).value.currentMessages)
-                val continueTask = shouldContinueTask(autonomous, result, before != after)
+                val liveConfig = settingsStore.settingsFlow.first().networkSetting.generationRuntime.normalized()
+                val waitingForNetwork = autonomous && liveConfig.autonomousContinuation && liveConfig.waitForNetworkRecovery && result.reason == GenerationStopReason.NETWORK_WAIT
+                val continueTask = waitingForNetwork || shouldContinueTask(autonomous && liveConfig.autonomousContinuation, result, before != after)
                 val reason = if (autonomous && result.reason.canContinueAutomatically() && before == after)
                     GenerationStopReason.NO_PROGRESS else result.reason
                 updateAgentTask(conversationId) { it.copy(
-                    status = if (continueTask) "running" else if (reason == GenerationStopReason.COMPLETED) "completed" else "paused",
+                    status = if (waitingForNetwork) "waiting_network" else if (continueTask) "running" else if (reason == GenerationStopReason.COMPLETED) "completed" else "paused",
                     reason = reason, cycles = it.cycles + 1, loopGuardTrips = cycleState.loopGuardTrips, steps = it.steps + result.steps, checkpoint = after,
                 ) }
                 journal.append(conversationId.toString(), "task.checkpoint", buildJsonObject {
@@ -1532,18 +1538,29 @@ class ChatService(
                     put("steps", result.steps); put("checkpoint", after)
                 })
                 if (!continueTask) break
+                if (waitingForNetwork) {
+                    networkFailures++
+                    val delayMs = minOf(300_000L, 5_000L * (1L shl networkFailures.coerceAtMost(6)))
+                    getOrCreateSession(conversationId).processingStatus.value = context.getString(R.string.agent_network_wait, delayMs / 1000)
+                    kotlinx.coroutines.delay(delayMs)
+                    updateAgentTask(conversationId) { it.copy(status = "running") }
+                } else networkFailures = 0
                 // Yield fairly without adding synthetic user messages or discarding approval state.
                 kotlinx.coroutines.yield()
             }
         } catch (cancel: CancellationException) {
             withContext(NonCancellable) {
-                updateAgentTask(conversationId) { it.copy(status = "cancelled", reason = GenerationStopReason.CANCELLED) }
+                updateAgentTask(conversationId) { it.copy(status = if (cancel is kotlinx.coroutines.TimeoutCancellationException) "paused" else "cancelled",
+                    reason = if (cancel is kotlinx.coroutines.TimeoutCancellationException) GenerationStopReason.FAILED else GenerationStopReason.CANCELLED,
+                    detail = if (cancel is kotlinx.coroutines.TimeoutCancellationException) "Operation deadline exceeded" else null) }
+                journal.append(conversationId.toString(), "task.cancelled", buildJsonObject { put("run_id", task.runId) })
             }
             throw cancel
         } catch (error: Exception) {
             updateAgentTask(conversationId) { it.copy(status = "paused", reason = GenerationStopReason.FAILED, detail = error.message?.take(500)) }
             throw error
         } finally {
+            getOrCreateSession(conversationId).processingStatus.value = null
             activeAgentTasks.remove(conversationId)
         }
     }
@@ -1670,6 +1687,10 @@ class ChatService(
                     ?: me.rerere.rikkahub.data.ai.limits.ToolRuntimeLimits.maxToolSteps,
                 cycleState = cycleState,
                 onStopped = { outcome = it },
+                shouldYieldToQueuedMessage = {
+                    val queue = session.messageQueue.state.value
+                    autonomousCycle && !queue.paused && queue.messages.firstOrNull()?.isEditing == false
+                },
                 settings = settings,
                 model = model,
                 processingStatus = session.processingStatus,
@@ -1892,7 +1913,7 @@ class ChatService(
                 // cancellation are reported by their existing error paths and must not emit a
                 // misleading completion notification here.
                 if (
-                    completionCause == null && !outcome.reason.canContinueAutomatically() &&
+                    completionCause == null && !outcome.reason.canContinueAutomatically() && outcome.reason != GenerationStopReason.USER_MESSAGE &&
                     !isForeground.value &&
                     settings.displaySetting.enableNotificationOnMessageGeneration
                 ) {
@@ -2010,6 +2031,14 @@ class ChatService(
             }
         }
 
+        val progressAtFailure = getOrCreateSession(conversationId).generationProgress.state.value
+        if (autonomousCycle && settings.networkSetting.generationRuntime.waitForNetworkRecovery &&
+            generationFailure != null && progressAtFailure?.phase == me.rerere.ai.provider.GenerationPhase.FAILED &&
+            me.rerere.rikkahub.data.ai.canWaitForNetwork(generationFailure, progressAtFailure.firstContentAt != null)) {
+            persistStreamingStateNow(conversationId, requireSuccess = true)
+            return GenerationSliceOutcome(GenerationStopReason.NETWORK_WAIT, outcome.steps)
+        }
+
         // Retry status is transient. Clear it before surfacing the final result so a failed
         // stream does not leave the conversation stuck on “retrying” after the error card appears.
         getOrCreateSession(conversationId).processingStatus.value = null
@@ -2043,7 +2072,7 @@ class ChatService(
             Logging.log(TAG, "handleMessageComplete: $it")
             Logging.log(TAG, it.stackTraceToString())
         }.onSuccess {
-            if (autonomousCycle && outcome.reason.canContinueAutomatically()) return@onSuccess
+            if (autonomousCycle && (outcome.reason.canContinueAutomatically() || outcome.reason == GenerationStopReason.USER_MESSAGE)) return@onSuccess
             val finalConversation = getConversationFlow(conversationId).value
 
             if (isStalledTurn(succeeded = true, lastMessage = finalConversation.currentMessages.lastOrNull())) {
@@ -3508,6 +3537,10 @@ class ChatService(
         val forkConversation = createForkConversation(currentConversation, copiedNodes, existingTitles)
 
         saveConversation(forkConversation.id, forkConversation)
+        journal.append(forkConversation.id.toString(), "conversation.forked", buildJsonObject {
+            put("parent_conversation", currentConversation.id.toString())
+            put("copied_message_count", forkConversation.currentMessages.size)
+        })
         return forkConversation
     }
 

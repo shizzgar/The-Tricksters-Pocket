@@ -4,6 +4,14 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class AgentTaskRuntimeTest {
+    @Test fun `network recovery excludes partial output cancellation and local failures`() {
+        assertTrue(canWaitForNetwork(java.net.SocketTimeoutException(), false))
+        assertFalse(canWaitForNetwork(java.net.SocketTimeoutException(), true))
+        assertFalse(canWaitForNetwork(kotlinx.coroutines.CancellationException(), false))
+        assertFalse(canWaitForNetwork(java.io.IOException("disk full"), false))
+        assertFalse(canWaitForNetwork(IllegalStateException("invalid model"), false))
+    }
+
     @Test fun `only progressing soft boundaries may continue automatically`() {
         GenerationStopReason.entries.forEach { reason ->
             val outcome = GenerationSliceOutcome(reason)
