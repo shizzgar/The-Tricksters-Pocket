@@ -58,7 +58,8 @@ internal fun canWaitForNetwork(failure: Throwable, hadContent: Boolean): Boolean
     if (hadContent || failure is kotlinx.coroutines.CancellationException) return false
     return generateSequence(failure) { it.cause }.take(12).any {
         it is java.net.SocketException || it is java.net.SocketTimeoutException ||
-            it is java.net.UnknownHostException || it is java.io.EOFException
+            it is java.net.UnknownHostException || it is java.io.EOFException ||
+            (it is me.rerere.ai.util.HttpException && it.statusCode in setOf(408, 502, 503, 504))
     }
 }
 

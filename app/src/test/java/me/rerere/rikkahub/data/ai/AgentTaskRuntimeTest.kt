@@ -20,6 +20,10 @@ class AgentTaskRuntimeTest {
         assertFalse(canWaitForNetwork(java.net.SocketTimeoutException(), true))
         assertFalse(canWaitForNetwork(kotlinx.coroutines.CancellationException(), false))
         assertFalse(canWaitForNetwork(java.io.IOException("disk full"), false))
+        assertTrue(canWaitForNetwork(me.rerere.ai.util.HttpException("backend recovering", 503), false))
+        assertFalse(canWaitForNetwork(me.rerere.ai.util.HttpException("backend recovering", 502), true))
+        assertFalse(canWaitForNetwork(me.rerere.ai.util.HttpException("invalid key", 401), false))
+        assertFalse(canWaitForNetwork(me.rerere.ai.util.HttpException("quota exhausted", 429), false))
         assertFalse(canWaitForNetwork(IllegalStateException("invalid model"), false))
     }
 

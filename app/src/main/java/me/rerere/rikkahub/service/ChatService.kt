@@ -2041,7 +2041,7 @@ class ChatService(
         }
 
         val progressAtFailure = getOrCreateSession(conversationId).generationProgress.state.value
-        if (autonomousCycle && settings.networkSetting.generationRuntime.waitForNetworkRecovery &&
+        if (autonomousCycle && settings.networkSetting.enableAutoRetry && settings.networkSetting.generationRuntime.waitForNetworkRecovery &&
             generationFailure != null && progressAtFailure?.phase == me.rerere.ai.provider.GenerationPhase.FAILED &&
             me.rerere.rikkahub.data.ai.canWaitForNetwork(generationFailure, progressAtFailure.firstContentAt != null)) {
             persistStreamingStateNow(conversationId, requireSuccess = true)
