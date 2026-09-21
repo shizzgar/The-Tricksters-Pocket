@@ -80,6 +80,7 @@ class ChatVM(
     internal val termuxJobs = TermuxJobsController(viewModelScope, request = { request ->
         me.rerere.rikkahub.data.ai.tools.local.termuxJobRequest(context, _conversationId.toString(), request)
     })
+    fun resumeAgentTask() = chatService.resumeAgentTask(_conversationId)
     val generationProgress = chatService.getGenerationProgressFlow(_conversationId)
 
     val processingStatus: StateFlow<String?> =

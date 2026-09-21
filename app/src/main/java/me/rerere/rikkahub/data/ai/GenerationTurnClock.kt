@@ -13,6 +13,8 @@ internal class GenerationTurnClock(
 
     init { require(compactionBudgetMs > 0) }
 
+    fun compactionAllowanceExhausted() = compactionElapsedMs >= compactionBudgetMs
+
     fun activeElapsedMs(): Long =
         (nowMs() - startedAt - compactionElapsedMs).coerceAtLeast(0)
 
@@ -32,3 +34,4 @@ internal class GenerationTurnClock(
 
     private data class Value<T>(val value: T)
 }
+

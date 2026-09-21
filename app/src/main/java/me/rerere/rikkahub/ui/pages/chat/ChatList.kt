@@ -116,6 +116,7 @@ fun ChatList(
     state: LazyListState,
     loading: Boolean,
     processingStatus: String? = null,
+    generationProgress: me.rerere.ai.provider.GenerationProgress? = null,
     previewMode: Boolean,
     settings: Settings,
     hazeState: HazeState,
@@ -160,6 +161,7 @@ fun ChatList(
                 state = state,
                 loading = loading,
                 processingStatus = processingStatus,
+                generationProgress = generationProgress,
                 settings = settings,
                 hazeState = hazeState,
                 errors = errors,
@@ -191,6 +193,7 @@ private fun ChatListNormal(
     state: LazyListState,
     loading: Boolean,
     processingStatus: String? = null,
+    generationProgress: me.rerere.ai.provider.GenerationProgress? = null,
     settings: Settings,
     hazeState: HazeState,
     errors: List<ChatError>,
@@ -350,6 +353,8 @@ private fun ChatListNormal(
                             // rerun button in an older message's tool-call sheet must stay
                             // hidden while a newer message is still streaming.
                             generationActive = loading,
+                            generationProgress = generationProgress.takeIf { loading && node.id == lastMessageNodeId },
+                            processingStatus = processingStatus.takeIf { loading && node.id == lastMessageNodeId },
                             onRegenerate = {
                                 onRegenerate(node.currentMessage)
                             },
@@ -867,3 +872,4 @@ private fun BoxScope.MessageJumper(
         }
     }
 }
+

@@ -53,6 +53,9 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Deferred
 import me.rerere.ai.provider.ProviderSetting
 import me.rerere.hugeicons.HugeIcons
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import me.rerere.hugeicons.stroke.Clock02
 import me.rerere.hugeicons.stroke.Voice
 import me.rerere.hugeicons.stroke.Camera01
 import me.rerere.hugeicons.stroke.Codesandbox
@@ -109,7 +112,14 @@ internal fun FilesPicker(
     onPickFile: () -> Unit,
     onStartVoiceMode: (() -> Unit)? = null,
     onOpenTermuxJobs: () -> Unit = {},
+    onOpenTrajectory: () -> Unit = {},
+    jobTotal: Long? = null,
+    jobsRunning: Long? = null,
 ) {
+    val skillManager: me.rerere.rikkahub.data.files.SkillManager = koinInject()
+    val skillNames by androidx.compose.runtime.produceState<Set<String>>(emptySet(), skillManager) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { skillManager.listSkills().map { it.name }.toSet() }
+    }
     val settings = LocalSettings.current
     val provider = settings.getCurrentChatModel()?.findProvider(providers = settings.providers)
     val navController = LocalNavController.current
@@ -119,6 +129,7 @@ internal fun FilesPicker(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
             .padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         FlowRow(
@@ -189,10 +200,7 @@ internal fun FilesPicker(
             } else {
                 assistant.modeInjectionIds.size + assistant.lorebookIds.size
             }
-        val activeCount =
-            assistant.quickMessageIds.size +
-                modeAndLorebookCount +
-                assistant.enabledSkills.size
+        val connectedSkills = assistant.enabledSkills.count { it in skillNames }
         ListItem(
             leadingContent = {
                 Icon(
@@ -203,10 +211,11 @@ internal fun FilesPicker(
             headlineContent = {
                 Text(stringResource(R.string.assistant_page_tab_extensions))
             },
+            supportingContent = { Text(stringResource(R.string.extensions_menu_description)) },
             trailingContent = {
-                if (activeCount > 0) {
+                if (skillNames.isNotEmpty()) {
                     Text(
-                        text = activeCount.toString(),
+                        text = stringResource(R.string.extensions_skill_count, connectedSkills, skillNames.size),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
                     )
@@ -223,7 +232,9 @@ internal fun FilesPicker(
         )
 
         ListItem(
+            leadingContent = { Icon(HugeIcons.ComputerTerminal01, null) },
             headlineContent = { Text(stringResource(R.string.jobs_title)) },
+            trailingContent = { if (jobTotal != null && jobsRunning != null) Text(stringResource(R.string.jobs_menu_count, jobsRunning, jobTotal), style = MaterialTheme.typography.labelSmall) },
             supportingContent = { Text(stringResource(R.string.jobs_entry_hint)) },
             colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
             modifier = Modifier.clip(MaterialTheme.shapes.large).clickable { onOpenTermuxJobs() },
@@ -240,6 +251,7 @@ internal fun FilesPicker(
             headlineContent = {
                 Text(stringResource(R.string.chat_page_compress_context))
             },
+            supportingContent = { Text(stringResource(R.string.compress_menu_description)) },
             trailingContent = {
                 if (conversation.messageNodes.isNotEmpty()) {
                     Text(
@@ -257,6 +269,14 @@ internal fun FilesPicker(
                 .clickable {
                     onShowCompressDialogChange(true)
                 },
+        )
+
+        ListItem(
+            leadingContent = { Icon(HugeIcons.Clock02, null) },
+            headlineContent = { Text(stringResource(R.string.trajectory_title)) },
+            supportingContent = { Text(stringResource(R.string.trajectory_description)) },
+            colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+            modifier = Modifier.clip(MaterialTheme.shapes.large).clickable { onOpenTrajectory() },
         )
 
         // Workspace CWD

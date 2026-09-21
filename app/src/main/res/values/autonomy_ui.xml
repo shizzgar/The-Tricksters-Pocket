@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="runtime_tools_or_checkpoint">Tools / saving checkpoint</string>
+    <string name="runtime_overall">Overall</string>
+    <string name="runtime_queue">Queue</string>
+    <string name="runtime_receiving">Receiving</string>
+    <string name="runtime_cached">Cached input tokens:</string>
+    <string name="runtime_speed_explanation">Speed uses provider output tokens divided by the interval from first to last content. Queue, prefill and tools are excluded. Input is the latest request; output is summed across measured requests.</string>
+    <string name="runtime_no_measurements">Request timing was not recorded for this message. TPS is unavailable.</string>
+    <string name="runtime_request_count">%1$d model requests</string>
+    <string name="agent_auto_continue">Continue autonomous tasks</string>
+    <string name="agent_auto_description">Step and turn-time limits become checkpoints. Approvals, repeated loops, errors and Stop still pause or finish the task.</string>
+    <string name="agent_restore">Recover after application restart</string>
+    <string name="agent_restore_description">Resume a saved active task when the app runs again and its conversation checkpoint matches. Commands with unknown outcomes are not replayed.</string>
+    <string name="agent_task_deadline">Task time budget (minutes)</string>
+    <string name="agent_task_deadline_description">0 means no total task limit. Checked between cycles; individual operations keep their own deadlines.</string>
+    <string name="jobs_menu_count">%1$d running · %2$d total</string>
+    <string name="extensions_menu_description">Skills, quick messages and prompt additions</string>
+    <string name="extensions_skill_count">%1$d / %2$d skills</string>
+    <string name="compress_menu_description">Keep the goal and evidence while freeing context space</string>
+    <string name="trajectory_title">Dialogue trajectory</string>
+    <string name="trajectory_description">Model requests, tools, checkpoints and timing</string>
+    <string name="trajectory_scope">Recorded from this build onward. Inputs are normalized provider messages, not raw HTTP. Only reasoning returned by the provider is recorded. Browsing this history never executes tools.</string>
+    <string name="trajectory_events">%1$d events</string>
+    <string name="trajectory_search">Search event content</string>
+    <string name="trajectory_all">All sources</string>
+    <string name="trajectory_more">Earlier events</string>
+    <string name="trajectory_resume">Resume task</string>
+    <string name="trajectory_checkpoint">Task checkpoint</string>
+    <string name="trajectory_empty">No matching events recorded yet.</string>
+    <string name="trajectory_private">Private local trace. It may contain prompts, commands and target data. Nothing is uploaded automatically.</string>
+    <string name="trajectory_content">Recorded payload</string>
+</resources>

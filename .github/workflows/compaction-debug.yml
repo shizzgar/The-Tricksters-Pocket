@@ -41,6 +41,8 @@ jobs:
         run: >-
           bash ./gradlew --no-daemon --max-workers=2 :app:testDebugUnitTest
           --tests 'me.rerere.rikkahub.data.ai.CompactionRuntimeTest'
+          --tests 'me.rerere.rikkahub.data.ai.AgentTaskRuntimeTest'
+          --tests 'me.rerere.rikkahub.data.ai.SessionJournalTest'
           --tests 'me.rerere.rikkahub.data.ai.GenerationTurnClockTest'
           --tests 'me.rerere.rikkahub.data.ai.ContextCompaction*Test'
           --tests 'me.rerere.rikkahub.data.ai.CompactionEvidenceTest'

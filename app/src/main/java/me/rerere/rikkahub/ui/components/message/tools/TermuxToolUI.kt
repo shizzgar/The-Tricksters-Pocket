@@ -54,6 +54,18 @@ private class TermuxToolUI(override val toolName: String) : ToolUIRenderer {
             Text(it, modifier = Modifier.fillMaxWidth(), maxLines = 2, overflow = TextOverflow.Ellipsis, softWrap = true,
                 style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, textDirection = TextDirection.Ltr))
         }
+        if (view.isJobSnapshot) {
+            listOf("stdout", "stderr", "text").forEach { key ->
+                val text = (view.output?.get(key) as? JsonPrimitive)?.contentOrNull
+                if (!text.isNullOrBlank()) {
+                    Text(key, style = MaterialTheme.typography.labelSmall)
+                    SelectionContainer { Text(text.take(2400), modifier = Modifier.fillMaxWidth(),
+                        maxLines = 16, overflow = TextOverflow.Ellipsis, softWrap = true,
+                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, textDirection = TextDirection.Ltr),
+                        color = if (key == "stderr") MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant) }
+                }
+            }
+        }
         if (view.outputState in setOf(TermuxOutputState.TRUNCATED, TermuxOutputState.UNAVAILABLE)) {
             Text(stringResource(view.outputState!!.label()), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
         }
@@ -148,7 +160,7 @@ private class TermuxToolUI(override val toolName: String) : ToolUIRenderer {
             listOf("error", "reason", "note", "recovery", "archive_error", "archive_reason").forEach { key ->
                 out?.get(key)?.let { value -> item { TerminalBlock(argumentLabel(key), displayValue(value)) } }
             }
-            listOf("job_id", "operation_id", "stop_reason", "output_ref", "next_cursor", "log_path").forEach { key ->
+            listOf("job_id", "operation_id", "stop_reason", "output_ref", "next_cursor", "stdout_next_cursor", "stderr_next_cursor", "log_path").forEach { key ->
                 out?.get(key)?.let { value -> item { Field(argumentLabel(key), displayValue(value)) } }
             }
             listOf("stdout", "stderr", "screen", "text").forEach { key ->

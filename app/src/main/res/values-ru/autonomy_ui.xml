@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="runtime_tools_or_checkpoint">Инструменты / сохранение состояния</string>
+    <string name="runtime_overall">Всего</string>
+    <string name="runtime_queue">Очередь</string>
+    <string name="runtime_receiving">Получение</string>
+    <string name="runtime_cached">Входных токенов из кеша:</string>
+    <string name="runtime_speed_explanation">Скорость: выходные токены провайдера за время от первого до последнего содержательного фрагмента. Очередь, prefill и инструменты исключены. Вход — последний запрос; выход — сумма измеренных запросов.</string>
+    <string name="runtime_no_measurements">Для этого сообщения не сохранены измерения запросов. TPS недоступен.</string>
+    <string name="runtime_request_count">Запросов к модели: %1$d</string>
+    <string name="agent_auto_continue">Продолжать автономные задачи</string>
+    <string name="agent_auto_description">Лимиты шагов и времени хода становятся контрольными точками. Разрешения, зацикливание, ошибки и кнопка остановки по-прежнему приостанавливают или завершают задачу.</string>
+    <string name="agent_restore">Восстанавливать после перезапуска приложения</string>
+    <string name="agent_restore_description">Продолжать сохранённую активную задачу при следующем запуске приложения, если состояние диалога совпадает. Команды с неизвестным результатом не выполняются повторно.</string>
+    <string name="agent_task_deadline">Время задачи (минуты)</string>
+    <string name="agent_task_deadline_description">0 — без общего лимита задачи. Проверяется между циклами; отдельные операции сохраняют свои таймауты.</string>
+    <string name="jobs_menu_count">Работают: %1$d · всего: %2$d</string>
+    <string name="extensions_menu_description">Навыки, быстрые сообщения и дополнения к промпту</string>
+    <string name="extensions_skill_count">Навыки: %1$d / %2$d</string>
+    <string name="compress_menu_description">Сохранить цель и доказательства, освободив место в контексте</string>
+    <string name="trajectory_title">Трассировка диалога</string>
+    <string name="trajectory_description">Запросы модели, инструменты, контрольные точки и время</string>
+    <string name="trajectory_scope">Запись ведётся с этой версии. Входы — сообщения провайдеру, а не сырой HTTP. Сохраняются только рассуждения, возвращённые провайдером. Просмотр истории не запускает инструменты.</string>
+    <string name="trajectory_events">Событий: %1$d</string>
+    <string name="trajectory_search">Поиск по содержимому событий</string>
+    <string name="trajectory_all">Все источники</string>
+    <string name="trajectory_more">Более ранние события</string>
+    <string name="trajectory_resume">Продолжить задачу</string>
+    <string name="trajectory_checkpoint">Состояние задачи</string>
+    <string name="trajectory_empty">Подходящих событий пока нет.</string>
+    <string name="trajectory_private">Локальная приватная запись: промпты, команды и данные задачи. Автоматически никуда не отправляется.</string>
+    <string name="trajectory_content">Сохранённое содержимое</string>
+</resources>

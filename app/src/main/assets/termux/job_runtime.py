@@ -275,19 +275,37 @@ def page(folder, request):
                 encoding="utf-8; non-UTF8 bytes replaced")
 
 
+def output_preview(folder, request, current):
+    """Read bounded pages of both streams; observation never executes the command again."""
+    result = dict(current)
+    for stream in ("stdout", "stderr"):
+        preview = page(folder, {"stream": stream, "cursor": request.get(stream + "_cursor", 0),
+                                "max_bytes": min(6000, max(256, int(request.get("output_max_bytes", 6000))))})
+        result[stream] = preview["text"]
+        for key in ("cursor", "next_cursor", "has_more", "stored_bytes"):
+            result[stream + "_" + key] = preview[key]
+    result["output_observed_at"] = time.time()
+    return result
+
+
 def dispatch(request):
     set_boot_marker(request.get("platform_boot_marker"))
     action = request["action"]
     owner = validate_id(request["owner"])
     if action == "start":
-        return start(request)
+        result = start(request)
+        if result.get("job_id") and result.get("error") != "operation_id_conflict":
+            return output_preview(job_dir(owner, result["job_id"]), request, result)
+        return result
     if action == "list":
         jobs = sorted((BASE / owner).glob("*/request.json"), key=lambda p: p.stat().st_mtime, reverse=True)
         cursor = max(0, int(request.get("cursor", 0)))
-        results = [status(p.parent) for p in jobs[cursor:cursor + 20]]
+        snapshots = [status(p.parent) for p in jobs]
+        results = snapshots[cursor:cursor + 20]
         for item in results:
             item["command"] = item["command"][:240]
-        return {"success": True, "jobs": results, "next_cursor": cursor + len(results), "has_more": cursor + len(results) < len(jobs)}
+        return {"success": True, "jobs": results, "next_cursor": cursor + len(results), "has_more": cursor + len(results) < len(jobs),
+                "total_jobs": len(jobs), "active_jobs": sum(item["state"] in ACTIVE for item in snapshots)}
     folder = job_dir(owner, request["job_id"])
     if not (folder / "request.json").exists():
         return {"success": False, "error": "job_not_found"}
@@ -310,15 +328,15 @@ def dispatch(request):
                                             (current["state"] == "starting" and not current.get("worker"))):
             (folder / "cancel.request").touch(mode=0o600)
         else:
-            return dict(current, cancel_confirmed=current["state"] == "cancelled")
+            return output_preview(folder, request, dict(current, cancel_confirmed=current["state"] == "cancelled"))
     if action not in ("wait", "cancel"):
         raise ValueError("unknown action")
     deadline = time.monotonic() + min(max(int(request.get("timeout_seconds", 20)), 1), 60)
     while True:
         current = status(folder)
         if current["state"] not in ACTIVE or time.monotonic() >= deadline:
-            return dict(current, wait_timed_out=current["state"] in ACTIVE,
-                        cancel_confirmed=current["state"] == "cancelled")
+            return output_preview(folder, request, dict(current, wait_timed_out=current["state"] in ACTIVE,
+                        cancel_confirmed=current["state"] == "cancelled"))
         time.sleep(.2)
 
 
@@ -341,3 +359,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

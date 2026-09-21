@@ -18,27 +18,37 @@ data class GenerationProgress(
     val finishedAt: Long? = null,
     val backend: String? = null,
     val httpStatus: Int? = null,
+    val requestId: String = java.util.UUID.randomUUID().toString(),
+    val usage: me.rerere.ai.core.TokenUsage? = null,
+    val streamed: Boolean = true,
 )
 
 class GenerationProgressTracker(private val clock: () -> Long = { System.nanoTime() / 1_000_000 }) {
     private val mutable = MutableStateFlow<GenerationProgress?>(null)
     val state = mutable.asStateFlow()
     private var sequence = 0L
+    private val completed = ArrayDeque<GenerationRequestMetrics>()
+    @Synchronized fun completedMetrics(): List<GenerationRequestMetrics> = completed.toList()
 
     @Synchronized fun prepare() {
         mutable.value = GenerationProgress(++sequence, GenerationPhase.PREPARING, clock())
     }
 
-    @Synchronized fun begin(): GenerationRequestObserver {
+    @Synchronized fun begin(streamed: Boolean = true): GenerationRequestObserver {
         val id = ++sequence
-        mutable.value = GenerationProgress(id, GenerationPhase.QUEUED, clock())
+        mutable.value = GenerationProgress(id, GenerationPhase.QUEUED, clock(), streamed = streamed)
         return GenerationRequestObserver(this, id)
     }
 
     @Synchronized internal fun update(id: Long, transform: (GenerationProgress, Long) -> GenerationProgress) {
         val previous = mutable.value ?: return
         if (previous.attempt != id || previous.finishedAt != null) return
-        mutable.value = transform(previous, clock())
+        val updated = transform(previous, clock())
+        mutable.value = updated
+        if (updated.finishedAt != null) {
+            completed.addLast(updated.metrics())
+            while (completed.size > 512) completed.removeFirst()
+        }
     }
 }
 
@@ -52,7 +62,11 @@ class GenerationRequestObserver internal constructor(private val tracker: Genera
     fun content() = tracker.update(id) { p, now ->
         p.copy(phase = GenerationPhase.RECEIVING, firstContentAt = p.firstContentAt ?: now, lastContentAt = now)
     }
-    fun chunk(chunk: StreamChunk) { if (chunk.hasProgressContent()) content() }
+    fun usage(usage: me.rerere.ai.core.TokenUsage) = tracker.update(id) { p, _ -> p.copy(usage = usage) }
+    fun chunk(chunk: StreamChunk) {
+        if (chunk.hasProgressContent()) content()
+        if (chunk is StreamChunk.Usage) usage(chunk.usage)
+    }
     fun finish(phase: GenerationPhase) = tracker.update(id) { p, now -> p.copy(phase = phase, finishedAt = now) }
 }
 

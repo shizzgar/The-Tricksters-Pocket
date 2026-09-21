@@ -43,6 +43,7 @@ internal fun terminalOutputState(out: JsonObject?): TermuxOutputState? {
         out.stringValue("archive_error") != null -> TermuxOutputState.UNAVAILABLE
         out.booleanValue("archive_truncated") == true || logLoss -> TermuxOutputState.TRUNCATED
         out.booleanValue("has_more") == true && (out["text"] as? JsonPrimitive)?.isString == true -> TermuxOutputState.MORE_AVAILABLE
+        out.booleanValue("stdout_has_more") == true || out.booleanValue("stderr_has_more") == true -> TermuxOutputState.MORE_AVAILABLE
         !out.stringValue("output_ref").isNullOrBlank() -> TermuxOutputState.ARCHIVED
         shortened -> TermuxOutputState.PREVIEW_SHORTENED
         else -> null

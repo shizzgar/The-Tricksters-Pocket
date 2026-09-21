@@ -414,6 +414,7 @@ class SubAgentEngine(
         conversationRepo.insertConversation(conv)
         chatService.initializeConversation(conv.id)
         HeadlessConversations.mark(conv.id)
+        me.rerere.rikkahub.data.ai.AgentTaskPolicy.setStepLimit(conv.id.toString(), request.maxTrips)
         try {
             // Prepend a wrap-up instruction. Some models naturally write a summary paragraph
             // after their tool-call sequence; others stop after the last tool result and emit
@@ -450,6 +451,13 @@ class SubAgentEngine(
             // text parts from the last assistant message. This mirrors how the
             // CronJobWorker treats LLM-mode jobs.
             val finalText = harvestFinalText(conv.id)
+            val taskState = chatService.agentTaskState(conv.id)
+            if (taskState != null && taskState.reason != me.rerere.rikkahub.data.ai.GenerationStopReason.COMPLETED) {
+                registry.update(runId) { it.copy(result = finalText, tripCount = taskState.steps.toInt()) }
+                markTerminal(runId, SubAgentStatus.FAILED, "generation_paused: ${taskState.reason}")
+                notifyParentIfBackground(parentChatId, registry.get(runId))
+                return
+            }
             registry.update(runId) {
                 it.copy(
                     status = SubAgentStatus.SUCCEEDED,
@@ -468,6 +476,7 @@ class SubAgentEngine(
             markTerminal(runId, terminal, "${t::class.simpleName}: ${t.message.orEmpty()}")
             notifyParentIfBackground(parentChatId, registry.get(runId))
         } finally {
+            me.rerere.rikkahub.data.ai.AgentTaskPolicy.clear(conv.id.toString())
             HeadlessConversations.unmark(conv.id)
             registry.clearJob(runId)
         }
@@ -578,3 +587,4 @@ class SubAgentEngine(
         }.getOrDefault("")
     }
 }
+

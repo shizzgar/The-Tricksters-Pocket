@@ -14,6 +14,8 @@ internal val JsonObject.canForgetJob: Boolean get() = jobString("state") in setO
 
 internal data class TermuxJobsState(
     val jobs: List<JsonObject> = emptyList(),
+    val totalJobs: Long? = null,
+    val activeJobs: Long? = null,
     val nextListCursor: Long? = null,
     val selected: JsonObject? = null,
     val stream: String = "stdout",
@@ -66,6 +68,7 @@ internal class TermuxJobsController(
             jobs = ((if (more) previous.jobs else emptyList()) + jobs).distinctBy { it.jobString("job_id") },
             nextListCursor = result.jobLong("next_cursor")?.takeIf { result.jobBool("has_more") && it > cursor },
             lastCheckedAt = clock(),
+            totalJobs = result.jobLong("total_jobs"), activeJobs = result.jobLong("active_jobs"),
         )
     }
 

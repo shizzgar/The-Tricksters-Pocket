@@ -49,6 +49,28 @@ class JobRuntimeTest(unittest.TestCase):
         self.assertEqual('x', (self.folder / 'counter').read_text())
         self.assertEqual('operation_id_conflict', self.start('echo different')['error'])
 
+    def test_wait_carries_separate_output_and_continuation_cursors(self):
+        expected = 'А😀你好\n' * 300
+        job = self.start(f"{sys.executable} - <<'EOF'\nimport sys\nprint({expected!r}, end='')\nprint('problem', file=sys.stderr, end='')\nEOF")
+        reply = self.rpc('wait', job_id=job['job_id'], timeout_seconds=8, output_max_bytes=257)
+        self.assertEqual('problem', reply['stderr'])
+        chunks = [reply['stdout']]
+        while reply['stdout_has_more']:
+            reply = self.rpc('wait', job_id=job['job_id'], timeout_seconds=1, output_max_bytes=257,
+                             stdout_cursor=reply['stdout_next_cursor'], stderr_cursor=reply['stderr_next_cursor'])
+            self.assertEqual('', reply['stderr'])
+            chunks.append(reply['stdout'])
+        self.assertEqual(expected, ''.join(chunks))
+        self.assertEqual('completed', reply['state'])
+
+    def test_list_includes_global_counts_beyond_display_page(self):
+        job = self.start('sleep 3')
+        listing = self.rpc('list')
+        self.assertEqual(1, listing['total_jobs'])
+        self.assertEqual(1, listing['active_jobs'])
+        self.finish(job)
+        self.assertEqual(0, self.rpc('list')['active_jobs'])
+
     def test_nonzero_exit_and_separate_stderr(self):
         job = self.start("printf out; printf problem >&2; exit 7")
         status = self.finish(job)
@@ -129,3 +151,4 @@ class JobRuntimeTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+

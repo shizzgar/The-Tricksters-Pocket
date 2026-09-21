@@ -203,6 +203,7 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
                     inputState = inputState,
                     loadingJob = loadingJob,
                     processingStatus = processingStatus,
+                generationProgress = generationProgress,
                     setting = setting,
                     conversation = conversation,
                     drawerState = drawerState,
@@ -284,6 +285,7 @@ private fun ChatPageContent(
     val hazeState = rememberHazeState()
     val assistant = setting.getCurrentAssistant()
     var showFilesSheet by remember { mutableStateOf(false) }
+    var showTrajectory by rememberSaveable(conversation.id) { mutableStateOf(false) }
     var showTermuxJobs by rememberSaveable(conversation.id) { mutableStateOf(false) }
     val generationProgress by vm.generationProgress.collectAsStateWithLifecycle()
     val attachmentPickerActions = rememberChatAttachmentPickerActions(
@@ -333,7 +335,6 @@ private fun ChatPageContent(
                 val messageQueue by vm.messageQueue.collectAsStateWithLifecycle()
                 val voiceState by vm.voiceSession.state.collectAsStateWithLifecycle()
                 Column {
-                    if (loadingJob != null) GenerationProgressCard(generationProgress, processingStatus)
                     ChatInput(
                         onStartVoiceMode = onStartVoiceMode,
                         voiceState = voiceState,
@@ -529,6 +530,7 @@ private fun ChatPageContent(
             )
         }
 
+        if (showTrajectory) ConversationTrajectoryScreen(conversation, loadingJob != null, vm::resumeAgentTask, { showTrajectory = false })
         if (showTermuxJobs) TermuxJobsScreen(vm.termuxJobs, onDismiss = { showTermuxJobs = false })
 
         if (showFilesSheet) {
@@ -542,6 +544,7 @@ private fun ChatPageContent(
                 onStartVoiceMode = onStartVoiceMode,
                 onDismiss = { showFilesSheet = false },
                 onOpenTermuxJobs = { showFilesSheet = false; showTermuxJobs = true },
+                onOpenTrajectory = { showFilesSheet = false; showTrajectory = true },
             )
         }
     }
@@ -557,8 +560,11 @@ private fun ChatFilesPickerSheet(
     attachmentPickerActions: ChatAttachmentPickerActions,
     onStartVoiceMode: () -> Unit,
     onOpenTermuxJobs: () -> Unit,
+    onOpenTrajectory: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val jobState by vm.termuxJobs.state.collectAsStateWithLifecycle()
+    LaunchedEffect(vm) { vm.termuxJobs.refresh() }
     val voiceState by vm.voiceSession.state.collectAsStateWithLifecycle()
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -580,6 +586,9 @@ private fun ChatFilesPickerSheet(
         onDismissRequest = { dismissAll() },
     ) {
         FilesPicker(
+            onOpenTrajectory = onOpenTrajectory,
+            jobTotal = jobState.totalJobs,
+            jobsRunning = jobState.activeJobs,
             onOpenTermuxJobs = {
                 focusManager.clearFocus(force = true)
                 keyboardController?.hide()

@@ -65,7 +65,7 @@ fun termuxJobTools(context: Context, owner: String?): List<Tool> =
             description = when (action) {
                 "start" -> "Start a durable Termux batch job owned by this conversation. Required operation_id deduplicates identical retries; a different command with the same ID is rejected. Returns job_id; read stdout/stderr by cursor, wait or cancel separately. Survives RikkaHub restart. Python in Termux required. Runs as Termux UID. Logs capped at 8 MiB per stream, store 256 MiB; quota loss is explicit."
                 "read" -> "Read one page of a job's private stdout/stderr. Use returned next_cursor unchanged (UTF-8 byte cursor). Status includes log truncation; this does not rerun the command."
-                "wait" -> "Observe job completion for up to 60 seconds. wait_timed_out does not terminate the job. After interruption/restart, list/wait/read existing jobs instead of relaunching."
+                "wait" -> "Observe job completion for up to 60 seconds and return stdout/stderr pages. Pass stdout_next_cursor and stderr_next_cursor back as stdout_cursor/stderr_cursor to read only new output. wait_timed_out does not terminate the job. After interruption/restart, list/wait/read existing jobs instead of relaunching."
                 "cancel" -> "Request cancellation of an owned job and wait for its supervisor. Signals only its managed process group; detached/new-session or privileged descendants may escape. cancel_confirmed is distinct from requesting cancellation."
                 "forget" -> "Remove logs of a confirmed finished job to reclaim quota. Keeps its operation receipt to prevent duplicate execution. Does not remove running or unknown jobs."
                 else -> "Reconcile/list durable jobs for this conversation after a lost response, app restart or device reboot. Process identity uses boot ID and start ticks. Unknown outcome is never silently restarted."
@@ -85,6 +85,11 @@ fun termuxJobTools(context: Context, owner: String?): List<Tool> =
                         put("max_bytes", field("integer", "Page size 256–32000 bytes; default 12000"))
                     }
                     if (action in listOf("wait", "cancel")) put("timeout_seconds", field("integer", "Wait 1–60 seconds; default 20"))
+                    if (action in listOf("start", "wait", "cancel")) {
+                        put("stdout_cursor", field("integer", "Previous stdout_next_cursor; UTF-8 byte offset, default 0"))
+                        put("stderr_cursor", field("integer", "Previous stderr_next_cursor; UTF-8 byte offset, default 0"))
+                        put("output_max_bytes", field("integer", "Bytes per output stream, 256–6000; default 6000"))
+                    }
                 }, required = when (action) { "start" -> listOf("operation_id", "command"); "list" -> emptyList(); else -> listOf("job_id") })
             },
             execute = execute@{ input ->

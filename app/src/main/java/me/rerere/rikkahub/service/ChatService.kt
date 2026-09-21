@@ -73,6 +73,14 @@ import me.rerere.rikkahub.utils.sendNotification
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.ai.applyAndAcknowledge
 import me.rerere.rikkahub.data.ai.GenerationChunk
+import me.rerere.rikkahub.data.ai.AgentTaskRecord
+import me.rerere.rikkahub.data.ai.AgentTaskCycleState
+import me.rerere.rikkahub.data.ai.GenerationSliceOutcome
+import me.rerere.rikkahub.data.ai.GenerationStopReason
+import me.rerere.rikkahub.data.ai.SessionJournal
+import me.rerere.rikkahub.data.ai.conversationCheckpoint
+import me.rerere.rikkahub.data.ai.shouldContinueTask
+import me.rerere.rikkahub.data.ai.canContinueAutomatically
 import me.rerere.rikkahub.data.ai.GenerationLoop
 import me.rerere.rikkahub.data.ai.CompactionRuntimeLimits
 import me.rerere.rikkahub.data.ai.ContextBudgetPlanner
@@ -497,12 +505,61 @@ class ChatService(
     val generationDoneFlow: SharedFlow<Uuid> = _generationDoneFlow.asSharedFlow()
 
     // 前台状态管理
+    private val journal = SessionJournal.at(context.filesDir)
+    private val activeAgentTasks = ConcurrentHashMap<Uuid, AgentTaskRecord>()
+    private val taskMutexes = ConcurrentHashMap<Uuid, Mutex>()
+    private val recoveryStarted = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    private suspend fun updateAgentTask(id: Uuid, transform: (AgentTaskRecord) -> AgentTaskRecord) {
+        taskMutexes.getOrPut(id) { Mutex() }.withLock {
+            val old = activeAgentTasks[id] ?: journal.task(id.toString()) ?: return@withLock
+            val updated = transform(old).copy(updatedAt = System.currentTimeMillis())
+            journal.saveTask(updated)
+            if (activeAgentTasks.containsKey(id)) activeAgentTasks[id] = updated
+        }
+    }
+
+    /** Recovery runs only when the Android application is running again, never bypassing force-stop. */
+    private fun restoreAgentTasks() {
+        if (!recoveryStarted.compareAndSet(false, true)) return
+        appScope.launch(Dispatchers.IO) {
+            if (!settingsStore.settingsFlow.first().networkSetting.generationRuntime.resumeTasksAfterRestart) return@launch
+            journal.unfinished().forEach { task ->
+                val id = runCatching { Uuid.parse(task.conversationId) }.getOrNull() ?: return@forEach
+                if (getOrCreateSession(id).getJob()?.isActive == true) return@forEach
+                ensureHydrated(id)
+                val current = getConversationFlow(id).value
+                if (task.checkpoint == null || task.checkpoint != conversationCheckpoint(current.currentMessages)) {
+                    journal.saveTask(task.copy(status = "paused", reason = GenerationStopReason.PROCESS_LOST,
+                        detail = "Saved conversation differs from the task checkpoint; review before resuming."))
+                } else {
+                    resumeAgentTask(id)
+                }
+            }
+        }
+    }
+
+    suspend fun agentTaskState(id: Uuid): AgentTaskRecord? = journal.task(id.toString())
+
+    fun resumeAgentTask(id: Uuid) {
+        val session = getOrCreateSession(id)
+        synchronized(session) {
+            if (session.getJob()?.isActive == true) return
+            val job = launchGenerationJob(id) {
+                ensureHydrated(id)
+                handleMessageComplete(id, resumed = journal.task(id.toString()))
+            }
+            session.setJob(job)
+            job.start()
+        }
+    }
+
     private val _isForeground = MutableStateFlow(false)
     val isForeground: StateFlow<Boolean> = _isForeground.asStateFlow()
 
     private val lifecycleObserver = LifecycleEventObserver { _, event ->
         when (event) {
-            Lifecycle.Event.ON_START -> _isForeground.value = true
+            Lifecycle.Event.ON_START -> { _isForeground.value = true; restoreAgentTasks() }
             Lifecycle.Event.ON_STOP -> {
                 _isForeground.value = false
                 // A user leaving the app does not cancel AppScope generation. Flush the latest
@@ -518,6 +575,7 @@ class ChatService(
     }
 
     init {
+        me.rerere.ai.provider.GenerationTrace.sink = { id, source, payload -> journal.append(id, source, payload); Unit }
         ProcessLifecycleOwner.get().lifecycle.addObserver(lifecycleObserver)
     }
 
@@ -1438,7 +1496,66 @@ class ChatService(
         conversationId: Uuid,
         messageRange: ClosedRange<Int>? = null,
         allowContextRetry: Boolean = true,
+        resumed: AgentTaskRecord? = null,
     ) {
+        val config = settingsStore.settingsFlow.first().networkSetting.generationRuntime.normalized()
+        val headless = me.rerere.rikkahub.data.ai.tools.HeadlessConversations.isHeadless(conversationId)
+        val autonomous = config.autonomousContinuation && messageRange == null && !headless
+        val current = getConversationFlow(conversationId).value
+        val task = (resumed ?: AgentTaskRecord(conversationId.toString())).copy(
+            status = "running", reason = null, detail = null,
+            checkpoint = conversationCheckpoint(current.currentMessages),
+            recoverAutomatically = autonomous && config.resumeTasksAfterRestart,
+        )
+        activeAgentTasks[conversationId] = task
+        journal.saveTask(task)
+        val cycleState = AgentTaskCycleState(task.loopGuardTrips)
+        try {
+            while (true) {
+                val latest = requireNotNull(activeAgentTasks[conversationId])
+                if (config.taskTimeoutMinutes > 0 && System.currentTimeMillis() - latest.startedAt >= config.taskTimeoutMinutes * 60_000L) {
+                    updateAgentTask(conversationId) { it.copy(status = "paused", reason = GenerationStopReason.TASK_DEADLINE) }
+                    break
+                }
+                val before = conversationCheckpoint(getConversationFlow(conversationId).value.currentMessages)
+                val result = runGenerationSlice(conversationId, messageRange, allowContextRetry, autonomous, cycleState)
+                val after = conversationCheckpoint(getConversationFlow(conversationId).value.currentMessages)
+                val continueTask = shouldContinueTask(autonomous, result, before != after)
+                val reason = if (autonomous && result.reason.canContinueAutomatically() && before == after)
+                    GenerationStopReason.NO_PROGRESS else result.reason
+                updateAgentTask(conversationId) { it.copy(
+                    status = if (continueTask) "running" else if (reason == GenerationStopReason.COMPLETED) "completed" else "paused",
+                    reason = reason, cycles = it.cycles + 1, loopGuardTrips = cycleState.loopGuardTrips, steps = it.steps + result.steps, checkpoint = after,
+                ) }
+                journal.append(conversationId.toString(), "task.checkpoint", buildJsonObject {
+                    put("run_id", task.runId); put("reason", reason.name); put("continuing", continueTask)
+                    put("steps", result.steps); put("checkpoint", after)
+                })
+                if (!continueTask) break
+                // Yield fairly without adding synthetic user messages or discarding approval state.
+                kotlinx.coroutines.yield()
+            }
+        } catch (cancel: CancellationException) {
+            withContext(NonCancellable) {
+                updateAgentTask(conversationId) { it.copy(status = "cancelled", reason = GenerationStopReason.CANCELLED) }
+            }
+            throw cancel
+        } catch (error: Exception) {
+            updateAgentTask(conversationId) { it.copy(status = "paused", reason = GenerationStopReason.FAILED, detail = error.message?.take(500)) }
+            throw error
+        } finally {
+            activeAgentTasks.remove(conversationId)
+        }
+    }
+
+    private suspend fun runGenerationSlice(
+        conversationId: Uuid,
+        messageRange: ClosedRange<Int>? = null,
+        allowContextRetry: Boolean = true,
+        autonomousCycle: Boolean = false,
+        cycleState: AgentTaskCycleState = AgentTaskCycleState(),
+    ): GenerationSliceOutcome {
+        var outcome = GenerationSliceOutcome(GenerationStopReason.FAILED)
         val settings = settingsStore.settingsFlow.first()
         // Resolve the assistant from this conversation's own assistantId — the global
         // current-assistant pointer can have moved if the user switched assistants while
@@ -1511,7 +1628,7 @@ class ChatService(
                     ),
                     conversationId = conversationId,
                 )
-                return
+                return outcome
             }
 
             // start generating
@@ -1548,6 +1665,11 @@ class ChatService(
             session.generationProgress.prepare()
             generationLoop.generateText(
                 generationProgress = session.generationProgress,
+                autonomousCycle = autonomousCycle,
+                maxSteps = me.rerere.rikkahub.data.ai.AgentTaskPolicy.stepLimit(conversationId.toString())
+                    ?: me.rerere.rikkahub.data.ai.limits.ToolRuntimeLimits.maxToolSteps,
+                cycleState = cycleState,
+                onStopped = { outcome = it },
                 settings = settings,
                 model = model,
                 processingStatus = session.processingStatus,
@@ -1706,7 +1828,7 @@ class ChatService(
                                 ),
                                 conversationId = conversationId,
                             )
-                            return
+                            return outcome
                         }
                     }.forEach { (serverId, serverName, tool) ->
                         // Namespace MCP tools by a server-id slug so two enabled servers that
@@ -1770,7 +1892,7 @@ class ChatService(
                 // cancellation are reported by their existing error paths and must not emit a
                 // misleading completion notification here.
                 if (
-                    completionCause == null &&
+                    completionCause == null && !outcome.reason.canContinueAutomatically() &&
                     !isForeground.value &&
                     settings.displaySetting.enableNotificationOnMessageGeneration
                 ) {
@@ -1878,12 +2000,13 @@ class ChatService(
                 Log.w(TAG, "Context-limit retry compaction failed", it)
             }.getOrNull()
             if (forcedView?.compaction != null) {
-                handleMessageComplete(
+                return runGenerationSlice(
                     conversationId = conversationId,
                     messageRange = null,
                     allowContextRetry = false,
+                    autonomousCycle = autonomousCycle,
+                    cycleState = cycleState,
                 )
-                return
             }
         }
 
@@ -1920,6 +2043,7 @@ class ChatService(
             Logging.log(TAG, "handleMessageComplete: $it")
             Logging.log(TAG, it.stackTraceToString())
         }.onSuccess {
+            if (autonomousCycle && outcome.reason.canContinueAutomatically()) return@onSuccess
             val finalConversation = getConversationFlow(conversationId).value
 
             if (isStalledTurn(succeeded = true, lastMessage = finalConversation.currentMessages.lastOrNull())) {
@@ -1942,6 +2066,7 @@ class ChatService(
                 generateTitle(conversationId, finalConversation)
             }
         }
+        return if (generationResult.isFailure) GenerationSliceOutcome(GenerationStopReason.FAILED, outcome.steps) else outcome
     }
 
     private suspend fun createWorkspaceToolsIfReady(workspaceId: String?, cwd: String? = null): List<Tool> {
@@ -2557,6 +2682,10 @@ class ChatService(
         session.acquire()
         ContextCompactionPresentation.register(operationId, coroutineContext[Job]!!)
         suspend fun publish(next: UIMessagePart.Tool) {
+            journal.append(conversation.id.toString(), "compaction.event", buildJsonObject {
+                put("operation_id", operationId)
+                put("event", kotlinx.serialization.json.Json.encodeToJsonElement(UIMessagePart.Tool.serializer(), next))
+            })
             event = next
             // Use the captured session. A reset/deletion must not resurrect it through
             // getOrCreateSession while cancellation writes its final UI state.
@@ -3230,6 +3359,9 @@ class ChatService(
             )
         }
 
+        if (activeAgentTasks.containsKey(conversationId)) {
+            updateAgentTask(conversationId) { it.copy(checkpoint = conversationCheckpoint(conversation.currentMessages)) }
+        }
         // 删除消息或切换分支也可能解除工具审批阻塞，保存成功后重新检查队列。
         // 调度器仍会检查当前生成任务、待审批工具、暂停状态及编辑占位。
         dispatchNextQueuedMessage(conversationId)

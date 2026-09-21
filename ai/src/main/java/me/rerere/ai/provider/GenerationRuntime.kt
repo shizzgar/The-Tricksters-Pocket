@@ -27,6 +27,9 @@ data class GenerationRuntimeSettings(
     val firstResponseTimeoutMinutes: Int = 30,
     val requestTimeoutMinutes: Int = 60,
     val parallelRequests: Int = 2,
+    val autonomousContinuation: Boolean = true,
+    val resumeTasksAfterRestart: Boolean = true,
+    val taskTimeoutMinutes: Int = 0,
 ) {
     fun normalized() = copy(
         connectTimeoutSeconds = connectTimeoutSeconds.coerceIn(5, 120),
@@ -34,6 +37,7 @@ data class GenerationRuntimeSettings(
         firstResponseTimeoutMinutes = firstResponseTimeoutMinutes.coerceIn(1, 120),
         requestTimeoutMinutes = requestTimeoutMinutes.coerceIn(1, 240),
         parallelRequests = parallelRequests.coerceIn(1, 8),
+        taskTimeoutMinutes = taskTimeoutMinutes.coerceIn(0, 43_200),
     )
 
     fun applyTo(params: TextGenerationParams): TextGenerationParams {
@@ -97,13 +101,21 @@ internal class ScheduledProvider<T : ProviderSetting>(
 ) : Provider<T> by delegate {
     override suspend fun generateText(providerSetting: T, messages: List<UIMessage>, params: TextGenerationParams): TextGenerationResult {
         val config = settings().normalized()
-        val observer = params.progressTracker?.begin()
+        val observer = params.progressTracker?.begin(streamed = false)
         val scoped = config.applyTo(params).copy(requestObserver = observer)
         // Includes local queue time, body read, and parsing; cancellation reaches the HTTP call.
         return observeRequest(observer) { withTimeout(requireNotNull(scoped.requestTimeoutMillis)) {
             queue.withSlot(scoped.priority, config.parallelRequests) {
+                val requestId = params.progressTracker?.state?.value?.requestId ?: java.util.UUID.randomUUID().toString()
+                GenerationTrace.request(requestId, messages, scoped, false)
                 observer?.dispatched()
-                delegate.generateText(providerSetting, messages, scoped)
+                delegate.generateText(providerSetting, messages, scoped).also { result ->
+                    result.usage?.let { observer?.usage(it) }
+                    GenerationTrace.record(scoped.sessionId, "model.response", kotlinx.serialization.json.buildJsonObject {
+                        put("request_id", kotlinx.serialization.json.JsonPrimitive(requestId))
+                        put("response", kotlinx.serialization.json.Json.encodeToJsonElement(TextGenerationResult.serializer(), result))
+                    })
+                }
             }
         } }
     }
@@ -114,6 +126,8 @@ internal class ScheduledProvider<T : ProviderSetting>(
         val scoped = config.applyTo(params).copy(requestObserver = observer)
         observeRequest(observer) { withTimeout(requireNotNull(scoped.requestTimeoutMillis)) {
             queue.withSlot(scoped.priority, config.parallelRequests) {
+                val requestId = params.progressTracker?.state?.value?.requestId ?: java.util.UUID.randomUUID().toString()
+                GenerationTrace.request(requestId, messages, scoped, true)
                 observer?.dispatched()
                 coroutineScope {
                     val firstChunk = CompletableDeferred<Unit>()
@@ -126,14 +140,38 @@ internal class ScheduledProvider<T : ProviderSetting>(
                         }
                         if (received != true) throw FirstGenerationResponseTimeoutException()
                     }
+                    val pendingTrace = mutableListOf<StreamChunk>()
+                    var traceFlushedAt = System.nanoTime()
+                    var finishReason: String? = null
+                    var receivedFinish = false
+                    var streamError: String? = null
                     try {
                         delegate.streamText(providerSetting, messages, scoped).collect {
                             firstChunk.complete(Unit)
                             observer?.chunk(it)
+                            pendingTrace.add(it)
+                            if (it is StreamChunk.Finish) { receivedFinish = true; finishReason = it.finishReason }
                             emit(it)
+                            if (pendingTrace.size >= 64 || System.nanoTime() - traceFlushedAt >= 500_000_000) {
+                                GenerationTrace.chunks(scoped.sessionId, requestId, pendingTrace.toList())
+                                pendingTrace.clear()
+                                traceFlushedAt = System.nanoTime()
+                            }
                         }
+                    } catch (failure: Throwable) {
+                        streamError = failure.javaClass.simpleName
+                        throw failure
                     } finally {
                         firstResponseWatchdog.cancel()
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                            if (pendingTrace.isNotEmpty()) GenerationTrace.chunks(scoped.sessionId, requestId, pendingTrace.toList())
+                            GenerationTrace.record(scoped.sessionId, "model.response", kotlinx.serialization.json.buildJsonObject {
+                                put("request_id", kotlinx.serialization.json.JsonPrimitive(requestId))
+                                put("stream_finished", kotlinx.serialization.json.JsonPrimitive(receivedFinish))
+                                streamError?.let { put("error_type", kotlinx.serialization.json.JsonPrimitive(it)) }
+                                finishReason?.let { put("finish_reason", kotlinx.serialization.json.JsonPrimitive(it)) }
+                            })
+                        }
                     }
                 }
             }

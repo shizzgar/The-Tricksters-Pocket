@@ -1,5 +1,6 @@
 package me.rerere.rikkahub.ui.pages.setting
 
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
@@ -17,6 +18,16 @@ internal fun GenerationRuntimeSettingItem(settings: Settings, vm: SettingVM) {
         )) }
     }
     CardGroup {
+        item(headlineContent = { Text(stringResource(R.string.agent_auto_continue)) },
+            supportingContent = { Text(stringResource(R.string.agent_auto_description)) },
+            trailingContent = { Switch(config.autonomousContinuation, { value -> update { it.copy(autonomousContinuation = value) } }) })
+        item(headlineContent = { Text(stringResource(R.string.agent_restore)) },
+            supportingContent = { Text(stringResource(R.string.agent_restore_description)) },
+            trailingContent = { Switch(config.resumeTasksAfterRestart, { value -> update { it.copy(resumeTasksAfterRestart = value) } }) })
+        item(headlineContent = {
+            CompactionIntegerField(stringResource(R.string.agent_task_deadline), stringResource(R.string.agent_task_deadline_description),
+                config.taskTimeoutMinutes, 0..43_200, { value -> update { it.copy(taskTimeoutMinutes = value) } })
+        })
         item(headlineContent = { Text(stringResource(R.string.generation_runtime_title)) },
             supportingContent = { Text(stringResource(R.string.generation_runtime_description)) })
         item(headlineContent = {
@@ -46,3 +57,4 @@ internal fun GenerationRuntimeSettingItem(settings: Settings, vm: SettingVM) {
         })
     }
 }
+

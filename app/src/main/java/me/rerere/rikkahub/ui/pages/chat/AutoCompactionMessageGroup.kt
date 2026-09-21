@@ -24,6 +24,7 @@ internal data class AutoCompactionMessageGroup(
 
     val displayMessage: UIMessage = terminalNode.currentMessage.copy(
         parts = nodes.flatMap { it.currentMessage.parts },
+        generationMetrics = nodes.flatMap { it.currentMessage.generationMetrics }.distinctBy { it.requestId },
         annotations = nodes.flatMap { it.currentMessage.annotations },
         createdAt = nodes.first().currentMessage.createdAt,
     )
