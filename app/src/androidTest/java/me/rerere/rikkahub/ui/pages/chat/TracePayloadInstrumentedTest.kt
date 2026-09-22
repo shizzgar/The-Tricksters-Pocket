@@ -51,7 +51,7 @@ class TracePayloadInstrumentedTest {
         compose.onNodeWithText("scrape_web", substring = false).performClick()
         compose.onNodeWithText("parameters", substring = false).performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag("trace-tools-search").performScrollTo().performTextInput("text_to_speech")
-        compose.onNodeWithText("text_to_speech", substring = false).assertIsDisplayed()
+        compose.onNode(hasText("text_to_speech", substring = false) and !hasSetTextAction()).assertIsDisplayed()
         compose.onNodeWithText("scrape_web", substring = false).assertDoesNotExist()
     }
     @Test fun messageRowsShowRoleAndExcerptAndExpandedContentRemainsAvailable() {
