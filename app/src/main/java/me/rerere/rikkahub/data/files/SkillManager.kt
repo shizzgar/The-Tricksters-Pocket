@@ -157,14 +157,14 @@ class SkillManager(
     }
 
     suspend fun deleteSkill(name: String, expectedRevision: String? = null): Boolean = withContext(Dispatchers.IO) {
-        val skillDir = resolveSkillDir(name) ?: return@withContext false
+        val skillDir = listSkills().firstOrNull { it.name == name }?.skillDir ?: return@withContext false
         // Bundled-ness must be checked before deleteRecursively() destroys the directory:
         // for a non-core bundled skill, ownership is tracked by a `.seeded` sentinel that
         // lives inside this same directory, but bundledSkillNames() reads the asset list,
         // which is unaffected by the delete.
         val isBundled = name in bundledSkillNames()
         val deleted = SkillPackageLocks.withLock(skillDir) {
-            if (expectedRevision != null && workspace(name).snapshot().revision != expectedRevision) throw me.rerere.rikkahub.skills.SkillConflict()
+            if (expectedRevision != null && SkillWorkspace(skillDir, File(context.filesDir, "skill_workbench"), name).snapshot().revision != expectedRevision) throw me.rerere.rikkahub.skills.SkillConflict()
             val state = File(File(context.filesDir, "skill_workbench"), skillDir.name)
             check(!state.exists() || state.deleteRecursively()) { "Could not clear skill drafts and recovery state" }
             skillDir.deleteRecursively().also { if (it) invalidateSkill(name) }
@@ -232,10 +232,12 @@ class SkillManager(
     }
 
     internal fun workspace(name: String): SkillWorkspace = SkillWorkspace(
-        requireNotNull(resolveSkillDir(name)), File(context.filesDir, "skill_workbench"), name,
+        listSkills().firstOrNull { it.name == name }?.skillDir ?: requireNotNull(resolveSkillDir(name)),
+        File(context.filesDir, "skill_workbench"), name,
     )
 
     internal fun createPackage(name: String, files: Map<String, ByteArray>) {
+        require(listSkills().none { it.name == name }) { "A skill already uses this name" }
         val root = requireNotNull(resolveSkillDir(name)) { "Invalid skill name" }
         SkillWorkspace.create(root, File(context.filesDir, "skill_workbench"), name, files)
         invalidateSkill(name)

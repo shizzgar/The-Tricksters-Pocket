@@ -2,6 +2,7 @@ package me.rerere.rikkahub.ui.pages.assistant.detail
 
 import android.content.res.Configuration
 import android.graphics.Bitmap
+import androidx.compose.material3.Surface
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.*
@@ -38,6 +39,8 @@ class ToolAccessInstrumentedTest {
         val factory = GlobalContext.get().get<LocalTools>()
         withTimeout(15_000) { settings.settingsFlow.first { !it.init } }
         val name = "tool-access-fixture"
+        val createdName = "tool-created-fixture"
+        manager.deleteSkill(createdName)
         check(manager.saveSkill(name, "---\nname: $name\ndescription: Tools test\n---\nHello") != null)
         val allGroups = listOf(LocalToolOption.Termux, LocalToolOption.SkillManagement, LocalToolOption.SkillImport, LocalToolOption.JsSkills)
         var assistant = Assistant(name = "Tool access test", localTools = allGroups)
@@ -55,6 +58,14 @@ class ToolAccessInstrumentedTest {
             assertFalse("text_to_speech" in names || "whisper_status" in names || "transcribe_audio_file" in names)
             assistant = assistant.copy(enabledSkills = setOf(name), localTools = allGroups + LocalToolOption.Tts + LocalToolOption.Whisper)
             save()
+            val createResult = tools().first { it.name == "skill_create" }.execute(buildJsonObject {
+                put("name", createdName); put("description", "Created through an agent tool"); put("instructions", "Newly created instructions")
+            })
+            assertTrue((createResult.single() as UIMessagePart.Text).text.contains("\"ok\":true"))
+            assertTrue(createdName in settings.settingsFlow.value.assistants.first { it.id == id }.enabledSkills)
+            val loaded = tools().first { it.name == "use_skill" }.execute(buildJsonObject { put("name", createdName) })
+            assertTrue((loaded.first() as UIMessagePart.Text).text.contains("Newly created instructions"))
+            assistant = settings.settingsFlow.value.assistants.first { it.id == id }
             val enabledTools = tools()
             names = enabledTools.map { it.name }
             assertTrue(names.containsAll(listOf("use_skill", "skill_create", "skill_write_file", "text_to_speech", "whisper_status", "transcribe_audio_file")))
@@ -74,6 +85,7 @@ class ToolAccessInstrumentedTest {
             save()
             assertFalse(tools().any { isSkillTool(it.name) })
         } finally {
+            manager.deleteSkill(createdName)
             manager.deleteSkill(name)
             settings.update { it.copy(assistants = it.assistants.filterNot { a -> a.id == id }) }
         }
@@ -92,7 +104,9 @@ class ToolAccessInstrumentedTest {
         compose.setContent {
             CompositionLocalProvider(LocalContext provides localized, LocalConfiguration provides localized.resources.configuration, LocalResources provides localized.resources) {
                 MaterialTheme(colorScheme = darkColorScheme()) {
-                    ToolAccessList(tools, disabled.value, onToggle = { name, enabled -> disabled.value = if (enabled) disabled.value - name else disabled.value + name })
+                    Surface {
+                        ToolAccessList(tools, disabled.value, onToggle = { name, enabled -> disabled.value = if (enabled) disabled.value - name else disabled.value + name })
+                    }
                 }
             }
         }

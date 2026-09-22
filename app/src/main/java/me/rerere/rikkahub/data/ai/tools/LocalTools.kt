@@ -1032,7 +1032,7 @@ class LocalTools(
             }
         }
         // web_fetch/web_extract are always-on unless disabled in Search settings, no
-        // per-assistant toggle.
+        // per-assistant group toggle. Individual exclusions below still apply.
         if (settingsStore.settingsFlow.value.enableWebFetchTools) {
             tools.add(webFetchTool(okHttpClient))
             tools.add(webExtractTool(okHttpClient))
@@ -1087,7 +1087,10 @@ class LocalTools(
                 enabledSkills = assistant.enabledSkills,
                 allSkills = installedSkills,
                 skillManager = skillManager,
-                termuxBridge = termuxSkillBridge.takeIf { LocalToolOption.Termux in availableOptions },
+                termuxBridge = termuxSkillBridge.takeIf {
+                    LocalToolOption.Termux in availableOptions &&
+                        (includeDisabled || "termux_skill_sync" !in assistant.disabledLocalTools)
+                },
                 currentEnabledSkills = { caller()?.enabledSkills.orEmpty() },
             ))
             if (LocalToolOption.SkillManagement in availableOptions) {

@@ -67,7 +67,7 @@ internal fun createSkillManagementTools(access: SkillManagementAccess): List<Too
             SkillPackageLocks.withLock(meta.skillDir) {
                 val snapshot = workspace.snapshot()
                 val doc = workspace.open(args.string("path"))
-                val offset = args["offset"]?.jsonPrimitive?.intOrNull ?: 0
+                val offset = if ("offset" !in args) 0 else args["offset"]?.jsonPrimitive?.intOrNull ?: error("offset must be an integer")
                 require(offset in 0..doc.bytes.size) { "Offset is outside the file" }
                 val end = minOf(doc.bytes.size, offset + 16 * 1024)
                 val bytes = doc.bytes.copyOfRange(offset, end)
