@@ -2,6 +2,7 @@ package me.rerere.rikkahub.ui.pages.extensions.skills
 
 import android.content.res.Configuration
 import android.graphics.Bitmap
+import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -42,7 +43,8 @@ abstract class WorkbenchFixture {
         vm = SkillDetailVM(context, manager, GlobalContext.get().get<TermuxSkillBridge>())
         val localized = context.createConfigurationContext(Configuration(context.resources.configuration).apply { setLocale(Locale.forLanguageTag(if (russian) "ru" else "en")) })
         compose.setContent {
-            CompositionLocalProvider(LocalContext provides localized, LocalConfiguration provides localized.resources.configuration, LocalResources provides localized.resources) {
+            val registryOwner = requireNotNull(LocalActivityResultRegistryOwner.current)
+            CompositionLocalProvider(LocalActivityResultRegistryOwner provides registryOwner, LocalContext provides localized, LocalConfiguration provides localized.resources.configuration, LocalResources provides localized.resources) {
                 MaterialTheme(colorScheme = if (russian) darkColorScheme() else lightColorScheme()) { SkillWorkbenchScreen(vm, {}, {}) }
             }
         }

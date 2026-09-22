@@ -128,7 +128,7 @@ internal fun SkillEditorPane(editor: SkillEditBuffer, busy: Boolean, modifier: M
                 Row(Modifier.fillMaxSize().verticalScroll(vertical).then(if (effectiveWrap) Modifier else Modifier.horizontalScroll(horizontal)).padding(vertical = 12.dp)) {
                     if (!effectiveWrap) Text((1..lineCount).joinToString("\n"), Modifier.width(48.dp).padding(end = 10.dp), style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 20.sp), color = MaterialTheme.colorScheme.outline)
                     BasicTextField(editor.value, onEdit,
-                        modifier = Modifier.then(if (effectiveWrap) Modifier.weight(1f) else Modifier.width(IntrinsicSize.Min).widthIn(min = minWidth)).heightIn(min = paneHeight).padding(horizontal = 12.dp).testTag("skill-code-input"),
+                        modifier = Modifier.then(if (effectiveWrap) Modifier.weight(1f) else Modifier.width(IntrinsicSize.Max).widthIn(min = minWidth)).heightIn(min = paneHeight).padding(horizontal = 12.dp).testTag("skill-code-input"),
                         enabled = !busy, textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 20.sp, color = MaterialTheme.colorScheme.onSurface, textDirection = TextDirection.Ltr),
                         visualTransformation = transform, cursorBrush = SolidColor(MaterialTheme.colorScheme.primary), keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Text))
                 }
