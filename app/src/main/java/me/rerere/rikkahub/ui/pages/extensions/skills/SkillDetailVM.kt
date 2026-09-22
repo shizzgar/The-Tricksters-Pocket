@@ -67,7 +67,11 @@ class SkillDetailVM(private val context: Context, private val skillManager: Skil
                         val text = draft["text"]?.jsonPrimitive?.contentOrNull.orEmpty()
                         val oldHash = draft["hash"]?.jsonPrimitive?.contentOrNull.orEmpty()
                         val original = draft["baseline"]?.jsonPrimitive?.contentOrNull.orEmpty()
-                        _state.update { it.copy(editor = SkillEditBuffer(document.copy(hash = oldHash), TextFieldValue(text), original, hex), message = context.getString(R.string.skill_workbench_draft_restored)) }
+                        val baselineBytes = if (hex) SkillWorkspace.decodeHex(original) else original.toByteArray(Charsets.UTF_8)
+                        require(SkillPackage.digest(baselineBytes) == oldHash) { "The saved draft baseline is damaged" }
+                        val baselineDocument = document.copy(hash = oldHash, bytes = baselineBytes, text = SkillWorkspace.decodeText(baselineBytes))
+                        _state.update { it.copy(editor = SkillEditBuffer(baselineDocument, TextFieldValue(text), original, hex),
+                            message = context.getString(if (oldHash == document.hash) R.string.skill_workbench_draft_restored else R.string.skill_workbench_conflict)) }
                     }
                 }
             }

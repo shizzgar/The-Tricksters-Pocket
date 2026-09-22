@@ -73,6 +73,29 @@ class SkillWorkbenchInstrumentedTest : WorkbenchFixture() {
         assertTrue(vm.state.value.snapshot?.canRestore == true)
         assertFalse(vm.state.value.editor?.dirty == true)
     }
+    @Test fun unsavedCloseIsGuardedAndRecoveredDraftCannotOverwriteAnExternalEdit() {
+        show()
+        compose.onNodeWithText("scripts").performClick()
+        compose.onNodeWithText("report.py").performClick()
+        compose.waitUntil(10_000) { vm.state.value.editor != null && !vm.state.value.busy }
+        val baseline = root.resolve("scripts/report.py").readBytes()
+        compose.onNodeWithTag("skill-code-input").performTextReplacement("print('my draft')\n")
+        compose.onNodeWithContentDescription("Close").performClick()
+        compose.onNodeWithText("Save changes?").assertIsDisplayed()
+        compose.onNodeWithText("Cancel").performClick()
+        compose.waitUntil(10_000) { File(context.filesDir, "skill_workbench/workbench-ui-fixture/draft.json").isFile }
+        val manager = GlobalContext.get().get<SkillManager>()
+        check(manager.saveSkillFile("workbench-ui-fixture", "scripts/report.py", "print('agent change')\n"))
+        val restored = SkillDetailVM(context, manager, GlobalContext.get().get<TermuxSkillBridge>())
+        compose.runOnUiThread { restored.init("workbench-ui-fixture") }
+        compose.waitUntil(10_000) { !restored.state.value.busy && restored.state.value.editor != null }
+        assertEquals("print('my draft')\n", restored.state.value.editor?.value?.text)
+        assertArrayEquals(baseline, restored.state.value.editor?.document?.bytes)
+        compose.runOnUiThread { restored.save() }
+        compose.waitUntil(10_000) { !restored.state.value.busy }
+        assertEquals("print('agent change')\n", root.resolve("scripts/report.py").readText())
+        assertTrue(restored.state.value.editor?.dirty == true)
+    }
     @Test fun russianBinaryViewerHexEditAndUndoPreserveBytes() {
         show(russian = true)
         compose.onNodeWithText("assets").performClick()
