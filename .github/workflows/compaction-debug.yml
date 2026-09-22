@@ -68,6 +68,43 @@ jobs:
           --tests 'me.rerere.rikkahub.subagent.*Test'
       - name: Build debug APKs
         run: bash ./gradlew --no-daemon --max-workers=2 :app:assembleDebug
+      - name: Exercise trajectory on an Android emulator and capture screens
+        timeout-minutes: 20
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager 'system-images;android-35;google_apis;x86_64' 'emulator' 'platform-tools'
+          echo no | avdmanager create avd --name trajectory --package 'system-images;android-35;google_apis;x86_64' --device pixel_6 --force
+          sudo chmod a+rw /dev/kvm
+          "$ANDROID_HOME/emulator/emulator" -avd trajectory -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect > /tmp/trajectory-emulator.log 2>&1 &
+          adb wait-for-device
+          booted=false
+          for attempt in $(seq 1 90); do
+            if adb shell getprop sys.boot_completed | tr -d '\r' | grep -q 1; then booted=true; break; fi
+            sleep 2
+          done
+          test "$booted" = true
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+          adb shell input keyevent 82
+          test_status=0
+          bash ./gradlew --no-daemon --max-workers=2 :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=me.rerere.rikkahub.ui.pages.chat.TrajectoryInstrumentedTest || test_status=$?
+          mkdir -p build/trajectory-qa
+          for name in trajectory-waterfall trajectory-flow trajectory-inspector trajectory-russian-dark; do
+            adb exec-out run-as excp.rikkahub.debug cat "files/trajectory-qa/$name.png" > "build/trajectory-qa/$name.png" || true
+          done
+          exit "$test_status"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: trajectory-visual-checks
+          path: |
+            build/trajectory-qa/
+            app/build/reports/androidTests/
+            app/build/outputs/androidTest-results/
+          if-no-files-found: warn
+          retention-days: 14
       - name: Verify ARM64 APK and record provenance
         shell: bash
         run: |

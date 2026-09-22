@@ -43,6 +43,11 @@ object GenerationTrace {
         val start = progress.dispatchedAt ?: progress.startedAt
         put("elapsed_ms", (now - start).coerceAtLeast(0))
         progress.firstContentAt?.let { put("first_content_ms", (it - start).coerceAtLeast(0)) }
+        if (progress.streamed) {
+            val first = progress.firstContentAt
+            val last = progress.lastContentAt
+            if (first != null && last != null && last > first) put("receiving_ms", last - first)
+        }
         progress.usage?.let { usage ->
             put("prompt_tokens", usage.promptTokens)
             put("completion_tokens", usage.completionTokens)

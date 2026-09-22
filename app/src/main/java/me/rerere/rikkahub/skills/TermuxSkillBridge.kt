@@ -21,8 +21,8 @@ data class TermuxSkillConfig(
 ) {
     companion object {
         const val DEFAULT_DIRECTORY = "/data/data/com.termux/files/home/.local/share/rikkahub-skills"
-        fun validDirectory(value: String): Boolean = value.startsWith("$TERMUX_HOME/") &&
-            value.split('/').none { it == ".." || it == "." } &&
+        fun validDirectory(value: String): Boolean = value.trimEnd('/').startsWith("$TERMUX_HOME/") &&
+            value.trimEnd('/').split('/').drop(1).none { it == ".." || it == "." || it.isEmpty() } &&
             value.none { it.isISOControl() } && value.length <= 512
     }
 }

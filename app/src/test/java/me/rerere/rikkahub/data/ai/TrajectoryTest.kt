@@ -83,4 +83,38 @@ class TrajectoryTest {
         val record = event(100, "model.response", """{"request_id":"r","error_type":"JobCancellationException","stream_finished":false}""")
         assertEquals("cancelled", record.summary.state)
     }
+
+    @Test fun `starting a new run does not revive historical unfinished requests`() {
+        val spans = buildTraceSpans(listOf(
+            event(100, "task.started", """{"run_id":"old"}"""),
+            event(200, "model.request", """{"request_id":"lost"}"""),
+            event(300, "task.started", """{"run_id":"new"}"""),
+            event(400, "model.request", """{"request_id":"current"}"""),
+        ), true).associateBy { it.id }
+        assertEquals("incomplete", spans.getValue("model:lost").state)
+        assertEquals("running", spans.getValue("model:current").state)
+    }
+
+    @Test fun `resumed task opens a new live segment without dropping its history`() {
+        val span = buildTraceSpans(listOf(
+            event(100, "task.started", """{"run_id":"task"}"""),
+            event(200, "task.cancelled", """{"run_id":"task"}"""),
+            event(300, "task.resumed", """{"run_id":"task"}"""),
+        ), true).single()
+        assertEquals("running", span.state)
+        assertNull(span.end)
+        assertEquals(3, span.entries.size)
+    }
+
+    @Test fun `persistence checkpoints do not double count tools`() {
+        val spans = buildTraceSpans(listOf(
+            event(100, "task.started", """{"run_id":"r"}"""),
+            event(200, "tool.started", """{"tool_call_id":"t","tool":"cmd"}"""),
+            event(300, "tool.result", """{"tool_call_id":"t","tool":"cmd"}"""),
+            event(400, "tool.checkpoint", """{"tools":[]}"""),
+        ), true)
+        assertEquals(1, spans.count { it.kind == "tool" })
+        assertEquals("running", spans.first { it.kind == "task" }.state)
+        assertEquals(2, spans.first { it.kind == "task" }.entries.size)
+    }
 }

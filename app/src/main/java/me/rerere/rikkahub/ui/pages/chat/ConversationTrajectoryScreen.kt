@@ -20,6 +20,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
@@ -32,6 +33,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.*
+import me.rerere.hugeicons.HugeIcons
+import me.rerere.hugeicons.stroke.ArrowLeft01
+import me.rerere.hugeicons.stroke.Cancel01
+import me.rerere.hugeicons.stroke.Refresh01
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.ai.*
 import me.rerere.rikkahub.data.model.Conversation
@@ -41,14 +46,15 @@ import java.util.Date
 import kotlin.math.max
 
 @Composable
-internal fun ConversationTrajectoryScreen(conversation: Conversation, active: Boolean, onResume: () -> Unit, onDismiss: () -> Unit) {
+internal fun ConversationTrajectoryScreen(conversation: Conversation, active: Boolean, onResume: () -> Unit, onDismiss: () -> Unit, journalOverride: SessionJournal? = null) {
     val context = LocalContext.current
-    val journal = remember(context) { SessionJournal.at(context.filesDir) }
+    val journal = journalOverride ?: remember(context) { SessionJournal.at(context.filesDir) }
     var session by remember(conversation.id) { mutableStateOf(conversation.id.toString()) }
     val parents = remember { mutableStateListOf<String>() }
     var page by remember(session) { mutableStateOf(TrajectoryPage(emptyList(), 0, false, null)) }
     var spans by remember(session) { mutableStateOf(emptyList<TraceSpan>()) }
     var task by remember(session) { mutableStateOf<AgentTaskRecord?>(null) }
+    var before by remember(session) { mutableStateOf<Long?>(null) }
     var limit by remember(session) { mutableIntStateOf(600) }
     var live by remember { mutableStateOf(true) }
     var refresh by remember { mutableIntStateOf(0) }
@@ -68,19 +74,20 @@ internal fun ConversationTrajectoryScreen(conversation: Conversation, active: Bo
     val isRoot = session == conversation.id.toString()
     val selected = spans.find { it.id == selectedId }
 
-    LaunchedEffect(session, limit, live, refresh, active) {
+    LaunchedEffect(session, limit, before, live, refresh, active) {
         var revision = -1L
         do {
             try {
                 if (revision != journal.revision.value) {
                     busy = true
+                    val readRevision = journal.revision.value
                     task = journal.task(session)
-                    val next = journal.trajectory(session, limit)
+                    val next = journal.trajectory(session, limit, before)
                     val nextSpans = withContext(Dispatchers.Default) { buildTraceSpans(next.entries, if (isRoot) active else task?.status == "running") }
                     page = next
                     spans = nextSpans
                     error = next.error
-                    revision = journal.revision.value
+                    revision = readRevision
                 }
                 now = System.currentTimeMillis()
             } catch (e: CancellationException) { throw e }
@@ -107,7 +114,7 @@ internal fun ConversationTrajectoryScreen(conversation: Conversation, active: Bo
                 (span.matches(query) || span.entries.any { it.record.sequence in matches })
         }
     }
-    val visible = filtered.filter { it.kind != "task" || kind == "task" || !waterfall }
+    val visible = filtered.filter { (it.kind != "task" || kind == "task" || !waterfall) && (it.kind != "event" || kind == "event") }
     val rangeSpans = spans.filter { run == null || it.run == run || it.id == run }
     val start = rangeSpans.minOfOrNull { it.start } ?: now
     val end = max(start + 1, rangeSpans.maxOfOrNull { it.end ?: if (it.state == "running") now else it.entries.last().record.timestamp } ?: now)
@@ -116,18 +123,19 @@ internal fun ConversationTrajectoryScreen(conversation: Conversation, active: Bo
 
     Dialog(onDismissRequest = { if (selectedId != null) selectedId = null else if (parents.isNotEmpty()) session = parents.removeAt(parents.lastIndex) else onDismiss() },
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
+        Surface(Modifier.fillMaxSize().testTag("trajectory"), color = MaterialTheme.colorScheme.surface) {
             Column(Modifier.fillMaxSize().safeDrawingPadding()) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = { if (selectedId != null) selectedId = null else if (parents.isNotEmpty()) session = parents.removeAt(parents.lastIndex) else onDismiss() }) {
-                        Text(stringResource(if (selectedId != null || parents.isNotEmpty()) R.string.jobs_back else R.string.jobs_close))
+                    IconButton(onClick = { if (selectedId != null) selectedId = null else if (parents.isNotEmpty()) session = parents.removeAt(parents.lastIndex) else onDismiss() }) {
+                        Icon(if (selectedId != null || parents.isNotEmpty()) HugeIcons.ArrowLeft01 else HugeIcons.Cancel01,
+                            contentDescription = stringResource(if (selectedId != null || parents.isNotEmpty()) R.string.jobs_back else R.string.jobs_close))
                     }
                     Column(Modifier.weight(1f).padding(horizontal = 8.dp)) {
                         Text(stringResource(R.string.trajectory_title), style = MaterialTheme.typography.titleLarge)
                         Text(stringResource(R.string.trace_event_count, visible.size, page.total), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     TextButton(onClick = { live = !live }) { Text(stringResource(if (live) R.string.trace_live else R.string.trace_paused)) }
-                    TextButton(onClick = { refresh++ }) { Text(stringResource(R.string.jobs_refresh)) }
+                    IconButton(onClick = { refresh++ }, enabled = !busy) { Icon(HugeIcons.Refresh01, contentDescription = stringResource(R.string.jobs_refresh)) }
                 }
                 if (busy || searching) LinearProgressIndicator(Modifier.fillMaxWidth())
                 error?.let { Text(it, Modifier.padding(12.dp), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
@@ -141,7 +149,7 @@ internal fun ConversationTrajectoryScreen(conversation: Conversation, active: Bo
                                 TextButton(onClick = { waterfall = !waterfall }) { Text(stringResource(if (waterfall) R.string.trace_waterfall else R.string.trace_flow)) }
                             }
                             Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                listOf(null, "model", "tool", "subagent", "compaction", "task", "conversation").forEach { value ->
+                                listOf(null, "model", "tool", "subagent", "compaction", "task", "conversation", "event").forEach { value ->
                                     FilterChip(kind == value, { kind = value }, label = { Text(traceKind(value)) })
                                 }
                                 FilterChip(errorsOnly, { errorsOnly = !errorsOnly }, label = { Text(stringResource(R.string.trace_problems)) })
@@ -155,6 +163,12 @@ internal fun ConversationTrajectoryScreen(conversation: Conversation, active: Bo
                                 }
                             }
                             TraceOverview(rangeSpans, start, range, now)
+                            val modelSpans = rangeSpans.filter { it.kind == "model" }
+                            val measured = modelSpans.filter { (it.receivingMs ?: 0) > 0 && it.outputTokens != null }
+                            val input = modelSpans.mapNotNull { it.inputTokens }.takeIf { it.isNotEmpty() }?.sum()?.toString() ?: "—"
+                            val output = modelSpans.mapNotNull { it.outputTokens }.takeIf { it.isNotEmpty() }?.sum()?.toString() ?: "—"
+                            val rate = measured.takeIf { it.isNotEmpty() }?.let { "%.1f".format(it.sumOf { it.outputTokens ?: 0 } * 1000.0 / it.sumOf { it.receivingMs ?: 0 }) } ?: "—"
+                            Text(stringResource(R.string.trace_totals, input, output, rate), Modifier.padding(horizontal = 16.dp, vertical = 6.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                                 val modelCount = rangeSpans.count { it.kind == "model" }
                                 val toolCount = rangeSpans.count { it.kind == "tool" }
@@ -175,8 +189,16 @@ internal fun ConversationTrajectoryScreen(conversation: Conversation, active: Bo
                                 }
                             }
                             LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                if (before != null) item {
+                                    TextButton(onClick = { before = null; limit = 600; run = null; selectedId = null }, modifier = Modifier.fillMaxWidth()) {
+                                        Text(stringResource(R.string.trace_latest))
+                                    }
+                                }
                                 if (page.hasEarlier) item {
-                                    OutlinedButton(onClick = { limit = (limit + 2000).coerceAtMost(20_000) }, enabled = limit < 20_000 && !busy, modifier = Modifier.fillMaxWidth()) {
+                                    OutlinedButton(onClick = {
+                                        if (limit < 20_000) limit = (limit + 2000).coerceAtMost(20_000)
+                                        else { before = page.entries.minOfOrNull { it.record.sequence }; run = null; selectedId = null }
+                                    }, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
                                         Text(stringResource(if (limit < 20_000) R.string.trace_load_earlier else R.string.trace_window_limit))
                                     }
                                 }
@@ -223,6 +245,7 @@ private fun traceKind(kind: String?): String = stringResource(when (kind) {
     "compaction" -> R.string.trace_compaction
     "task" -> R.string.trace_runs
     "conversation" -> R.string.trace_conversation
+    "event" -> R.string.trace_events
     else -> R.string.trajectory_all
 })
 
@@ -282,6 +305,7 @@ private fun TraceOverview(spans: List<TraceSpan>, start: Long, range: Long, now:
 private fun TraceWaterfallRow(span: TraceSpan, start: Long, range: Long, now: Long, zoom: Float, scroll: androidx.compose.foundation.ScrollState, selected: Boolean, onClick: () -> Unit) {
     val color = traceColor(span.kind, span.state)
     val grid = MaterialTheme.colorScheme.outlineVariant
+    val waitingColor = androidx.compose.ui.graphics.lerp(MaterialTheme.colorScheme.surfaceContainerLow, color, .28f)
     val state = traceState(span.state)
     val title = span.title.ifBlank { traceKind(span.kind) }
     val duration = span.durationMs ?: if (span.state == "running") (now - span.start).coerceAtLeast(0) else null
@@ -290,6 +314,7 @@ private fun TraceWaterfallRow(span: TraceSpan, start: Long, range: Long, now: Lo
         Column(Modifier.width(132.dp).padding(horizontal = 8.dp)) {
             Text(title, style = MaterialTheme.typography.labelMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text("#${span.entries.first().record.sequence} · $state", color = color, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (span.preview.isNotBlank()) Text(span.preview, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         BoxWithConstraints(Modifier.weight(1f)) {
             val width = maxWidth * zoom
@@ -302,7 +327,7 @@ private fun TraceWaterfallRow(span: TraceSpan, start: Long, range: Long, now: Lo
                     drawRoundRect(color.copy(alpha = if (span.state == "incomplete") .3f else .8f), Offset(left, 4.dp.toPx()), Size(barWidth, 16.dp.toPx()), CornerRadius(4.dp.toPx()))
                     span.firstContentMs?.let { wait ->
                         val waitWidth = (wait.toDouble() / range * size.width).toFloat().coerceIn(0f, barWidth)
-                        drawRect(color.copy(alpha = .25f), Offset(left, 4.dp.toPx()), Size(waitWidth, 16.dp.toPx()))
+                        drawRect(waitingColor, Offset(left, 4.dp.toPx()), Size(waitWidth, 16.dp.toPx()))
                     }
                 }
                 Text(duration?.let(::traceDuration) ?: "—", Modifier.align(Alignment.BottomStart).padding(start = 4.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -379,6 +404,7 @@ private fun TraceInspector(journal: SessionJournal, session: String, span: Trace
                         TraceFact(stringResource(R.string.trace_duration), span.durationMs?.let(::traceDuration) ?: "—")
                         span.firstContentMs?.let { TraceFact(stringResource(R.string.trace_first_content), traceDuration(it)) }
                         TraceFact(stringResource(R.string.trace_tokens), "↑ ${span.inputTokens ?: "—"} · ↓ ${span.outputTokens ?: "—"}")
+                        TraceFact(stringResource(R.string.trace_rate), if ((span.receivingMs ?: 0) > 0 && span.outputTokens != null) "%.1f tok/s".format(span.outputTokens * 1000.0 / requireNotNull(span.receivingMs)) else "—")
                         TraceFact(stringResource(R.string.trace_events), span.entries.size.toString())
                         if (span.partial) Text(stringResource(R.string.trace_partial), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                     }
@@ -387,6 +413,7 @@ private fun TraceInspector(journal: SessionJournal, session: String, span: Trace
             if (span.preview.isNotBlank()) item { SelectionContainer { Text(span.preview, style = MaterialTheme.typography.bodyMedium) } }
             span.parent?.let { parent -> item { OutlinedButton(onClick = { onSelect(parent) }) { Text(stringResource(R.string.trace_parent)) } } }
             span.childConversation?.let { child -> item { FilledTonalButton(onClick = { onChild(child) }) { Text(stringResource(R.string.trace_open_child)) } } }
+            item { Text(stringResource(R.string.trace_rate_help), style = MaterialTheme.typography.bodySmall) }
             item { SelectionContainer { Text(span.id, style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace), color = MaterialTheme.colorScheme.onSurfaceVariant) } }
         } else {
             if (records.isEmpty()) item { Text(stringResource(R.string.trace_no_payload)) }

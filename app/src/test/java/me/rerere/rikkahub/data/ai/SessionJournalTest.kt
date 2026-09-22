@@ -68,4 +68,16 @@ class SessionJournalTest {
         assertNotNull(SessionJournal(root).trajectory(id).error)
         assertTrue(runCatching { SessionJournal(root).append(id, "tool.result", buildJsonObject {}) }.isFailure)
     }
+
+    @Test fun `bounded trajectory windows can reach the entire journal`() = runBlocking {
+        val journal = SessionJournal(folder.newFolder())
+        repeat(5) { journal.append(id, "conversation.event", buildJsonObject { put("n", it) }) }
+        val recent = journal.trajectory(id, limit = 2)
+        assertEquals(listOf(4L, 5L), recent.entries.map { it.record.sequence })
+        val older = journal.trajectory(id, limit = 2, before = 4)
+        assertEquals(listOf(2L, 3L), older.entries.map { it.record.sequence })
+        val first = journal.trajectory(id, limit = 2, before = 2)
+        assertEquals(listOf(1L), first.entries.map { it.record.sequence })
+        assertFalse(first.hasEarlier)
+    }
 }

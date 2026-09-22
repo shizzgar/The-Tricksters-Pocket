@@ -22,7 +22,7 @@ data class TracePage(val records: List<TraceRecord>, val before: Long?, val tota
 
 /** Append-only index and immutable gzip payloads. No silent retention deletion.
  * Task checkpoints are atomic mutable state, separate from the historical event stream. */
-class SessionJournal(private val root: File) {
+class SessionJournal(private val root: File, private val clock: () -> Long = System::currentTimeMillis) {
     private val lock = Any()
     private val json = Json { ignoreUnknownKeys = true }
     private val heads = mutableMapOf<String, TraceRecord?>()
@@ -90,7 +90,7 @@ class SessionJournal(private val root: File) {
                 check(temp.renameTo(blob))
             }
             val sequence = (previous?.sequence ?: 0L) + 1L
-            val at = System.currentTimeMillis()
+            val at = clock()
             val prev = previous?.hash.orEmpty()
             val summary = traceSummary(source, payload)
             val hash = indexDigest(sequence, at, source, payloadHash, prev, summary)
@@ -124,8 +124,8 @@ class SessionJournal(private val root: File) {
         }
     }
     /** Legacy journals are projected lazily, without rewriting their immutable event chain. */
-    suspend fun trajectory(id: String, limit: Int = 600): TrajectoryPage = withContext(Dispatchers.IO) {
-        val page = page(id, limit = limit)
+    suspend fun trajectory(id: String, limit: Int = 600, before: Long? = null): TrajectoryPage = withContext(Dispatchers.IO) {
+        val page = page(id, before = before, limit = limit)
         var error = page.error
         val entries = page.records.asReversed().mapNotNull { record ->
             currentCoroutineContext().ensureActive()

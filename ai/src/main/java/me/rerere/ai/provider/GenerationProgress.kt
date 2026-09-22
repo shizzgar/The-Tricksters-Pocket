@@ -38,7 +38,7 @@ class GenerationProgressTracker(private val clock: () -> Long = { System.nanoTim
     @Synchronized fun begin(streamed: Boolean = true): GenerationRequestObserver {
         val id = ++sequence
         mutable.value = GenerationProgress(id, GenerationPhase.QUEUED, clock(), streamed = streamed)
-        return GenerationRequestObserver(this, id)
+        return GenerationRequestObserver(this, id, requireNotNull(mutable.value).requestId)
     }
 
     @Synchronized internal fun update(id: Long, transform: (GenerationProgress, Long) -> GenerationProgress) {
@@ -54,7 +54,7 @@ class GenerationProgressTracker(private val clock: () -> Long = { System.nanoTim
 }
 
 /** A handle belongs to exactly one attempt. Late HTTP callbacks cannot overwrite a newer attempt. */
-class GenerationRequestObserver internal constructor(private val tracker: GenerationProgressTracker, private val id: Long) {
+class GenerationRequestObserver internal constructor(private val tracker: GenerationProgressTracker, private val id: Long, val requestId: String) {
     fun dispatched() = tracker.update(id) { p, now -> p.copy(phase = GenerationPhase.WAITING, dispatchedAt = now) }
     fun headers(status: Int, backend: String?) = tracker.update(id) { p, now ->
         p.copy(headersAt = p.headersAt ?: now, httpStatus = status,

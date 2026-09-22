@@ -38,6 +38,8 @@ internal object SkillPackage {
 
     fun readFiles(root: File): Map<String, ByteArray> {
         var total = 0L
+        val identity = Files.readAttributes(root.toPath(), java.nio.file.attribute.BasicFileAttributes::class.java)
+        val seen = mutableSetOf<String>()
         return files(root).associate { file ->
             val bytes = file.inputStream().use { input ->
                 val output = java.io.ByteArrayOutputStream()
@@ -53,8 +55,16 @@ internal object SkillPackage {
             total += bytes.size
             require(total <= MAX_BYTES) { "Skill package exceeds 20 MiB" }
             val relative = file.relativeTo(root).invariantSeparatorsPath
-            (if (relative.equals("SKILL.md", true)) "SKILL.md" else relative) to bytes
-        }.also { require("SKILL.md" in it) { "Missing SKILL.md" } }
+            val name = if (relative.equals("SKILL.md", true)) "SKILL.md" else relative
+            require(seen.add(name)) { "Duplicate normalized path in skill package" }
+            name to bytes
+        }.also {
+            require("SKILL.md" in it) { "Missing SKILL.md" }
+            val after = Files.readAttributes(root.toPath(), java.nio.file.attribute.BasicFileAttributes::class.java)
+            require(identity.fileKey() == after.fileKey() && identity.lastModifiedTime() == after.lastModifiedTime()) {
+                "Skill changed during transfer preparation; retry with the updated package"
+            }
+        }
     }
 
     fun archive(root: File, destination: File): String {

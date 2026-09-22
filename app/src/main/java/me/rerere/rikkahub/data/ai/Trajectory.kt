@@ -15,6 +15,7 @@ data class TraceSummary(
     val preview: String = "",
     val elapsedMs: Long? = null,
     val firstContentMs: Long? = null,
+    val receivingMs: Long? = null,
     val inputTokens: Long? = null,
     val outputTokens: Long? = null,
     val childConversation: String? = null,
@@ -26,7 +27,7 @@ private fun JsonObject.flag(key: String) = (get(key) as? JsonPrimitive)?.boolean
 private fun parseObject(value: String?) = value?.let { runCatching { Json.parseToJsonElement(it) as? JsonObject }.getOrNull() }
 
 internal fun traceSummary(source: String, data: JsonObject): TraceSummary {
-    val kind = source.substringBefore('.')
+    val kind = if (source == "tool.checkpoint") "event" else source.substringBefore('.')
     val operation = when (kind) {
         "model" -> data.text("request_id")
         "tool" -> data.text("tool_call_id")
@@ -75,6 +76,7 @@ internal fun traceSummary(source: String, data: JsonObject): TraceSummary {
         preview = (input?.text("command") ?: input?.text("name") ?: data.text("error") ?: data.text("error_type") ?: reason).take(240),
         elapsedMs = data.number("elapsed_ms") ?: compaction?.number("elapsed_ms"),
         firstContentMs = data.number("first_content_ms"),
+        receivingMs = data.number("receiving_ms"),
         inputTokens = data.number("prompt_tokens") ?: usage?.number("promptTokens"),
         outputTokens = data.number("completion_tokens") ?: usage?.number("completionTokens"),
         childConversation = data.text("child_conversation"),
@@ -93,6 +95,7 @@ data class TraceSpan(
     val end: Long?,
     val durationMs: Long?,
     val firstContentMs: Long?,
+    val receivingMs: Long?,
     val run: String?,
     val parent: String?,
     val preview: String,
@@ -113,11 +116,19 @@ internal fun buildTraceSpans(entries: List<TraceEntry>, active: Boolean): List<T
     var run: String? = null
     entries.sortedBy { it.record.sequence }.forEach { entry ->
         val s = entry.summary
+        if (entry.record.source == "tool.checkpoint" && run != null) {
+            groups[run]?.add(entry)
+            return@forEach
+        }
         val key = if (s.operation.isBlank()) "event:${entry.record.sequence}" else "${s.kind}:${s.operation}"
         if (s.kind == "task" && s.operation.isNotBlank()) run = key
         if (key !in groups) owners[key] = run?.takeUnless { it == key }
         groups.getOrPut(key) { mutableListOf() }.add(entry)
     }
+    val activeSince = entries.lastOrNull { it.summary.kind == "task" && it.summary.phase == "start" }?.record?.sequence
+        ?: entries.lastOrNull { it.summary.phase == "start" }?.record?.sequence ?: Long.MAX_VALUE
+    val latestRun = run
+    val lastRunEnd = groups[latestRun]?.lastOrNull { it.summary.phase == "end" }?.record?.sequence ?: 0L
     return groups.map { (key, records) ->
         val first = records.first()
         val last = records.last()
@@ -128,20 +139,22 @@ internal fun buildTraceSpans(entries: List<TraceEntry>, active: Boolean): List<T
         val ended = finish?.takeUnless { resumed }
         val summary = last.summary
         val measured = records.asReversed().firstNotNullOfOrNull { it.summary.elapsedMs }
+        val liveSequence = records.lastOrNull { it.summary.phase == "start" }?.record?.sequence ?: first.record.sequence
         val start = startEvent?.record?.timestamp ?: (ended?.record?.timestamp?.minus(measured ?: 0) ?: first.record.timestamp)
         TraceSpan(
             id = key, kind = first.summary.kind,
             title = records.firstOrNull { it.summary.title.isNotBlank() }?.summary?.title.orEmpty(),
-            state = ended?.summary?.state ?: if (summary.operation.isBlank()) "recorded" else if (active) "running" else "incomplete",
+            state = ended?.summary?.state ?: if (first.summary.operation.isBlank()) "recorded" else if (active && liveSequence >= activeSince && liveSequence > lastRunEnd) "running" else "incomplete",
             start = start, end = ended?.record?.timestamp,
             durationMs = measured ?: ended?.record?.timestamp?.minus(start)?.coerceAtLeast(0)?.takeIf { startEvent != null },
             firstContentMs = records.asReversed().firstNotNullOfOrNull { it.summary.firstContentMs },
+            receivingMs = records.asReversed().firstNotNullOfOrNull { it.summary.receivingMs },
             run = owners[key], parent = records.firstNotNullOfOrNull { it.summary.parent }?.let { "model:$it" },
             preview = records.lastOrNull { it.summary.preview.isNotBlank() }?.summary?.preview.orEmpty(),
             inputTokens = records.asReversed().firstNotNullOfOrNull { it.summary.inputTokens },
             outputTokens = records.asReversed().firstNotNullOfOrNull { it.summary.outputTokens },
             childConversation = records.firstNotNullOfOrNull { it.summary.childConversation },
-            partial = startEvent == null && summary.operation.isNotBlank(), entries = records,
+            partial = startEvent == null && first.summary.operation.isNotBlank(), entries = records,
         )
     }.sortedWith(compareBy<TraceSpan> { it.start }.thenBy { it.entries.first().record.sequence })
 }

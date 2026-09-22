@@ -9,6 +9,16 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class GenerationProgressTest {
+    @Test fun `request identities survive a newer attempt on the same tracker`() {
+        val tracker = GenerationProgressTracker()
+        val first = tracker.begin()
+        val original = first.requestId
+        val second = tracker.begin()
+        assertEquals(original, first.requestId)
+        assertNotEquals(first.requestId, second.requestId)
+        assertEquals(second.requestId, tracker.state.value?.requestId)
+    }
+
     @Test fun `control events are not first content and completed observations are frozen`() {
         var clock = 10L
         val tracker = GenerationProgressTracker { clock }
