@@ -534,41 +534,116 @@ private fun TraceFact(label: String, value: String) {
         Text(value, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
     }
 }
-/** Bounded, selectable tree. Long strings and arrays have pages rather than horizontal scrolling. */
+/** Compact, selectable tree. Headers identify records before they are expanded. */
 @Composable
-private fun TraceValue(label: String, value: JsonElement, expandedInitially: Boolean = false) {
-    if (value is JsonPrimitive && (value.contentOrNull?.length ?: 0) < 500 && '\n' !in value.content) {
+internal fun TraceValue(
+    label: String,
+    value: JsonElement,
+    expandedInitially: Boolean = false,
+    depth: Int = 0,
+    ordinal: Int? = null,
+) {
+    val preview = remember(value) { tracePayloadPreview(value) }
+    val shortPrimitive = value is JsonPrimitive && (value.contentOrNull?.length ?: 0) < 160 && '\n' !in value.content
+    val shortArray = value is JsonArray && value.size <= 12 && value.all { it is JsonPrimitive && it.content.length < 48 } && value.sumOf { (it as JsonPrimitive).content.length } < 160
+    if (shortPrimitive || shortArray) {
+        val text = if (value is JsonPrimitive) value.contentOrNull ?: "null"
+            else (value as JsonArray).joinToString(" · ") { (it as JsonPrimitive).contentOrNull ?: "null" }.ifEmpty { "[]" }
         Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(label, Modifier.weight(.4f), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            SelectionContainer(Modifier.weight(.6f)) { Text(value.contentOrNull ?: "null", style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace)) }
+            Text(label, Modifier.weight(.35f), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            SelectionContainer(Modifier.weight(.65f)) { Text(text, style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace)) }
         }
         return
     }
     var expanded by remember(value) { mutableStateOf(expandedInitially) }
     var offset by remember(value) { mutableIntStateOf(0) }
-    OutlinedCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            TextButton(onClick = { expanded = !expanded }, contentPadding = PaddingValues(0.dp)) {
-                Text("${if (expanded) "▾" else "▸"} $label", style = MaterialTheme.typography.labelLarge)
-            }
-            if (expanded) when (value) {
-                is JsonObject -> {
-                    value.entries.drop(offset).take(20).forEach { (field, item) -> key(field) { TraceValue(field, item, item is JsonPrimitive) } }
-                    TracePages(offset, 20, value.size) { offset = it }
-                }
-                is JsonArray -> {
-                    value.drop(offset).take(20).forEachIndexed { index, item -> key(offset + index) { TraceValue("${offset + index + 1} / ${value.size}", item) } }
-                    TracePages(offset, 20, value.size) { offset = it }
-                }
-                else -> {
-                    val text = (value as? JsonPrimitive)?.contentOrNull ?: value.toString()
-                    val part = text.drop(offset).take(6000)
-                    SelectionContainer {
-                        if (label in setOf("text", "reasoning", "content")) MarkdownBlock(part, style = MaterialTheme.typography.bodyMedium)
-                        else Text(part, style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace), softWrap = true)
+    val title = if (ordinal == null) label else preview.title ?: label
+    val count = when (value) {
+        is JsonObject -> stringResource(R.string.trace_field_count, value.size)
+        is JsonArray -> stringResource(R.string.trace_item_count, value.size)
+        else -> stringResource(R.string.trace_character_count, (value as JsonPrimitive).content.length)
+    }
+    @Composable fun Node() {
+        Column(Modifier.fillMaxWidth()) {
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { expanded = !expanded }.padding(horizontal = 8.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top,
+            ) {
+                Text(if (expanded) "▾" else "▸", color = MaterialTheme.colorScheme.primary)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(title, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary,
+                        maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    if (!expanded && preview.detail.isNotBlank() && preview.detail != title) {
+                        Text(preview.detail, style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
-                    TracePages(offset, 6000, text.length) { offset = it }
                 }
+                Text(if (ordinal == null) count else "$ordinal", style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (expanded) Column(
+                Modifier.fillMaxWidth().padding(start = if (depth < 3) 8.dp else 0.dp, end = 8.dp, bottom = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                when (value) {
+                    is JsonObject -> {
+                        value.entries.drop(offset).take(20).forEach { (field, item) -> key(field) {
+                            TraceValue(field, item, item is JsonPrimitive, depth + 1)
+                        } }
+                        TracePages(offset, 20, value.size) { offset = it }
+                    }
+                    is JsonArray -> {
+                        value.drop(offset).take(20).forEachIndexed { index, item -> key(offset + index) {
+                            TraceValue("${offset + index + 1}", item, depth = depth + 1, ordinal = offset + index + 1)
+                            if (index + 1 < minOf(20, value.size - offset)) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .45f))
+                        } }
+                        TracePages(offset, 20, value.size) { offset = it }
+                    }
+                    else -> {
+                        val text = (value as? JsonPrimitive)?.contentOrNull ?: value.toString()
+                        val part = text.substring(offset.coerceAtMost(text.length), (offset + 6000).coerceAtMost(text.length))
+                        SelectionContainer {
+                            if (label in setOf("text", "reasoning", "content")) MarkdownBlock(part, style = MaterialTheme.typography.bodyMedium)
+                            else Text(part, style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace), softWrap = true)
+                        }
+                        TracePages(offset, 6000, text.length) { offset = it }
+                    }
+                }
+            }
+        }
+    }
+    if (depth == 0) OutlinedCard(Modifier.fillMaxWidth()) { Node() } else Node()
+}
+
+/** Tool declarations are scanned by name first; schema details stay one tap away. */
+@Composable
+internal fun TraceToolDeclarations(value: JsonArray) {
+    var expanded by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
+    var offset by remember(value, query) { mutableIntStateOf(0) }
+    val tools = remember(value, query) {
+        value.withIndex().filter { (_, item) ->
+            traceToolMatches(item, query)
+        }
+    }
+    OutlinedCard(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { expanded = !expanded }.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("${if (expanded) "▾" else "▸"} ${stringResource(R.string.trace_tools)}", Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+                Text(value.size.toString(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            }
+            if (expanded) {
+                if (value.size > 6) OutlinedTextField(query, { query = it }, singleLine = true, modifier = Modifier.fillMaxWidth().testTag("trace-tools-search"),
+                    label = { Text(stringResource(R.string.trace_find_tool)) })
+                if (tools.isEmpty()) Text(stringResource(R.string.trace_tools_no_matches), Modifier.padding(8.dp), style = MaterialTheme.typography.bodySmall)
+                tools.drop(offset).take(20).forEach { (index, tool) -> key(index) {
+                    TraceValue((index + 1).toString(), tool, depth = 1, ordinal = index + 1)
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .45f))
+                } }
+                TracePages(offset, 20, tools.size) { offset = it }
+            } else {
+                Text(tracePayloadPreview(value).detail, Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
         }
     }
@@ -594,14 +669,8 @@ private fun TraceReadablePayload(source: String, value: JsonElement) {
         when (source) {
             "model.request" -> {
                 val messages = data["messages"] as? JsonArray ?: JsonArray(emptyList())
-                var offset by remember(value) { mutableIntStateOf(0) }
-                messages.drop(offset).take(10).forEachIndexed { index, item ->
-                    val message = item as? JsonObject ?: return@forEachIndexed
-                    Text("${offset + index + 1} · ${text(message, "role").orEmpty()}", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-                    TraceMessageParts(message["parts"] as? JsonArray ?: JsonArray(emptyList()))
-                }
-                TracePages(offset, 10, messages.size) { offset = it }
-                data["tools"]?.let { TraceValue(stringResource(R.string.trace_tools), it) }
+                TraceValue(stringResource(R.string.trace_messages), messages)
+                data["tools"]?.let { if (it is JsonArray) TraceToolDeclarations(it) else TraceValue(stringResource(R.string.trace_tools), it) }
                 TraceValue(stringResource(R.string.trace_metadata), JsonObject(data.filterKeys { it !in setOf("messages", "tools") }))
             }
             "model.stream" -> {

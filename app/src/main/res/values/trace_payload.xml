@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="trace_field_count">%1$d fields</string>
+    <string name="trace_item_count">%1$d items</string>
+    <string name="trace_character_count">%1$d chars</string>
+    <string name="trace_find_tool">Find tool by name or description</string>
+    <string name="trace_tools_no_matches">No matching tools</string>
+    <string name="trace_messages">Messages</string>
+</resources>
