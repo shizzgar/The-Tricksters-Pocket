@@ -8,6 +8,8 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.platform.app.InstrumentationRegistry
@@ -52,9 +54,13 @@ class TrajectoryInstrumentedTest {
 
     private fun show(russian: Boolean = false) {
         val journal = fixture()
-        val localized = context.createConfigurationContext(Configuration(context.resources.configuration).apply { setLocale(Locale(if (russian) "ru" else "en")) })
+        val localized = context.createConfigurationContext(Configuration(context.resources.configuration).apply { setLocale(Locale.forLanguageTag(if (russian) "ru" else "en")) })
         compose.setContent {
-            CompositionLocalProvider(LocalContext provides localized) {
+            CompositionLocalProvider(
+                LocalContext provides localized,
+                LocalConfiguration provides localized.resources.configuration,
+                LocalResources provides localized.resources,
+            ) {
                 MaterialTheme(colorScheme = if (russian) darkColorScheme() else lightColorScheme()) {
                     ConversationTrajectoryScreen(conversation, false, {}, {}, journalOverride = journal)
                 }
@@ -85,7 +91,7 @@ class TrajectoryInstrumentedTest {
 
     @Test fun russianDarkTraceFitsPhone() {
         show(russian = true)
-        compose.onAllNodesWithText("Инструменты").onFirst().assertExists()
         screenshot("trajectory-russian-dark")
+        compose.onAllNodesWithText("Инструменты").onFirst().assertExists()
     }
 }

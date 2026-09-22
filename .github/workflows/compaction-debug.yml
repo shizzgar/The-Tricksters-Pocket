@@ -88,12 +88,17 @@ jobs:
           adb shell settings put global transition_animation_scale 0
           adb shell settings put global animator_duration_scale 0
           adb shell input keyevent 82
-          test_status=0
-          bash ./gradlew --no-daemon --max-workers=2 :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=me.rerere.rikkahub.ui.pages.chat.TrajectoryInstrumentedTest || test_status=$?
+          bash ./gradlew --no-daemon --max-workers=2 :app:assembleDebugAndroidTest
+          adb install -r app/build/outputs/apk/debug/*x86_64*.apk
+          adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
           mkdir -p build/trajectory-qa
+          test_status=0
+          adb shell am instrument -w -r -e class me.rerere.rikkahub.ui.pages.chat.TrajectoryInstrumentedTest excp.rikkahub.debug.test/androidx.test.runner.AndroidJUnitRunner | tee build/trajectory-qa/instrumentation.txt || test_status=$?
+          grep -Fq 'OK (2 tests)' build/trajectory-qa/instrumentation.txt || test_status=1
           for name in trajectory-waterfall trajectory-flow trajectory-inspector trajectory-russian-dark; do
-            adb exec-out run-as excp.rikkahub.debug cat "files/trajectory-qa/$name.png" > "build/trajectory-qa/$name.png" || true
+            adb exec-out run-as excp.rikkahub.debug cat "files/trajectory-qa/$name.png" > "build/trajectory-qa/$name.png" || test_status=1
           done
+          cp /tmp/trajectory-emulator.log build/trajectory-qa/emulator.log
           exit "$test_status"
       - uses: actions/upload-artifact@v7
         if: always()
