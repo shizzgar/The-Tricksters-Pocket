@@ -566,7 +566,7 @@ internal fun TraceValue(
     @Composable fun Node() {
         Column(Modifier.fillMaxWidth()) {
             Row(
-                Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { expanded = !expanded }.padding(horizontal = 8.dp, vertical = 10.dp),
+                Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { expanded = !expanded }.padding(horizontal = 8.dp, vertical = if (ordinal == null) 10.dp else 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top,
             ) {
                 Text(if (expanded) "▾" else "▸", color = MaterialTheme.colorScheme.primary)
@@ -575,7 +575,7 @@ internal fun TraceValue(
                         maxLines = 2, overflow = TextOverflow.Ellipsis)
                     if (!expanded && preview.detail.isNotBlank() && preview.detail != title) {
                         Text(preview.detail, style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = if (ordinal == null) 2 else 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
                 Text(if (ordinal == null) count else "$ordinal", style = MaterialTheme.typography.labelSmall,
