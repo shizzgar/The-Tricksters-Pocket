@@ -49,11 +49,12 @@ class ToolAccessInstrumentedTest {
             settings.update { it.copy(assistants = it.assistants.filterNot { a -> a.id == id } + assistant) }
             withTimeout(15_000) { settings.settingsFlow.first { it.assistants.any { a -> a == assistant } } }
         }
-        fun tools() = factory.getTools(assistant.localTools, ToolInvocationContext(callerAssistantId = id.toString()))
+        fun tools() = factory.getTools(assistant.localTools, ToolInvocationContext(callerAssistantId = id.toString(), callerConversationId = id.toString()))
         try {
             save()
             var names = tools().map { it.name }
-            assertTrue("termux_run_command" in names)
+            assertTrue("termux_run_command" in names && "conversation_history_read" in names)
+            assertTrue(factory.getTools(assistant.localTools, ToolInvocationContext(callerAssistantId = id.toString()), includeDisabled = true).any { it.name == "conversation_history_read" })
             assertFalse(names.any(::isSkillTool))
             assertFalse("text_to_speech" in names || "whisper_status" in names || "transcribe_audio_file" in names)
             assistant = assistant.copy(enabledSkills = setOf(name), localTools = allGroups + LocalToolOption.Tts + LocalToolOption.Whisper)
@@ -70,10 +71,10 @@ class ToolAccessInstrumentedTest {
             names = enabledTools.map { it.name }
             assertTrue(names.containsAll(listOf("use_skill", "skill_create", "skill_write_file", "text_to_speech", "whisper_status", "transcribe_audio_file")))
             assertTrue(factory.getTools(assistant.localTools).none { isSkillTool(it.name) }) // unknown caller cannot inherit another profile
-            assistant = assistant.copy(disabledLocalTools = setOf("text_to_speech", "whisper_status", "skill_delete", "termux_skill_sync"))
+            assistant = assistant.copy(disabledLocalTools = setOf("text_to_speech", "whisper_status", "skill_delete", "termux_skill_sync", "conversation_history_read"))
             save()
             names = tools().map { it.name }
-            assertFalse("text_to_speech" in names || "whisper_status" in names || "skill_delete" in names)
+            assertFalse("text_to_speech" in names || "whisper_status" in names || "skill_delete" in names || "conversation_history_read" in names)
             assertTrue("transcribe_audio_file" in names && "termux_run_command" in names && "skill_write_file" in names)
             // An already-constructed tool cannot bypass a later toggle or approval pause.
             val staleResult = enabledTools.first { it.name == "text_to_speech" }.execute(buildJsonObject { put("text", "Must not speak") })

@@ -733,8 +733,9 @@ class LocalTools(
         val installedSkills = if (assistant?.enabledSkills?.isNotEmpty() == true) skillManager.listSkills() else emptyList()
         val availableOptions = availableLocalOptions(options, assistant?.enabledSkills.orEmpty(), installedSkills.map { it.name }.toSet())
         val tools = mutableListOf<Tool>()
-        invocationContext.callerConversationId?.let { id ->
-            tools.add(me.rerere.rikkahub.data.ai.tools.local.conversationHistoryReadTool(conversationRepo, id))
+        // The settings catalog also includes session-only tools so they can be excluded before a chat starts.
+        if (invocationContext.callerConversationId != null || includeDisabled) {
+            tools.add(me.rerere.rikkahub.data.ai.tools.local.conversationHistoryReadTool(conversationRepo, invocationContext.callerConversationId))
         }
         if (availableOptions.contains(LocalToolOption.JavascriptEngine)) {
             tools.add(javascriptTool)

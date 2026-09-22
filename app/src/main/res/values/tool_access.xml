@@ -3,7 +3,7 @@
     <string name="tool_access_title">Individual tools</string>
     <string name="tool_access_description">Choose which tools from enabled groups this assistant can use. Changes apply to the next model request. With no connected skills, all skill tools and automatic skill instructions are omitted. Turning off use_skill also hides the other skill tools.</string>
     <string name="tool_access_configure">Configure tools · %1$d excluded</string>
-    <string name="tool_access_count">%1$d available · %2$d in enabled groups</string>
+    <string name="tool_access_count">%1$d available · %2$d tools</string>
     <string name="tool_access_search">Find a tool or capability</string>
     <string name="tool_access_empty">Enable a tool group or connect a skill to see its tools here.</string>
     <string name="tool_access_load_failed">Could not load the tool list. Close this sheet and try again.</string>
