@@ -70,7 +70,7 @@ class ToolAccessInstrumentedTest {
             names = enabledTools.map { it.name }
             assertTrue(names.containsAll(listOf("use_skill", "skill_create", "skill_write_file", "text_to_speech", "whisper_status", "transcribe_audio_file")))
             assertTrue(factory.getTools(assistant.localTools).none { isSkillTool(it.name) }) // unknown caller cannot inherit another profile
-            assistant = assistant.copy(disabledLocalTools = setOf("text_to_speech", "whisper_status", "skill_delete"))
+            assistant = assistant.copy(disabledLocalTools = setOf("text_to_speech", "whisper_status", "skill_delete", "termux_skill_sync"))
             save()
             names = tools().map { it.name }
             assertFalse("text_to_speech" in names || "whisper_status" in names || "skill_delete" in names)
@@ -78,6 +78,10 @@ class ToolAccessInstrumentedTest {
             // An already-constructed tool cannot bypass a later toggle or approval pause.
             val staleResult = enabledTools.first { it.name == "text_to_speech" }.execute(buildJsonObject { put("text", "Must not speak") })
             assertTrue((staleResult.single() as UIMessagePart.Text).text.contains("tool_disabled"))
+            // use_skill remains available, but a stale closure must not auto-sync after sync was disabled.
+            val withoutSync = enabledTools.first { it.name == "use_skill" }.execute(buildJsonObject { put("name", name) })
+            assertEquals(1, withoutSync.size)
+            assertTrue((withoutSync.single() as UIMessagePart.Text).text.contains("Hello"))
             assistant = assistant.copy(disabledLocalTools = setOf("use_skill"))
             save()
             assertFalse(tools().any { isSkillTool(it.name) })

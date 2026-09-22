@@ -724,6 +724,7 @@ class LocalTools(
         options: List<LocalToolOption>,
         invocationContext: ToolInvocationContext = ToolInvocationContext.EMPTY,
         includeDisabled: Boolean = false,
+        verifyAccessBeforeExecution: Boolean = true,
     ): List<Tool> {
         fun caller() = settingsStore.settingsFlow.value.assistants.firstOrNull {
             it.id.toString() == invocationContext.callerAssistantId
@@ -1108,12 +1109,15 @@ class LocalTools(
             } else {
                 t
             }
-            val guarded = withApproval.copy(execute = { input ->
+            val guarded = if (!verifyAccessBeforeExecution || invocationContext.callerAssistantId == null) withApproval
+            else withApproval.copy(execute = { input ->
                 val live = caller()
-                if (invocationContext.callerAssistantId != null && (live == null ||
-                        getTools(live.localTools, invocationContext).none { it.name == t.name })) {
+                val currentTool = live?.let {
+                    getTools(it.localTools, invocationContext, verifyAccessBeforeExecution = false).firstOrNull { it.name == t.name }
+                }
+                if (currentTool == null) {
                     listOf(UIMessagePart.Text("{\"error\":\"tool_disabled\",\"detail\":\"This tool is no longer enabled for the calling assistant\"}"))
-                } else withApproval.execute(input)
+                } else currentTool.execute(input)
             })
             addHumanErrorEnvelopes(appendTopToolExample(guarded))
         }
