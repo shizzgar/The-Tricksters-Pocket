@@ -102,7 +102,7 @@ internal class SkillWorkspace(private val root: File, stateRoot: File, private v
         try {
             copyTree(root, stage)
             edit(stage)
-            validateManifest(stage)
+            validateManifest(stage, name)
             File(stage, ".user-edited").writeText("1")
             snapshotOf(stage) // all limits and paths checked before touching the original
             if (snapshotOf(root).revision != revision) throw SkillConflict()
@@ -116,15 +116,39 @@ internal class SkillWorkspace(private val root: File, stateRoot: File, private v
             recover(root, state)
         }
     }
-    private fun validateManifest(dir: File) {
-        val manifest = dir.resolve("SKILL.md")
-        require(manifest.isFile && manifest.length() <= 512 * 1024) { "SKILL.md is required and must be under 512 KiB" }
-        val text = decodeText(manifest.readBytes()) ?: error("SKILL.md must contain UTF-8 text")
-        val meta = SkillFrontmatterParser.parse(text)
-        require(meta["name"] == name) { "Keep the skill name '$name' in SKILL.md" }
-        require(!meta["description"].isNullOrBlank()) { "SKILL.md requires a description" }
-    }
     companion object {
+        private fun validateManifest(dir: File, name: String) {
+            val manifest = dir.resolve("SKILL.md")
+            require(manifest.isFile && manifest.length() <= 512 * 1024) { "SKILL.md is required and must be under 512 KiB" }
+            val text = decodeText(manifest.readBytes()) ?: error("SKILL.md must contain UTF-8 text")
+            val meta = SkillFrontmatterParser.parse(text)
+            require(meta["name"] == name) { "Keep the skill name '$name' in SKILL.md" }
+            require(!meta["description"].isNullOrBlank()) { "SKILL.md requires a description" }
+        }
+        fun create(root: File, stateRoot: File, name: String, files: Map<String, ByteArray>): SkillSnapshot = SkillPackageLocks.withLock(root) {
+            require(name.matches(Regex("[a-z0-9][a-z0-9_-]{0,39}"))) { "Use a skill name of 1–40 lowercase letters, digits, underscores or hyphens" }
+            val state = File(stateRoot, root.name)
+            recover(root, state)
+            require(!root.exists() && !Files.isSymbolicLink(root.toPath())) { "A skill already uses this name" }
+            check(!state.exists() || state.deleteRecursively()) { "Could not clear the deleted skill state" }
+            require(files.isNotEmpty() && files.size <= SkillPackage.MAX_FILES && files.values.sumOf { it.size.toLong() } <= SkillPackage.MAX_BYTES) { "Package exceeds 200 files or 20 MiB" }
+            val stage = File(File(stateRoot, root.name), "creating")
+            check(!stage.exists() || stage.deleteRecursively())
+            try {
+                check(stage.mkdirs())
+                files.forEach { (path, bytes) ->
+                    val target = resolve(stage, path)
+                    check(target.parentFile!!.mkdirs() || target.parentFile!!.isDirectory)
+                    target.writeBytes(bytes)
+                }
+                validateManifest(stage, name)
+                File(stage, ".user-edited").writeText("1")
+                snapshotOf(stage)
+                check(root.parentFile!!.mkdirs() || root.parentFile!!.isDirectory)
+                check(!root.exists() && stage.renameTo(root)) { "Could not create skill" }
+                snapshotOf(root)
+            } finally { if (stage.exists()) stage.deleteRecursively() }
+        }
         const val MAX_EDIT_BYTES = 256 * 1024
         const val MAX_HEX_EDIT_BYTES = 64 * 1024
         val internalNames = setOf(".seeded", ".core-bundled-hash", ".user-edited", ".rikkahub-manifest.json")

@@ -51,7 +51,7 @@ Every tool the agent can call, grouped by capability surface. Each entry lists: 
   enabled, Termux app installed, whisper-cli on disk, model (.bin) present. Returns
   `{termux_enabled_in_assistant, termux_app_installed, whisper_cli_installed, whisper_cli_path,
   model_present, model_path, ready_to_transcribe, missing_steps[], install_commands}`.
-  Free/no approval. Call this BEFORE `transcribe_audio_file`.
+  Free/no approval. When enabled, call this BEFORE `transcribe_audio_file`.
 - **`transcribe_audio_file(path, language?)`** — transcribe speech in an audio file to text
   using whisper.cpp (via Termux). Accepts OGG/Opus (Telegram voice notes), WAV, MP3, M4A,
   FLAC. Returns `{success, text, language, audio_duration_sec, transcription_time_sec}`.
@@ -219,3 +219,5 @@ Tools return structured JSON. Common shapes:
 - `{error: "...", recovery: "..."}` — broken state, with a hint to surface to the user.
 
 When you see `recovery`, paste it into your reply verbatim — it's written for the user, not for you.
+
+Availability: the current request’s tool definitions are authoritative. TTS, microphone speech recognition, Whisper, and individual tools can be disabled independently in Assistant → Local tools. Do not call an unavailable tool or use another capability to bypass its disabled setting.

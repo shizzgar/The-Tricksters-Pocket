@@ -204,6 +204,7 @@ val appModule = module {
             storageVolumeGrantStore = get(),
             okHttpClient = get(),
             keyboardApiClient = get(),
+            termuxSkillBridge = get(),
         )
     }
 

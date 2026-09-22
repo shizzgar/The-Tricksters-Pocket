@@ -113,7 +113,7 @@ private fun AssistantLocalToolContent(
         // instead of whatever stale snapshot the recomposition was holding.
         onUpdateAssistant { current ->
             current.copy(
-                localTools = if (enabled) current.localTools + option
+                localTools = if (enabled) (current.localTools + option).distinct()
                 else current.localTools - option,
             )
         }
@@ -250,6 +250,7 @@ private fun AssistantLocalToolContent(
             .imePadding(),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        AssistantToolAccess(assistant, onUpdateAssistant)
         // Built-in tools section
         Text(
             text = stringResource(R.string.assistant_page_local_tools_section_existing),
@@ -301,6 +302,25 @@ private fun AssistantLocalToolContent(
             )
             item(
                 headlineContent = {
+                    Text(stringResource(R.string.assistant_page_local_tools_ask_user_title))
+                },
+                supportingContent = {
+                    Text(stringResource(R.string.assistant_page_local_tools_ask_user_desc))
+                },
+                trailingContent = {
+                    Switch(
+                        checked = assistant.localTools.contains(LocalToolOption.AskUser),
+                        onCheckedChange = { toggleLocalTool(LocalToolOption.AskUser, it) }
+                    )
+                }
+            )
+        }
+
+        Text(stringResource(R.string.tool_access_voice_title), style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.padding(start = 16.dp, top = 8.dp))
+        CardGroup {
+            item(
+                headlineContent = {
                     Text(stringResource(R.string.assistant_page_local_tools_tts_title))
                 },
                 supportingContent = {
@@ -315,17 +335,27 @@ private fun AssistantLocalToolContent(
             )
             item(
                 headlineContent = {
-                    Text(stringResource(R.string.assistant_page_local_tools_ask_user_title))
+                    Text(stringResource(R.string.assistant_page_local_tools_speech_to_text_title))
                 },
                 supportingContent = {
-                    Text(stringResource(R.string.assistant_page_local_tools_ask_user_desc))
+                    Text(stringResource(R.string.assistant_page_local_tools_speech_to_text_desc))
                 },
                 trailingContent = {
-                    Switch(
-                        checked = assistant.localTools.contains(LocalToolOption.AskUser),
-                        onCheckedChange = { toggleLocalTool(LocalToolOption.AskUser, it) }
+                    PermissionedSwitch(
+                        checked = assistant.localTools.contains(LocalToolOption.SpeechToText),
+                        onCheckedChange = { toggleLocalTool(LocalToolOption.SpeechToText, it) },
+                        requiredRuntimePerms = listOf(Manifest.permission.RECORD_AUDIO),
                     )
                 }
+            )
+            item(
+                headlineContent = { Text(stringResource(R.string.tool_access_whisper_title)) },
+                supportingContent = { Text(stringResource(R.string.tool_access_whisper_description)) },
+                trailingContent = { Switch(
+                    checked = LocalToolOption.Whisper in assistant.localTools,
+                    onCheckedChange = { toggleLocalTool(LocalToolOption.Whisper, it) },
+                    enabled = LocalToolOption.Termux in assistant.localTools || LocalToolOption.Whisper in assistant.localTools,
+                ) },
             )
         }
 
@@ -648,21 +678,6 @@ private fun AssistantLocalToolContent(
             )
             item(
                 headlineContent = {
-                    Text(stringResource(R.string.assistant_page_local_tools_speech_to_text_title))
-                },
-                supportingContent = {
-                    Text(stringResource(R.string.assistant_page_local_tools_speech_to_text_desc))
-                },
-                trailingContent = {
-                    PermissionedSwitch(
-                        checked = assistant.localTools.contains(LocalToolOption.SpeechToText),
-                        onCheckedChange = { toggleLocalTool(LocalToolOption.SpeechToText, it) },
-                        requiredRuntimePerms = listOf(Manifest.permission.RECORD_AUDIO),
-                    )
-                }
-            )
-            item(
-                headlineContent = {
                     Text(stringResource(R.string.assistant_page_local_tools_fingerprint_title))
                 },
                 supportingContent = {
@@ -946,6 +961,14 @@ private fun AssistantLocalToolContent(
                         }
                     )
                 }
+            )
+            item(
+                headlineContent = { Text(stringResource(R.string.tool_access_skill_management_title)) },
+                supportingContent = { Text(stringResource(R.string.tool_access_skill_management_description)) },
+                trailingContent = { Switch(
+                    checked = LocalToolOption.SkillManagement in assistant.localTools,
+                    onCheckedChange = { toggleLocalTool(LocalToolOption.SkillManagement, it) },
+                ) },
             )
             item(
                 headlineContent = {

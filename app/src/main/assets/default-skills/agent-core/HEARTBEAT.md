@@ -16,7 +16,7 @@ These tools are nearly free; call them whenever the user's request depends on th
 - **`read_window_tree`** — before any `tap`, `click_node`, `scroll`, or `global_action` call, unless you already have a fresh tree from the same turn. The screen changes between turns even when you didn't act.
 - **`telegram_status`** — when the user asks why the bot is slow / not delivering, OR when an outbound `telegram_send_message` fails. The status envelope tells you whether the foreground service is alive.
 - **`list_recent_notifications`** — when the user asks "what notifications did I miss", "what's that ping", or anything implying notification history. Cheap (in-memory ring buffer). The auto-route forwarder already pushes whitelisted apps to Telegram in real time; the LLM does not need to poll — answer based on what's already in the chat history when relevant.
-- **`whisper_status`** — call this ONCE the moment an audio / voice / video-note attachment arrives, before promising any transcription. Returns `ready_to_transcribe` plus a list of `missing_steps`. Free, no approval needed. If `ready_to_transcribe: true`, proceed straight to `transcribe_audio_file`. If anything is missing, surface the gap to the user and ask for confirmation BEFORE running install commands (the build-from-source path takes ~5 minutes and downloads ~75 MB).
+- **`whisper_status`** — if this tool is declared in the current request, call it ONCE when an audio / voice / video-note attachment arrives, before promising any transcription. Returns `ready_to_transcribe` plus a list of `missing_steps`. Free, no approval needed. If `ready_to_transcribe: true`, proceed straight to `transcribe_audio_file`. If anything is missing, surface the gap to the user and ask for confirmation BEFORE running install commands (the build-from-source path takes ~5 minutes and downloads ~75 MB).
 
 ## What to sample (expensive, only on demand)
 
@@ -45,7 +45,7 @@ Tools return structured `{error, recovery, ...}` envelopes when state is degrade
 | `error: "whisper_not_installed"` (from `transcribe_audio_file`) | whisper.cpp isn't in PATH or any known build location | Show the user the install commands from `hint`, ask for confirmation, run them, then retry. Do NOT silently install — the build takes ~5 minutes and downloads ~75 MB. |
 | `error: "whisper_model_missing"` (from `transcribe_audio_file`) | whisper-cli is installed but no `.bin` model file exists | Show the user the model-download command from `hint`, ask for confirmation, then run it. The tiny model is the safe default. |
 | `error: "termux_not_installed"` (from `transcribe_audio_file` / `whisper_status`) | Termux app isn't installed on the device | Tell the user transcription needs Termux from F-Droid. Don't keep retrying. |
-| `error: "termux_permission_not_granted"` (from `transcribe_audio_file` / `whisper_status`) | Termux toggle isn't enabled in this assistant's Local tools | Tell the user to flip Termux on under Settings → Assistant → Local tools. You can't enable it for them. |
+| `error: "termux_permission_not_granted"` (from `transcribe_audio_file` / `whisper_status`) | Termux toggle isn't enabled in this assistant's Local tools | Tell the user to flip Termux on under Settings → Assistant → Local tools, then enable Whisper separately. You can't enable it for them. |
 
 ## Loop avoidance — token-cost discipline
 
@@ -76,3 +76,5 @@ When the user first messages the bot, do this in your head before replying:
 - Don't read the window tree if the user just gave you specific coordinates.
 - Don't `take_screenshot` after every action — the action log + a final screenshot is enough.
 - Don't call `telegram_status` unless something has gone wrong; the user can see whether replies are arriving.
+
+Availability: the current request’s tool definitions are authoritative. TTS, microphone speech recognition, Whisper, and individual tools can be disabled independently in Assistant → Local tools. Do not call an unavailable tool or use another capability to bypass its disabled setting.

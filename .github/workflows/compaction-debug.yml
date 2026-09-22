@@ -48,6 +48,11 @@ jobs:
           --tests 'me.rerere.rikkahub.data.ai.TrajectoryTest'
           --tests 'me.rerere.rikkahub.skills.SkillPackageTest'
           --tests 'me.rerere.rikkahub.skills.SkillWorkspaceTest'
+          --tests 'me.rerere.rikkahub.skills.SkillManagementToolsTest'
+          --tests 'me.rerere.rikkahub.skills.SkillAutoEnableTest'
+          --tests 'me.rerere.rikkahub.data.ai.tools.ToolAvailabilityTest'
+          --tests 'me.rerere.rikkahub.data.ai.tools.ToolApprovalDefaultsTest'
+          --tests 'me.rerere.rikkahub.data.ai.tools.LenientLocalToolListSerializerTest'
           --tests 'me.rerere.rikkahub.data.files.SkillManagerSeedDecisionTest'
           --tests 'me.rerere.rikkahub.skills.SkillZipImporterTest'
           --tests 'me.rerere.rikkahub.data.ai.tools.SkillsToolsTest'
@@ -95,13 +100,13 @@ jobs:
           adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
           mkdir -p build/trajectory-qa
           test_status=0
-          adb shell am instrument -w -r -e class me.rerere.rikkahub.ui.pages.chat.TrajectoryInstrumentedTest,me.rerere.rikkahub.ui.pages.extensions.skills.SkillWorkbenchInstrumentedTest excp.rikkahub.debug.test/androidx.test.runner.AndroidJUnitRunner | tee build/trajectory-qa/instrumentation.txt || test_status=$?
-          grep -Fq 'OK (6 tests)' build/trajectory-qa/instrumentation.txt || test_status=1
+          adb shell am instrument -w -r -e class me.rerere.rikkahub.ui.pages.chat.TrajectoryInstrumentedTest,me.rerere.rikkahub.ui.pages.extensions.skills.SkillWorkbenchInstrumentedTest,me.rerere.rikkahub.ui.pages.assistant.detail.ToolAccessInstrumentedTest excp.rikkahub.debug.test/androidx.test.runner.AndroidJUnitRunner | tee build/trajectory-qa/instrumentation.txt || test_status=$?
+          grep -Fq 'OK (8 tests)' build/trajectory-qa/instrumentation.txt || test_status=1
           adb shell wm size 1920x1200
           adb shell wm density 160
           adb shell am instrument -w -r -e class me.rerere.rikkahub.ui.pages.extensions.skills.SkillWorkbenchWideInstrumentedTest excp.rikkahub.debug.test/androidx.test.runner.AndroidJUnitRunner | tee build/trajectory-qa/wide-instrumentation.txt || test_status=$?
           grep -Fq 'OK (1 test)' build/trajectory-qa/wide-instrumentation.txt || test_status=1
-          for name in trajectory-waterfall trajectory-flow trajectory-inspector trajectory-russian-dark skill-workbench-files skill-workbench-editor skill-workbench-binary-ru skill-workbench-wide; do
+          for name in trajectory-waterfall trajectory-flow trajectory-inspector trajectory-russian-dark skill-workbench-files skill-workbench-editor skill-workbench-binary-ru skill-workbench-wide tool-access-russian; do
             adb exec-out run-as excp.rikkahub.debug cat "files/trajectory-qa/$name.png" > "build/trajectory-qa/$name.png" || test_status=1
           done
           cp /tmp/trajectory-emulator.log build/trajectory-qa/emulator.log

@@ -480,6 +480,7 @@ class GenerationLoop(
         assistant: Assistant,
         memories: List<AssistantMemory>? = null,
         tools: List<Tool> = emptyList(),
+        refreshTools: (suspend () -> List<Tool>)? = null,
         // Read live from the runtime holder, not captured once: the default expression is
         // evaluated per call, so a settings change takes effect on the next turn.
         maxSteps: Int = ToolRuntimeLimits.maxToolSteps,
@@ -605,7 +606,7 @@ class GenerationLoop(
                         }
                     ).let(this::addAll)
                 }
-                addAll(tools)
+                addAll(refreshTools?.invoke() ?: tools)
             }
 
             // Check if we have tool calls ready to continue after user interaction.

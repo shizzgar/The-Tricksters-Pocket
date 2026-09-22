@@ -197,9 +197,9 @@ fun AssistantExtensionsPage(id: String) {
                                     skills = skills,
                                     enabledSkills = assistant.enabledSkills,
                                     onToggle = { name, checked ->
-                                        val newSkills = if (checked) assistant.enabledSkills + name
-                                        else assistant.enabledSkills - name
-                                        vm.update(assistant.copy(enabledSkills = newSkills))
+                                        vm.updateAssistant { current ->
+                                            current.copy(enabledSkills = if (checked) current.enabledSkills + name else current.enabledSkills - name)
+                                        }
                                     },
                                 )
                                 TextButton(

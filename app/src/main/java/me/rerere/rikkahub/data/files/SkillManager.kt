@@ -156,14 +156,19 @@ class SkillManager(
         return parseSkillFile(skillDir.resolve("SKILL.md"), skillDir)
     }
 
-    suspend fun deleteSkill(name: String): Boolean = withContext(Dispatchers.IO) {
+    suspend fun deleteSkill(name: String, expectedRevision: String? = null): Boolean = withContext(Dispatchers.IO) {
         val skillDir = resolveSkillDir(name) ?: return@withContext false
         // Bundled-ness must be checked before deleteRecursively() destroys the directory:
         // for a non-core bundled skill, ownership is tracked by a `.seeded` sentinel that
         // lives inside this same directory, but bundledSkillNames() reads the asset list,
         // which is unaffected by the delete.
         val isBundled = name in bundledSkillNames()
-        val deleted = skillDir.deleteRecursively()
+        val deleted = SkillPackageLocks.withLock(skillDir) {
+            if (expectedRevision != null && workspace(name).snapshot().revision != expectedRevision) throw me.rerere.rikkahub.skills.SkillConflict()
+            val state = File(File(context.filesDir, "skill_workbench"), skillDir.name)
+            check(!state.exists() || state.deleteRecursively()) { "Could not clear skill drafts and recovery state" }
+            skillDir.deleteRecursively().also { if (it) invalidateSkill(name) }
+        }
         if (deleted) {
             settingsStore.update { settings ->
                 settings.copy(
@@ -224,6 +229,16 @@ class SkillManager(
             if (changed) settings.copy(assistants = newAssistants) else settings
         }
         skills
+    }
+
+    internal fun workspace(name: String): SkillWorkspace = SkillWorkspace(
+        requireNotNull(resolveSkillDir(name)), File(context.filesDir, "skill_workbench"), name,
+    )
+
+    internal fun createPackage(name: String, files: Map<String, ByteArray>) {
+        val root = requireNotNull(resolveSkillDir(name)) { "Invalid skill name" }
+        SkillWorkspace.create(root, File(context.filesDir, "skill_workbench"), name, files)
+        invalidateSkill(name)
     }
 
     fun getSkillDir(skillName: String): File? = resolveSkillDir(skillName)

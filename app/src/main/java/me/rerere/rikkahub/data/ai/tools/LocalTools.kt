@@ -192,6 +192,8 @@ sealed class LocalToolOption {
     @Serializable @SerialName("cost_guards")         data object CostGuards         : LocalToolOption()
     @Serializable @SerialName("workflows")           data object Workflows          : LocalToolOption()
     @Serializable @SerialName("skill_import")        data object SkillImport        : LocalToolOption()
+    @Serializable @SerialName("skill_management") data object SkillManagement : LocalToolOption()
+    @Serializable @SerialName("whisper") data object Whisper : LocalToolOption()
     @Serializable @SerialName("js_skills")           data object JsSkills           : LocalToolOption()
     @Serializable @SerialName("system_intents")      data object SystemIntents      : LocalToolOption()
     @Serializable @SerialName("browser")             data object Browser            : LocalToolOption()
@@ -375,6 +377,7 @@ class LocalTools(
     private val okHttpClient: okhttp3.OkHttpClient,
     // agent-keyboard IPC client — backs the keyboard_* tools (drives the active text field).
     private val keyboardApiClient: me.rerere.rikkahub.data.keyboard.KeyboardApiClient,
+    private val termuxSkillBridge: me.rerere.rikkahub.skills.TermuxSkillBridge? = null,
 ) {
     val javascriptTool by lazy {
         Tool(
@@ -720,69 +723,76 @@ class LocalTools(
     fun getTools(
         options: List<LocalToolOption>,
         invocationContext: ToolInvocationContext = ToolInvocationContext.EMPTY,
+        includeDisabled: Boolean = false,
     ): List<Tool> {
+        fun caller() = settingsStore.settingsFlow.value.assistants.firstOrNull {
+            it.id.toString() == invocationContext.callerAssistantId
+        }
+        val assistant = caller()
+        val installedSkills = if (assistant?.enabledSkills?.isNotEmpty() == true) skillManager.listSkills() else emptyList()
+        val availableOptions = availableLocalOptions(options, assistant?.enabledSkills.orEmpty(), installedSkills.map { it.name }.toSet())
         val tools = mutableListOf<Tool>()
         invocationContext.callerConversationId?.let { id ->
             tools.add(me.rerere.rikkahub.data.ai.tools.local.conversationHistoryReadTool(conversationRepo, id))
         }
-        if (options.contains(LocalToolOption.JavascriptEngine)) {
+        if (availableOptions.contains(LocalToolOption.JavascriptEngine)) {
             tools.add(javascriptTool)
         }
-        if (options.contains(LocalToolOption.TimeInfo)) {
+        if (availableOptions.contains(LocalToolOption.TimeInfo)) {
             tools.add(timeTool)
         }
-        if (options.contains(LocalToolOption.Clipboard)) {
+        if (availableOptions.contains(LocalToolOption.Clipboard)) {
             tools.add(clipboardTool)
         }
-        if (options.contains(LocalToolOption.Tts)) {
+        if (availableOptions.contains(LocalToolOption.Tts)) {
             tools.add(ttsTool)
         }
-        if (options.contains(LocalToolOption.AskUser)) {
+        if (availableOptions.contains(LocalToolOption.AskUser)) {
             tools.add(askUserTool)
         }
-        if (options.contains(LocalToolOption.Battery)) {
+        if (availableOptions.contains(LocalToolOption.Battery)) {
             tools.add(batteryTool(context))
         }
-        if (options.contains(LocalToolOption.AudioInfo)) {
+        if (availableOptions.contains(LocalToolOption.AudioInfo)) {
             tools.add(audioInfoTool(context))
         }
-        if (options.contains(LocalToolOption.TelephonyInfo)) {
+        if (availableOptions.contains(LocalToolOption.TelephonyInfo)) {
             tools.add(telephonyInfoTool(context))
         }
-        if (options.contains(LocalToolOption.WifiInfo)) {
+        if (availableOptions.contains(LocalToolOption.WifiInfo)) {
             tools.add(wifiInfoTool(context))
         }
-        if (options.contains(LocalToolOption.Sensors)) {
+        if (availableOptions.contains(LocalToolOption.Sensors)) {
             tools.add(listSensorsTool(context))
             tools.add(readSensorTool(context))
         }
-        if (options.contains(LocalToolOption.StorageInfo)) {
+        if (availableOptions.contains(LocalToolOption.StorageInfo)) {
             tools.add(storageTool(context))
         }
-        if (options.contains(LocalToolOption.Toast)) {
+        if (availableOptions.contains(LocalToolOption.Toast)) {
             tools.add(toastTool(context, invocationContext, interactiveToolStreamer))
         }
-        if (options.contains(LocalToolOption.Notification)) {
+        if (availableOptions.contains(LocalToolOption.Notification)) {
             tools.add(notificationTool(context, invocationContext, interactiveToolStreamer))
         }
-        if (options.contains(LocalToolOption.Share)) {
+        if (availableOptions.contains(LocalToolOption.Share)) {
             tools.add(shareTool(context, invocationContext, interactiveToolStreamer))
         }
-        if (options.contains(LocalToolOption.Torch)) {
+        if (availableOptions.contains(LocalToolOption.Torch)) {
             tools.add(torchTool(context))
         }
-        if (options.contains(LocalToolOption.Vibrate)) {
+        if (availableOptions.contains(LocalToolOption.Vibrate)) {
             tools.add(vibrateTool(context))
         }
-        if (options.contains(LocalToolOption.Brightness)) {
+        if (availableOptions.contains(LocalToolOption.Brightness)) {
             tools.add(getBrightnessTool(context))
             tools.add(setBrightnessTool(context, invocationContext, interactiveToolStreamer))
         }
-        if (options.contains(LocalToolOption.Volume)) {
+        if (availableOptions.contains(LocalToolOption.Volume)) {
             tools.add(getVolumeTool(context))
             tools.add(setVolumeTool(context, invocationContext, interactiveToolStreamer))
         }
-        if (options.contains(LocalToolOption.MediaPlayer)) {
+        if (availableOptions.contains(LocalToolOption.MediaPlayer)) {
             tools.add(playMediaTool(context, invocationContext, interactiveToolStreamer))
             tools.add(stopMediaTool(context))
             tools.add(pauseMediaTool(context))
@@ -790,40 +800,40 @@ class LocalTools(
             tools.add(seekMediaTool(context))
             tools.add(getMediaStatusTool())
         }
-        if (options.contains(LocalToolOption.MediaScanner)) {
+        if (availableOptions.contains(LocalToolOption.MediaScanner)) {
             tools.add(mediaScannerTool(context))
         }
-        if (options.contains(LocalToolOption.Download)) {
+        if (availableOptions.contains(LocalToolOption.Download)) {
             tools.add(downloadTool(context))
             tools.add(writeTextFileTool(context))
         }
-        if (options.contains(LocalToolOption.Location)) {
+        if (availableOptions.contains(LocalToolOption.Location)) {
             tools.add(locationTool(context))
         }
-        if (options.contains(LocalToolOption.Contacts)) {
+        if (availableOptions.contains(LocalToolOption.Contacts)) {
             tools.add(searchContactsTool(context))
             tools.add(listContactsTool(context))
         }
-        if (options.contains(LocalToolOption.CallLog)) {
+        if (availableOptions.contains(LocalToolOption.CallLog)) {
             tools.add(callLogTool(context))
         }
-        if (options.contains(LocalToolOption.SmsInbox)) {
+        if (availableOptions.contains(LocalToolOption.SmsInbox)) {
             tools.add(listSmsInboxTool(context))
             tools.add(searchSmsTool(context))
         }
-        if (options.contains(LocalToolOption.CameraPhoto)) {
+        if (availableOptions.contains(LocalToolOption.CameraPhoto)) {
             tools.add(cameraPhotoTool(context, cameraResultBuffer))
         }
-        if (options.contains(LocalToolOption.MicRecorder)) {
+        if (availableOptions.contains(LocalToolOption.MicRecorder)) {
             tools.add(micRecorderTool(context))
         }
-        if (options.contains(LocalToolOption.SpeechToText)) {
+        if (availableOptions.contains(LocalToolOption.SpeechToText)) {
             tools.add(speechToTextTool(context))
         }
-        if (options.contains(LocalToolOption.Fingerprint)) {
+        if (availableOptions.contains(LocalToolOption.Fingerprint)) {
             tools.add(fingerprintTool(context, biometricResultBuffer))
         }
-        if (options.contains(LocalToolOption.Ssh)) {
+        if (availableOptions.contains(LocalToolOption.Ssh)) {
             tools.add(sshExecTool(context))
             tools.add(saveSshHostTool(sshHostRepository))
             tools.add(listSshHostsTool(sshHostRepository))
@@ -833,10 +843,10 @@ class LocalTools(
             tools.add(sshDownloadTool(context, sshHostRepository))
             tools.add(forgetSshHostKeyTool(context))
         }
-        if (options.contains(LocalToolOption.Shizuku)) {
+        if (availableOptions.contains(LocalToolOption.Shizuku)) {
             tools.add(me.rerere.rikkahub.data.ai.tools.local.shizukuExecTool(context))
         }
-        if (options.contains(LocalToolOption.TelegramBot)) {
+        if (availableOptions.contains(LocalToolOption.TelegramBot)) {
             tools.add(telegramSetTokenTool(telegramBotPreferences, telegramBotClient))
             tools.add(telegramStatusTool(context, telegramBotPreferences, telegramBotClient))
             tools.add(telegramEnableTool(context, telegramBotPreferences))
@@ -852,7 +862,7 @@ class LocalTools(
             tools.add(telegramGetCommandsTool(telegramBotClient))
             tools.add(telegramDeleteCommandsTool(telegramBotPreferences, telegramBotClient))
         }
-        if (options.contains(LocalToolOption.CronJobs)) {
+        if (availableOptions.contains(LocalToolOption.CronJobs)) {
             tools.add(me.rerere.rikkahub.data.ai.tools.local.scheduleJobTool(scheduledJobRepository, cronJobScheduler, settingsStore,
                 knownToolNamesProvider = { tools.map { it.name } }))
             tools.add(me.rerere.rikkahub.data.ai.tools.local.listJobsTool(scheduledJobRepository))
@@ -862,7 +872,7 @@ class LocalTools(
             tools.add(me.rerere.rikkahub.data.ai.tools.local.triggerJobNowTool(scheduledJobRepository, cronJobScheduler))
             tools.add(me.rerere.rikkahub.data.ai.tools.local.getJobHistoryTool(scheduledJobRepository, scheduledJobRunRepository))
         }
-        if (options.contains(LocalToolOption.ScreenAutomation)) {
+        if (availableOptions.contains(LocalToolOption.ScreenAutomation)) {
             tools.add(tapTool(invocationContext, interactiveToolStreamer))
             tools.add(longPressTool(invocationContext, interactiveToolStreamer))
             tools.add(swipeTool(invocationContext, interactiveToolStreamer))
@@ -875,14 +885,14 @@ class LocalTools(
             tools.add(takeScreenshotTool(context))  // take_screenshot IS the screenshot; skip auto-stream
             tools.add(me.rerere.rikkahub.data.ai.tools.local.wakeScreenTool(context))
         }
-        if (options.contains(LocalToolOption.AppLauncher)) {
+        if (availableOptions.contains(LocalToolOption.AppLauncher)) {
             tools.add(me.rerere.rikkahub.data.ai.tools.local.launchAppTool(context, invocationContext, interactiveToolStreamer))
             tools.add(me.rerere.rikkahub.data.ai.tools.local.listInstalledAppsTool(context))
             tools.add(me.rerere.rikkahub.data.ai.tools.local.listAppActivitiesTool(context))
             tools.add(me.rerere.rikkahub.data.ai.tools.local.launchActivityTool(context, invocationContext, interactiveToolStreamer))
             tools.add(me.rerere.rikkahub.data.ai.tools.local.openUrlTool(context, invocationContext, interactiveToolStreamer))
         }
-        if (options.contains(LocalToolOption.Termux)) {
+        if (availableOptions.contains(LocalToolOption.Termux)) {
             tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxRunCommandTool(context, invocationContext.callerConversationId))
             // Persistent interactive (tmux-backed) sessions: ssh-with-prompts, sudo, REPLs,
             // stateful shells. start is approval-gated; send is hardline-guarded per call.
@@ -894,15 +904,12 @@ class LocalTools(
             tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxSessionManageTool(context, invocationContext.callerConversationId))
             tools.addAll(me.rerere.rikkahub.data.ai.tools.local.termuxJobTools(context, invocationContext.callerConversationId))
             tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxOutputReadTool(context, invocationContext.callerConversationId))
-            // transcribe_audio_file shells out to whisper-cli via Termux's RUN_COMMAND
-            // service — it has a hard transitive dependency on Termux being present. No
-            // separate toggle; it lives under the Termux toggle.
-            tools.add(transcribeAudioFileTool(context))
-            // whisper_status is a free read-only pre-flight check — no approval needed.
-            // The LLM calls this BEFORE attempting transcription to know what's set up.
-            tools.add(whisperStatusTool(context, settingsStore))
         }
-        if (options.contains(LocalToolOption.NotificationListener)) {
+        if (availableOptions.contains(LocalToolOption.Whisper)) {
+            tools.add(transcribeAudioFileTool(context))
+            tools.add(whisperStatusTool(context, settingsStore, invocationContext.callerAssistantId))
+        }
+        if (availableOptions.contains(LocalToolOption.NotificationListener)) {
             tools.add(listRecentNotificationsTool())
             tools.add(listActiveNotificationsTool())
             tools.add(dismissNotificationTool())
@@ -910,7 +917,7 @@ class LocalTools(
             tools.add(notificationReplyTool())
             tools.add(notificationStatusTool(notificationListenerPreferences, telegramBotPreferences))
         }
-        if (options.contains(LocalToolOption.Files)) {
+        if (availableOptions.contains(LocalToolOption.Files)) {
             tools.add(listFilesTool())
             tools.add(readFileTool())
             tools.add(writeBinaryFileTool())
@@ -928,7 +935,7 @@ class LocalTools(
             tools.add(batchMoveTool())
             tools.add(batchDeleteTool())
         }
-        if (options.contains(LocalToolOption.McpControl)) {
+        if (availableOptions.contains(LocalToolOption.McpControl)) {
             tools.add(me.rerere.rikkahub.data.ai.mcp.control.mcpListTool(settingsStore, mcpManager))
             tools.add(me.rerere.rikkahub.data.ai.mcp.control.mcpGetTool(settingsStore, mcpManager))
             tools.add(me.rerere.rikkahub.data.ai.mcp.control.mcpAddTool(settingsStore, mcpManager))
@@ -939,17 +946,17 @@ class LocalTools(
             tools.add(me.rerere.rikkahub.data.ai.mcp.control.mcpListToolsTool(settingsStore, mcpManager))
             tools.add(me.rerere.rikkahub.data.ai.mcp.control.mcpSetToolApprovalTool(settingsStore))
         }
-        if (options.contains(LocalToolOption.ExternalAutomation)) {
+        if (availableOptions.contains(LocalToolOption.ExternalAutomation)) {
             tools.add(me.rerere.rikkahub.automation.externalAutomationStatusTool(externalAutomationConfig))
             tools.add(me.rerere.rikkahub.automation.externalAutomationSetEnabledTool(externalAutomationConfig))
             tools.add(me.rerere.rikkahub.automation.externalAutomationAddTrustedPackageTool(externalAutomationConfig))
             tools.add(me.rerere.rikkahub.automation.externalAutomationRemoveTrustedPackageTool(externalAutomationConfig))
         }
-        if (options.contains(LocalToolOption.Reliability)) {
+        if (availableOptions.contains(LocalToolOption.Reliability)) {
             tools.add(me.rerere.rikkahub.reliability.checkAppUpdatesTool(gitHubReleaseChecker))
             tools.add(me.rerere.rikkahub.reliability.generateBugReportTool(context, bugReportBuilder))
         }
-        if (options.contains(LocalToolOption.SubAgents)) {
+        if (availableOptions.contains(LocalToolOption.SubAgents)) {
             // Pass the caller context so the recursion guard inside SubAgentEngine.dispatch
             // can fire — the dispatch tool itself can't read its own coroutine context, but
             // ChatService / cron / workflow / external-automation know who's calling at the
@@ -965,19 +972,20 @@ class LocalTools(
             tools.add(me.rerere.rikkahub.subagent.subagentGetTool(subAgentRegistry))
             tools.add(me.rerere.rikkahub.subagent.subagentCancelTool(subAgentRegistry))
         }
-        if (options.contains(LocalToolOption.CostGuards)) {
+        if (availableOptions.contains(LocalToolOption.CostGuards)) {
             tools.add(me.rerere.rikkahub.costguards.checkTokenUsageTool(settingsStore, conversationRepo))
         }
-        if (options.contains(LocalToolOption.SkillImport)) {
-            tools.add(me.rerere.rikkahub.skills.skillInstallFromUrlTool(skillUrlImporter, settingsStore, skillManager))
-            tools.add(me.rerere.rikkahub.skills.skillInstallFromTextTool(skillUrlImporter, settingsStore, skillManager))
+        if (availableOptions.contains(LocalToolOption.SkillImport)) {
+            tools.add(me.rerere.rikkahub.skills.skillInstallFromUrlTool(skillUrlImporter, settingsStore, skillManager, invocationContext.callerAssistantId))
+            tools.add(me.rerere.rikkahub.skills.skillInstallFromTextTool(skillUrlImporter, settingsStore, skillManager, invocationContext.callerAssistantId))
         }
-        if (options.contains(LocalToolOption.JsSkills)) {
+        if (availableOptions.contains(LocalToolOption.JsSkills)) {
             tools.add(me.rerere.rikkahub.skills.js.runJsTool(
                 context, skillManager, jsSkillRunner, skillSecretsStore,
+                enabledSkills = { caller()?.enabledSkills.orEmpty() },
             ))
         }
-        if (options.contains(LocalToolOption.SystemIntents)) {
+        if (availableOptions.contains(LocalToolOption.SystemIntents)) {
             tools.add(me.rerere.rikkahub.data.ai.tools.local.createCalendarEventTool(context, invocationContext, interactiveToolStreamer))
             tools.add(me.rerere.rikkahub.data.ai.tools.local.createContactTool(context, invocationContext, interactiveToolStreamer))
             tools.add(me.rerere.rikkahub.data.ai.tools.local.sendEmailIntentTool(context, invocationContext, interactiveToolStreamer))
@@ -985,7 +993,7 @@ class LocalTools(
             tools.add(me.rerere.rikkahub.data.ai.tools.local.openWifiSettingsTool(context, invocationContext, interactiveToolStreamer))
             tools.add(me.rerere.rikkahub.data.ai.tools.local.showLocationOnMapTool(context, invocationContext, interactiveToolStreamer))
         }
-        if (options.contains(LocalToolOption.Workflows)) {
+        if (availableOptions.contains(LocalToolOption.Workflows)) {
             // workflow_create persists the authoringAssistantId from [context] so the
             // engine can resolve the right tool surface at fire time (not "any assistant
             // with the Workflows toggle on", which is non-deterministic across UI reorder).
@@ -1005,7 +1013,7 @@ class LocalTools(
             tools.add(me.rerere.rikkahub.workflow.tools.workflowSetEnabledTool(workflowRepository))
             tools.add(me.rerere.rikkahub.workflow.tools.workflowRunTool(workflowEngine, workflowRepository))
         }
-        if (options.contains(LocalToolOption.Browser)) {
+        if (availableOptions.contains(LocalToolOption.Browser)) {
             // Per-tool registration. The user can grant only the tools they trust — read
             // tools default ON, write tools default OFF (see BrowserToolDefaults.DEFAULT_ENABLED).
             // snapshotBlocking() reads DataStore once; steady-state cost is microseconds because
@@ -1030,13 +1038,13 @@ class LocalTools(
             tools.add(webExtractTool(okHttpClient))
         }
         // Phase 25 — Phase 3 second cut + ExternalStorage + Archive.
-        if (options.contains(LocalToolOption.SmsSend)) {
+        if (availableOptions.contains(LocalToolOption.SmsSend)) {
             tools.add(me.rerere.rikkahub.data.ai.tools.local.smsSendTool(context))
         }
-        if (options.contains(LocalToolOption.Wallpaper)) {
+        if (availableOptions.contains(LocalToolOption.Wallpaper)) {
             tools.add(me.rerere.rikkahub.data.ai.tools.local.setWallpaperTool(context))
         }
-        if (options.contains(LocalToolOption.Keystore)) {
+        if (availableOptions.contains(LocalToolOption.Keystore)) {
             tools.add(me.rerere.rikkahub.data.ai.tools.local.keystoreGenerateKeyTool())
             tools.add(me.rerere.rikkahub.data.ai.tools.local.keystoreSignTool())
             tools.add(me.rerere.rikkahub.data.ai.tools.local.keystoreVerifyTool())
@@ -1045,23 +1053,23 @@ class LocalTools(
             tools.add(me.rerere.rikkahub.data.ai.tools.local.keystoreDeleteKeyTool())
             tools.add(me.rerere.rikkahub.data.ai.tools.local.keystoreListKeysTool())
         }
-        if (options.contains(LocalToolOption.Nfc)) {
+        if (availableOptions.contains(LocalToolOption.Nfc)) {
             tools.add(me.rerere.rikkahub.data.ai.tools.local.nfcReadTagTool(context, nfcResultBuffer, invocationContext))
             tools.add(me.rerere.rikkahub.data.ai.tools.local.nfcWriteTagTool(context, nfcResultBuffer, invocationContext))
         }
-        if (options.contains(LocalToolOption.ExternalStorage)) {
+        if (availableOptions.contains(LocalToolOption.ExternalStorage)) {
             tools.add(me.rerere.rikkahub.data.ai.tools.local.listStorageVolumesTool(context))
             tools.add(me.rerere.rikkahub.data.ai.tools.local.listGrantedDirectoriesTool(context, storageVolumeGrantStore))
             tools.add(me.rerere.rikkahub.data.ai.tools.local.grantDirectoryAccessTool(
                 context, storageVolumeGrantStore, safPickerResultBuffer, invocationContext,
             ))
         }
-        if (options.contains(LocalToolOption.Archive)) {
+        if (availableOptions.contains(LocalToolOption.Archive)) {
             tools.add(me.rerere.rikkahub.data.ai.tools.local.zipFilesTool(context))
             tools.add(me.rerere.rikkahub.data.ai.tools.local.unzipFileTool(context))
             tools.add(me.rerere.rikkahub.data.ai.tools.local.listZipContentsTool(context))
         }
-        if (options.contains(LocalToolOption.KeyboardControl)) {
+        if (availableOptions.contains(LocalToolOption.KeyboardControl)) {
             // Drives the active text field through the co-signed agent-keyboard IME.
             // Write tools are approval-gated via ToolApprovalDefaults; the two read tools
             // (keyboard_read_field, keyboard_editor_info) are not.
@@ -1074,16 +1082,37 @@ class LocalTools(
             tools.add(keyboardSetCursorTool(keyboardApiClient))
             tools.add(keyboardSelectRangeTool(keyboardApiClient))
         }
+        if (assistant != null) {
+            tools.addAll(createSkillTools(
+                enabledSkills = assistant.enabledSkills,
+                allSkills = installedSkills,
+                skillManager = skillManager,
+                termuxBridge = termuxSkillBridge.takeIf { LocalToolOption.Termux in availableOptions },
+                currentEnabledSkills = { caller()?.enabledSkills.orEmpty() },
+            ))
+            if (LocalToolOption.SkillManagement in availableOptions) {
+                tools.addAll(me.rerere.rikkahub.skills.createSkillManagementTools(
+                    me.rerere.rikkahub.skills.AssistantSkillAccess(skillManager, settingsStore, assistant.id),
+                ))
+            }
+        }
         // Centralised opt-in to needsApproval. Tool factories themselves don't have to know
         // whether their op is destructive — ToolApprovalDefaults is the single source of
         // truth, and the GenerationHandler / Telegram/in-app prompt path keys off needsApproval.
-        return tools.map { t ->
+        return filterLocalTools(tools, if (includeDisabled) emptySet() else assistant?.disabledLocalTools.orEmpty()).map { t ->
             val withApproval = if (ToolApprovalDefaults.requiresApproval(t.name)) {
                 t.copy(needsApproval = { true })
             } else {
                 t
             }
-            addHumanErrorEnvelopes(appendTopToolExample(withApproval))
+            val guarded = withApproval.copy(execute = { input ->
+                val live = caller()
+                if (invocationContext.callerAssistantId != null && (live == null ||
+                        getTools(live.localTools, invocationContext).none { it.name == t.name })) {
+                    listOf(UIMessagePart.Text("{\"error\":\"tool_disabled\",\"detail\":\"This tool is no longer enabled for the calling assistant\"}"))
+                } else withApproval.execute(input)
+            })
+            addHumanErrorEnvelopes(appendTopToolExample(guarded))
         }
     }
 }

@@ -599,15 +599,6 @@ class SettingsStore(
                     assistants.add(defaultAssistant.copy())
                 }
             }
-            // One-shot upgrade for existing installs that pre-date the agent-core auto-load:
-            // if a default-IDed assistant has an empty enabledSkills, treat it as fresh and
-            // pin agent-core. Users who deliberately added other skills are untouched.
-            assistants = assistants.map { assistant ->
-                val isDefault = DEFAULT_ASSISTANTS.any { it.id == assistant.id }
-                if (isDefault && assistant.enabledSkills.isEmpty()) {
-                    assistant.copy(enabledSkills = setOf("agent-core"))
-                } else assistant
-            }.toMutableList()
             // One-shot additive enable for newly-bundled default-on skills. Each name is added
             // to every default assistant exactly once, tracked in autoEnabledDefaultSkills, so a
             // user who later disables one is not re-opted-in on the next launch. A brand-new
@@ -617,7 +608,7 @@ class SettingsStore(
             if (skillsToSeed.isNotEmpty()) {
                 assistants = assistants.map { assistant ->
                     if (DEFAULT_ASSISTANTS.any { d -> d.id == assistant.id }) {
-                        assistant.copy(enabledSkills = assistant.enabledSkills + skillsToSeed)
+                        me.rerere.rikkahub.data.ai.tools.seedDefaultAssistantSkills(assistant, skillsToSeed)
                     } else assistant
                 }.toMutableList()
             }

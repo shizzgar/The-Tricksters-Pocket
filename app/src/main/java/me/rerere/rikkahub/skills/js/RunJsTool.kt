@@ -37,6 +37,7 @@ fun runJsTool(
     skillManager: SkillManager,
     runner: JsSkillRunner,
     secretsStore: SkillSecretsStore,
+    enabledSkills: () -> Set<String> = { emptySet() },
 ): Tool = Tool(
     name = "run_js",
     description = """
@@ -75,6 +76,7 @@ fun runJsTool(
         val params = args.jsonObject
         val skillName = params["skill_name"]?.jsonPrimitive?.contentOrNull
             ?: return@Tool err("missing_skill_name", "skill_name is required")
+        if (skillName !in enabledSkills()) return@Tool err("skill_not_enabled", "Enable this skill for the calling assistant first")
         val scriptName = params["script"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
             ?: "index.html"
         val data = params["data"]?.jsonPrimitive?.contentOrNull.orEmpty()

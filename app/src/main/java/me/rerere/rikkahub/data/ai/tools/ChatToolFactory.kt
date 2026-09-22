@@ -61,21 +61,11 @@ class ChatToolFactory(
         if (shouldUseExternalWebSearch(assistant, model)) {
             addAll(createSearchTools(settings))
         }
-        addAll(localTools.getTools(assistant.localTools))
+        addAll(localTools.getTools(assistant.localTools, ToolInvocationContext(callerAssistantId = assistant.id.toString())))
         if (assistant.enableRecentChatsReference) {
             addAll(createConversationTools(conversationRepository, assistant.id))
         }
         addAll(createWorkspaceToolsIfReady(assistant.workspaceId?.toString(), workspaceCwd))
-        if (assistant.enabledSkills.isNotEmpty()) {
-            addAll(
-                createSkillTools(
-                    enabledSkills = assistant.enabledSkills,
-                    allSkills = skillManager.listSkills(),
-                    skillManager = skillManager,
-                    termuxBridge = termuxSkills.takeIf { LocalToolOption.Termux in assistant.localTools },
-                )
-            )
-        }
 
         val mcpTools = validateMcpServerNames()
         mcpTools.forEach { (serverId, serverName, tool) ->

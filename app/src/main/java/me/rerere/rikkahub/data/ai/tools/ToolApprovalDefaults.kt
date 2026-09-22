@@ -181,6 +181,11 @@ object ToolApprovalDefaults {
         // so this is privilege-escalation-adjacent. NO_ALWAYS_ALLOW below.
         "skill_install_from_url",
         "skill_install_from_text",
+        "skill_create",
+        "skill_write_file",
+        "skill_edit_file",
+        "skill_manage_files",
+        "skill_delete",
 
         // JS skills (Phase 18) — run a skill's JavaScript inside a hidden WebView.
         // The script can issue arbitrary network requests on behalf of the user, so

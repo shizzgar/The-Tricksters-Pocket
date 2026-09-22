@@ -1460,7 +1460,7 @@ class ChatService(
         model: Model,
         settings: Settings,
     ): List<Tool> = buildList {
-        if (assistant.enableWebSearch) {
+        if (me.rerere.rikkahub.data.ai.tools.shouldUseExternalWebSearch(assistant, model)) {
             addAll(createSearchTools(settings))
         }
         val invocationCtx = me.rerere.rikkahub.data.ai.tools.ToolInvocationContext(
@@ -1471,17 +1471,8 @@ class ChatService(
         )
         addAll(localTools.getTools(assistant.localTools, invocationCtx))
         addAll(createWorkspaceToolsIfReady(assistant.workspaceId?.toString(), conversation.workspaceCwd))
-        if (assistant.enabledSkills.isNotEmpty()) {
-            addAll(
-                createSkillTools(
-                    enabledSkills = assistant.enabledSkills,
-                    allSkills = skillManager.listSkills(),
-                    skillManager = skillManager,
-                    termuxBridge = chatToolFactory.termuxSkills.takeIf { me.rerere.rikkahub.data.ai.tools.LocalToolOption.Termux in assistant.localTools },
-                )
-            )
-        }
         mcpManager.getAllAvailableTools().forEach { (serverId, serverName, mcpTool) ->
+            if (serverName.isEmpty() || !serverName.all { it in 'a'..'z' || it in 'A'..'Z' || it in '0'..'9' }) return@forEach
             val mcpToolName = me.rerere.rikkahub.data.ai.mcp.buildMcpToolName(serverId, serverName, mcpTool.name)
             add(
                 Tool(
@@ -1815,6 +1806,13 @@ class ChatService(
                     add(workspaceReminderTransformer)
                 },
                 outputTransformers = outputTransformers,
+                refreshTools = {
+                    val liveSettings = settingsStore.settingsFlow.value
+                    val liveAssistant = liveSettings.assistants.firstOrNull { it.id == assistant.id }
+                    if (liveAssistant == null) emptyList() else buildToolsForRerun(
+                        liveAssistant, conversationId, getConversationFlow(conversationId).value, model, liveSettings,
+                    )
+                },
                 tools = buildList {
                     if (useExternalWebSearch) {
                         addAll(createSearchTools(settings))
@@ -1835,16 +1833,6 @@ class ChatService(
                     )
                     addAll(localTools.getTools(assistant.localTools, invocationCtx))
                     addAll(createWorkspaceToolsIfReady(assistant.workspaceId?.toString(), conversation.workspaceCwd))
-                    if (assistant.enabledSkills.isNotEmpty()) {
-                        addAll(
-                            createSkillTools(
-                                enabledSkills = assistant.enabledSkills,
-                                allSkills = skillManager.listSkills(),
-                                skillManager = skillManager,
-                    termuxBridge = chatToolFactory.termuxSkills.takeIf { me.rerere.rikkahub.data.ai.tools.LocalToolOption.Termux in assistant.localTools },
-                            )
-                        )
-                    }
                     mcpManager.getAllAvailableTools().also { allTools ->
                         // Upstream name validation: a server name that isn't pure
                         // English+digits would produce an invalid `mcp__<name>__tool`
