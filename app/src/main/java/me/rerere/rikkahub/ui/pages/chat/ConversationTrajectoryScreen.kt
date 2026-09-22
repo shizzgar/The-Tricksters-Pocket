@@ -96,12 +96,12 @@ internal fun ConversationTrajectoryScreen(conversation: Conversation, active: Bo
             if (live) delay(1000)
         } while (live)
     }
-    LaunchedEffect(session, query, payloadSearch, page.total) {
+    LaunchedEffect(session, query, payloadSearch, page.total, before) {
         matches = emptySet()
         if (payloadSearch && query.isNotBlank()) {
             delay(350)
             searching = true
-            try { matches = journal.page(session, query = query, limit = 20_000).records.map { it.sequence }.toSet() }
+            try { matches = journal.page(session, before = before, query = query, limit = 20_000).records.map { it.sequence }.toSet() }
             catch (e: CancellationException) { throw e }
             catch (e: Exception) { error = e.message }
             finally { searching = false }
