@@ -100,12 +100,12 @@ class SkillDetailVM(private val context: Context, private val skillManager: Skil
         _state.update { it.copy(editor = buffer(document), snapshot = snapshot, selected = emptySet()) }
     }
     private fun buffer(document: SkillDocument, hex: Boolean = false): SkillEditBuffer {
-        val text = if (hex) SkillWorkspace.encodeHex(document.bytes) else document.text?.takeIf { document.bytes.size <= SkillWorkspace.MAX_EDIT_BYTES }.orEmpty()
+        val text = if (hex) SkillWorkspace.encodeHex(document.bytes, columns = 32) else document.text?.takeIf { document.bytes.size <= SkillWorkspace.MAX_EDIT_BYTES }.orEmpty()
         return SkillEditBuffer(document, TextFieldValue(text), text, hex)
     }
-    fun hexEditor() {
-        val editor = _state.value.editor ?: return
-        if (editor.document.bytes.size > SkillWorkspace.MAX_HEX_EDIT_BYTES) return
+    fun hexEditor() = action {
+        val editor = _state.value.editor ?: return@action
+        if (editor.document.bytes.size > SkillWorkspace.MAX_HEX_EDIT_BYTES) return@action
         _state.update { it.copy(editor = buffer(editor.document, true)) }
     }
     fun edit(value: TextFieldValue) {

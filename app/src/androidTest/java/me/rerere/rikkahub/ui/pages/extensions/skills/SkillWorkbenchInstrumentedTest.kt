@@ -96,6 +96,23 @@ class SkillWorkbenchInstrumentedTest : WorkbenchFixture() {
         assertEquals("print('agent change')\n", root.resolve("scripts/report.py").readText())
         assertTrue(restored.state.value.editor?.dirty == true)
     }
+    @Test fun hexEditorCanOpenAndSaveTheFullSupportedBinarySize() {
+        show()
+        val bytes = ByteArray(64 * 1024) { it.toByte() }
+        root.resolve("assets/data.bin").writeBytes(bytes)
+        compose.onNodeWithText("assets").performClick()
+        compose.onNodeWithText("data.bin").performClick()
+        compose.waitUntil(10_000) { vm.state.value.editor != null && !vm.state.value.busy }
+        compose.onNodeWithText("Edit hexadecimal bytes").performScrollTo().performClick()
+        compose.waitUntil(10_000) { vm.state.value.editor?.hex == true && !vm.state.value.busy }
+        compose.onNodeWithTag("skill-code-input").assertIsDisplayed()
+        val text = requireNotNull(vm.state.value.editor).value.text
+        compose.onNodeWithTag("skill-code-input").performTextReplacement("7F" + text.drop(2))
+        compose.onNodeWithTag("skill-save").performClick()
+        ready()
+        bytes[0] = 127
+        assertArrayEquals(bytes, root.resolve("assets/data.bin").readBytes())
+    }
     @Test fun russianBinaryViewerHexEditAndUndoPreserveBytes() {
         show(russian = true)
         compose.onNodeWithText("assets").performClick()
@@ -104,6 +121,7 @@ class SkillWorkbenchInstrumentedTest : WorkbenchFixture() {
         compose.onNodeWithText("Бинарный файл").assertIsDisplayed()
         shot("skill-workbench-binary-ru")
         compose.onNodeWithText("Редактировать байты в HEX").performClick()
+        compose.waitUntil(10_000) { vm.state.value.editor?.hex == true && !vm.state.value.busy }
         compose.onNodeWithTag("skill-code-input").performTextReplacement("00 FF 80 0A 43 44")
         compose.onNodeWithContentDescription("Отменить правку").performClick()
         assertEquals("00 FF 80 0A 41 42", vm.state.value.editor?.value?.text)

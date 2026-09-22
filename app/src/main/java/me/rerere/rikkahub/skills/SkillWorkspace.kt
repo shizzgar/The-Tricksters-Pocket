@@ -138,7 +138,7 @@ internal class SkillWorkspace(private val root: File, stateRoot: File, private v
             require(compact.length <= MAX_HEX_EDIT_BYTES * 2) { "Hex editing is limited to 64 KiB" }
             return ByteArray(compact.length / 2) { compact.substring(it * 2, it * 2 + 2).toInt(16).toByte() }
         }
-        fun encodeHex(bytes: ByteArray): String = bytes.asList().chunked(16).joinToString("\n") { line -> line.joinToString(" ") { "%02X".format(it.toInt() and 255) } }
+        fun encodeHex(bytes: ByteArray, columns: Int = 16): String = bytes.asList().chunked(columns).joinToString("\n") { line -> line.joinToString(" ") { "%02X".format(it.toInt() and 255) } }
         fun validPath(path: String): Boolean = path.isNotBlank() && path.length <= 512 && !path.startsWith('/') && '\\' !in path && path.none { it.isISOControl() } &&
             path.split('/').let { parts -> parts.size <= 32 && parts.none { it.isBlank() || it in setOf(".", "..") || it in internalNames } }
         private fun resolve(root: File, path: String): File {

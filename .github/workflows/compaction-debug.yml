@@ -96,7 +96,7 @@ jobs:
           mkdir -p build/trajectory-qa
           test_status=0
           adb shell am instrument -w -r -e class me.rerere.rikkahub.ui.pages.chat.TrajectoryInstrumentedTest,me.rerere.rikkahub.ui.pages.extensions.skills.SkillWorkbenchInstrumentedTest excp.rikkahub.debug.test/androidx.test.runner.AndroidJUnitRunner | tee build/trajectory-qa/instrumentation.txt || test_status=$?
-          grep -Fq 'OK (5 tests)' build/trajectory-qa/instrumentation.txt || test_status=1
+          grep -Fq 'OK (6 tests)' build/trajectory-qa/instrumentation.txt || test_status=1
           adb shell wm size 1920x1200
           adb shell wm density 160
           adb shell am instrument -w -r -e class me.rerere.rikkahub.ui.pages.extensions.skills.SkillWorkbenchWideInstrumentedTest excp.rikkahub.debug.test/androidx.test.runner.AndroidJUnitRunner | tee build/trajectory-qa/wide-instrumentation.txt || test_status=$?
