@@ -1,0 +1,8 @@
+{
+  "agents": [
+    "android_lifecycle",
+    "android_intents",
+    "android_webview",
+    "android_assets"
+  ]
+}

@@ -1,0 +1,185 @@
+{
+  "native_probe": {},
+  "native_modules": {
+    "pattern": {
+      "type": "string",
+      "default": ".*"
+    }
+  },
+  "native_module_watch": {
+    "pattern": {
+      "type": "string",
+      "default": ".*"
+    }
+  },
+  "native_threads": {},
+  "native_thread_watch": {},
+  "native_exports": {
+    "module_pattern": {
+      "type": "string",
+      "default": "^libc\\.so$"
+    },
+    "symbol_pattern": {
+      "type": "string",
+      "default": ".*"
+    }
+  },
+  "native_imports": {
+    "module_pattern": {
+      "type": "string",
+      "default": "^libc\\.so$"
+    },
+    "symbol_pattern": {
+      "type": "string",
+      "default": ".*"
+    }
+  },
+  "native_symbols": {
+    "module_pattern": {
+      "type": "string",
+      "default": "^libc\\.so$"
+    },
+    "symbol_pattern": {
+      "type": "string",
+      "default": ".*"
+    }
+  },
+  "native_trace": {
+    "module": {
+      "type": "string"
+    },
+    "symbol": {
+      "type": "string"
+    },
+    "offset": {
+      "type": "string",
+      "pattern": "^0x[0-9a-fA-F]+$"
+    }
+  },
+  "native_dlopen": {},
+  "native_files": {
+    "path_pattern": {
+      "type": "string",
+      "default": ".*"
+    }
+  },
+  "native_network": {},
+  "native_pthreads": {},
+  "native_memory": {
+    "module": {
+      "type": "string"
+    },
+    "offset": {
+      "type": "string",
+      "pattern": "^0x[0-9a-fA-F]+$"
+    },
+    "length": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4096,
+      "default": 64
+    }
+  },
+  "native_scan": {
+    "module": {
+      "type": "string"
+    },
+    "offset": {
+      "type": "string",
+      "pattern": "^0x[0-9a-fA-F]+$"
+    },
+    "length": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1048576,
+      "default": 65536
+    },
+    "pattern": {
+      "type": "string"
+    }
+  },
+  "native_stalker_calls": {
+    "module": {
+      "type": "string"
+    },
+    "symbol": {
+      "type": "string"
+    },
+    "offset": {
+      "type": "string",
+      "pattern": "^0x[0-9a-fA-F]+$"
+    },
+    "max_ms": {
+      "type": "integer",
+      "minimum": 100,
+      "maximum": 5000,
+      "default": 1000
+    }
+  },
+  "java_probe": {},
+  "java_classes": {
+    "pattern": {
+      "type": "string",
+      "default": "^com\\."
+    }
+  },
+  "java_methods": {
+    "class_name": {
+      "type": "string"
+    },
+    "pattern": {
+      "type": "string",
+      "default": ".*"
+    }
+  },
+  "java_loaders": {},
+  "java_classload": {
+    "pattern": {
+      "type": "string",
+      "default": "^com\\."
+    }
+  },
+  "java_trace": {
+    "class_name": {
+      "type": "string"
+    },
+    "method": {
+      "type": "string"
+    },
+    "signature": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "loader_class": {
+      "type": "string"
+    }
+  },
+  "java_reflection": {
+    "pattern": {
+      "type": "string",
+      "default": "^com\\."
+    }
+  },
+  "java_dex": {},
+  "java_threads": {},
+  "android_lifecycle": {},
+  "android_intents": {},
+  "android_webview": {},
+  "android_prefs": {},
+  "android_sqlite": {},
+  "android_files": {},
+  "android_url": {},
+  "android_okhttp": {
+    "class_name": {
+      "type": "string",
+      "default": "okhttp3.OkHttpClient"
+    }
+  },
+  "android_crypto": {},
+  "android_digest": {},
+  "android_binder": {},
+  "android_assets": {},
+  "jni_register": {}
+}

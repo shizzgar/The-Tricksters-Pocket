@@ -1,0 +1,28 @@
+{
+  "date": "2026-09-22",
+  "environment": {
+    "platform": "Linux-6.18.44-x86_64-with-glibc2.39",
+    "python": "3.12.14",
+    "node": "v24.19.0"
+  },
+  "results": [
+    {
+      "label": "python_tests",
+      "exit_code": 0
+    },
+    {
+      "label": "javascript_tests",
+      "exit_code": 0
+    }
+  ],
+  "python_tests": 12,
+  "javascript_tests": 65,
+  "javascript_syntax_files": 41,
+  "python_syntax_files": 5,
+  "agents": 38,
+  "profiles": 16,
+  "device_tested": false,
+  "live_frida_tested": false,
+  "baseline_artifacts_provided": false,
+  "scope": "Offline controller contracts and limited JavaScript API mocks; see docs/TESTING.md"
+}

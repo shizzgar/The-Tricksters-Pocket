@@ -1,0 +1,5 @@
+// Original Rebro Pack. MIT.
+Rebro.module('native_stalker_calls', false, function (o, c) {
+c.require(Process.arch==='arm64','Intended for arm64');c.require(o.symbol||o.offset,'Provide symbol or offset');const followed=new Map(),maxMs=Math.min(Math.max(Number(o.max_ms)||1000,100),5000);function finish(tid){const timer=followed.get(tid);if(timer===undefined)return;clearTimeout(timer);followed.delete(tid);Stalker.unfollow(tid);Stalker.flush();}c.addCleanup(()=>{for(const tid of Array.from(followed.keys()))finish(tid);});c.onModule('.*',m=>{if(m.name!==o.module)return;c.attach(c.resolveTarget(m,o),{onEnter(){this.owned=false;const tid=this.threadId;if(followed.size)return;try{Stalker.follow(tid,{events:{call:true,ret:false,exec:false,block:false,compile:false},onCallSummary(summary){c.emit('call_summary',{tid,items:Object.entries(summary).slice(0,c.limits.max_items).map(([address,count])=>({address,count}))});}});followed.set(tid,setTimeout(()=>finish(tid),maxMs));this.owned=true;}catch(e){c.emit('hook_error',{error:String(e)});}},onLeave(){if(this.owned)finish(this.threadId);}});});
+});
+

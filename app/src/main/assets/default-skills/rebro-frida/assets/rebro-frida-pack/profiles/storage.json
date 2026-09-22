@@ -1,0 +1,7 @@
+{
+  "agents": [
+    "android_prefs",
+    "android_sqlite",
+    "android_files"
+  ]
+}

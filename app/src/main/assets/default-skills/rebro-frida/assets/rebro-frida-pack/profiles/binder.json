@@ -1,0 +1,9 @@
+{
+  "agents": [
+    "android_binder"
+  ],
+  "limits": {
+    "max_events": 500,
+    "max_per_second": 25
+  }
+}

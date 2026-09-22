@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "profile": "rebro-2026-09-22",
+  "endpoint": "127.0.0.1:27044",
+  "notes": "Copy outside skill_root. Fill exact paths and FULL hashes from the existing trusted baseline. Nulls intentionally fail verification.",
+  "artifacts": [
+    {"id": "frida_service", "path": null, "sha256": null, "reported_version": "17.18.0", "reported_build": "build.17180-sepol3-20260922-004847", "reported_hash_fragment": "c377c4bb…fd87"},
+    {"id": "frida_python_extension", "path": null, "sha256": null, "reported_package": "17.2.14-4+rebro.compiler1", "reported_hash_fragment": "d3550a89…c61a"},
+    {"id": "java_bridge", "path": null, "sha256": null, "reported_filename": "bridge-final.js", "reported_hash_fragment": "6be272a9…29ad"}
+  ]
+}

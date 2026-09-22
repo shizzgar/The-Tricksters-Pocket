@@ -1,0 +1,6 @@
+{
+  "native_trace": {
+    "module": "libc.so",
+    "symbol": "openat"
+  }
+}

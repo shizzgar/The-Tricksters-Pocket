@@ -1,0 +1,6 @@
+{
+  "agents": [
+    "native_files",
+    "native_network"
+  ]
+}

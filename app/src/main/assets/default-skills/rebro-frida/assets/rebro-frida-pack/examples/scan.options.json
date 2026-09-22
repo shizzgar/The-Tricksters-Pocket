@@ -1,0 +1,8 @@
+{
+  "native_scan": {
+    "module": "libc.so",
+    "offset": "0x0",
+    "length": 4096,
+    "pattern": "7f 45 4c 46"
+  }
+}

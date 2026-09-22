@@ -1,0 +1,12 @@
+{
+  "agents": [
+    "java_dex",
+    "java_classload",
+    "native_module_watch"
+  ],
+  "options": {
+    "java_classload": {
+      "pattern": "^com\\."
+    }
+  }
+}

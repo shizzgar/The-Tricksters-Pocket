@@ -1,0 +1,21 @@
+{
+  "agents": [
+    "java_trace"
+  ],
+  "options": {
+    "java_trace": {
+      "class_name": "com.example.app.Example",
+      "method": "calculate",
+      "signature": [
+        "int"
+      ]
+    }
+  },
+  "limits": {
+    "max_events": 500,
+    "max_bytes": 1000000,
+    "max_per_second": 25,
+    "capture_strings": false,
+    "backtrace": false
+  }
+}

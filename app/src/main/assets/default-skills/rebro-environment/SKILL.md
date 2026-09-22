@@ -1,0 +1,64 @@
+---
+name: rebro-environment
+description: "Проверять и доподготавливать Termux RE-окружение, собирать актуальный device report, память, место, tools и pinned Frida baseline. Использовать перед кейсом и при проблеме среды."
+---
+
+# Среда и baseline
+
+RikkaHub skill, release 2.3. Включить отдельно. Получить собственный skill_root
+из успешного use_skill/termux_skill_sync; использовать как working_dir.
+Читать [контракт](references/contract.md), [правила агента](references/agent-contract.md),
+затем [процедуру](references/procedure.md). По работе tools/sync читать [harness](references/harness.md).
+Уже прочитанные общие references той же версии не перечитывать без причины.
+Пути других skills не вычислять. Выходы писать в case, исходники skill не изменять.
+
+## Вход и результат
+
+- Вход: Профиль устройства, доверенный baseline.
+- Выход: doctor.json; inventory ZIP, hashes и отмеченные ограничения.
+- Этап и predecessor указаны в общем контракте; sign также обслуживает intake режима sign-only.
+- Для перехода между этапами использовать caseflow receipt с explicit parent.
+- Проверить фактическую доступность tools и смысл результата, а не только exit 0.
+- Учитывать текущие разрешения пользователя; не вводить повторное подтверждение
+  уже разрешённого действия и не расширять его на удаление/другие профили.
+
+## Выполнение
+
+1. Прочитать нужную процедуру полностью, проверить идентичность target и входов.
+2. Проверить квитанцию предшествующего этапа и hashes. Для узкого запроса выбрать
+   соответствующий маршрут, не требовать ненужные этапы.
+3. Для этапа создать новый attempt, для helper использовать текущий; завести отдельный data/output каталог. Полезные shell-переменные
+   подставлять явно в каждом tool call; environment может не сохраняться.
+4. Выполнить скрипты с ограничениями ресурсов. Долгие команды — managed Termux job.
+5. Проверить gates из процедуры, сохранить evidence и закончить receipt.
+6. Отчитаться о доказанном результате и оставшейся границе проверки.
+
+## Скрипты этого пакета
+
+- `scripts/apkset.py`
+- `scripts/caseflow.py`
+- `scripts/doctor.py`
+- `scripts/frida_run.py`
+- `scripts/pins.py`
+- `scripts/rebro_collect.py`
+
+Вызов `python3 scripts/<name>.py --help` описывает фактический CLI.
+caseflow фиксирует целостность и структуру, но не подтверждает вручную заявленное
+поведение приложения. Для специализированных операций следовать процедуре.
+
+## Ошибка и восстановление
+
+Записать failed/blocked/unknown с конкретной причиной. Не превращать отсутствие
+ответа в успех или в доказательство отсутствия side effect. Не перезапускать PM
+commit после обрыва; перейти к reconcile. Новое изменение файлов — новая попытка.
+Не заменять pinned Frida, ключ или ожидаемые hashes ради прохождения проверки.
+
+## Дополнительные материалы
+
+- [Источники](references/sources.md)
+- [Проверки и ограничения релиза](references/validation.md)
+- [environment](references/environment.md)
+- [troubleshooting](references/troubleshooting.md)
+- [collection](references/collection.md)
+- [device-profile](references/device-profile.md)
+- [system-prompt-integration](references/system-prompt-integration.md)

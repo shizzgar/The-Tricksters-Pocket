@@ -1,0 +1,12 @@
+{
+  "agents": [
+    "java_probe",
+    "java_classes",
+    "java_loaders"
+  ],
+  "options": {
+    "java_classes": {
+      "pattern": "^com\\."
+    }
+  }
+}

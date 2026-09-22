@@ -1,0 +1,7 @@
+{
+  "agents": [
+    "java_threads",
+    "native_pthreads",
+    "native_thread_watch"
+  ]
+}

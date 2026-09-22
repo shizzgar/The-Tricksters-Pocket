@@ -1,0 +1,6 @@
+{
+  "agents": [
+    "jni_register",
+    "native_module_watch"
+  ]
+}

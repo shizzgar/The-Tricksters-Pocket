@@ -593,25 +593,11 @@ class SettingsStore(
                     )
                 } else provider
             }.toMutableList()
-            var assistants = it.assistants.ifEmpty { DEFAULT_ASSISTANTS }.toMutableList()
-            DEFAULT_ASSISTANTS.forEach { defaultAssistant ->
-                if (assistants.none { it.id == defaultAssistant.id }) {
-                    assistants.add(defaultAssistant.copy())
-                }
-            }
             // One-shot additive enable for newly-bundled default-on skills. Each name is added
-            // to every default assistant exactly once, tracked in autoEnabledDefaultSkills, so a
-            // user who later disables one is not re-opted-in on the next launch. A brand-new
-            // skill cannot have been deliberately disabled before it shipped, so the first add is
-            // always safe.
+            // only to profiles that include it by default. In particular, the ReBro preset
+            // keeps its own kit and does not inherit the general assistants' persona skills.
             val skillsToSeed = DEFAULT_AUTO_ENABLED_SKILLS - it.autoEnabledDefaultSkills
-            if (skillsToSeed.isNotEmpty()) {
-                assistants = assistants.map { assistant ->
-                    if (DEFAULT_ASSISTANTS.any { d -> d.id == assistant.id }) {
-                        me.rerere.rikkahub.data.ai.tools.seedDefaultAssistantSkills(assistant, skillsToSeed)
-                    } else assistant
-                }.toMutableList()
-            }
+            val assistants = mergeDefaultAssistants(it.assistants, skillsToSeed)
             val newAutoEnabled = it.autoEnabledDefaultSkills + DEFAULT_AUTO_ENABLED_SKILLS
             val ttsProviders = it.ttsProviders.ifEmpty { DEFAULT_TTS_PROVIDERS }.toMutableList()
             DEFAULT_TTS_PROVIDERS.forEach { defaultTTSProvider ->
@@ -1189,6 +1175,7 @@ internal val DEFAULT_ASSISTANTS = listOf(
         """.trimIndent(),
         enabledSkills = setOf("agent-core") + DEFAULT_AUTO_ENABLED_SKILLS,
     ),
+    createRebroAssistant(),
 )
 
 val DEFAULT_SYSTEM_TTS_ID = Uuid.parse("026a01a2-c3a0-4fd5-8075-80e03bdef200")

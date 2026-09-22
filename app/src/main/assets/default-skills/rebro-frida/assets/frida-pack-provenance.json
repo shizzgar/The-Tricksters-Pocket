@@ -1,0 +1,11 @@
+{
+  "name": "Rebro Frida Pack",
+  "version": "1.0.0",
+  "license": "MIT",
+  "archive_sha256": "cb15073b6e15c4ac06ba16e545436a4e25d2c1e1c0b4307c336ffc87b9cfcb44",
+  "origin": "user attachment rebro-frida-pack-1.0.0(1).zip",
+  "original_files": 85,
+  "modified_vendor_files": [],
+  "integration": "runtime/frida_pack.py; docs/frida-pack.md",
+  "live_device_tested": false
+}

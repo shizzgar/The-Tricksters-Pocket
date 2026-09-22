@@ -1,0 +1,49 @@
+{
+  "schema": 1,
+  "kind": "user-supplied-baseline",
+  "trust": "trusted",
+  "profile": "rebro-known-good-20260922",
+  "endpoint": "127.0.0.1:27044",
+  "provenance": {
+    "basis": "Explicit known-good paths and full hashes in the system prompt supplied by the user.",
+    "source_filename": "REBRO-SYSTEM-PROMPT-20260922(1).md",
+    "source_sha256": "fafcecdbc2e9079ccb047e8b91c8a7171f693bfe289af54181084aaf6029145f",
+    "source_sections": [
+      "10. Pinned Frida configuration",
+      "11. Compiler and Java bridge"
+    ],
+    "independent_device_authentication_performed_here": false
+  },
+  "artifacts": [
+    {
+      "id": "frida_service",
+      "path": "/data/data/com.termux/files/home/rebro/frida-controlservice-builds/build.17180-sepol3-20260922-004847/rebro-frida",
+      "sha256": "c377c4bb2eb42bfc99a89bb68bc65d4581f1fd84057b23459887d1da3da3fd87"
+    },
+    {
+      "id": "java_bridge",
+      "path": "/data/data/com.termux/files/home/rebro/cases/frida-repair/bridge-src-20260921/build/bridge-final.js",
+      "sha256": "6be272a9e37d5c8e230a922e95a3ac3f803053ea11236fe0bff0e251b00429ad"
+    },
+    {
+      "id": "frida_python_extension",
+      "path": "/data/data/com.termux/files/usr/lib/python3.14/site-packages/frida/_frida.abi3.so",
+      "sha256": "d3550a89c0cdf32717417f3fdf116e1b462e7c1feb434fbd61ac7f7747eec61a"
+    }
+  ],
+  "java_bridge_contract": {
+    "format": "flat_utf8",
+    "export": "frida_java_bridge_default",
+    "adapter_mode": "rebro-flat",
+    "assembly": "unchanged bridge followed by alias/payload in the same Script",
+    "compiler_bundle_concatenation": false,
+    "runtime_policy": "pack uses qjs; new adapter awaits a phone Java test"
+  },
+  "reported_recovery": {
+    "service_launcher": "/data/data/com.termux/files/home/rebro/cases/frida-repair/run/launcher-sepol3-restart.sh",
+    "evidence_directory": "/data/data/com.termux/files/home/rebro/cases/frida-repair/run/stabilize-20260922-141012/",
+    "snapshot_directory": "/data/data/com.termux/files/home/rebro/cases/frida-repair/release-20260922-142251/",
+    "restoration_tested": false,
+    "automatic_restart": false
+  }
+}
