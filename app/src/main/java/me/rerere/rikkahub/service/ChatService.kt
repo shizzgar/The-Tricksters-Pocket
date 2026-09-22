@@ -1477,6 +1477,7 @@ class ChatService(
                     enabledSkills = assistant.enabledSkills,
                     allSkills = skillManager.listSkills(),
                     skillManager = skillManager,
+                    termuxBridge = chatToolFactory.termuxSkills.takeIf { me.rerere.rikkahub.data.ai.tools.LocalToolOption.Termux in assistant.localTools },
                 )
             )
         }
@@ -1568,6 +1569,7 @@ class ChatService(
             throw cancel
         } catch (error: Exception) {
             updateAgentTask(conversationId, task.runId) { it.copy(status = "paused", reason = GenerationStopReason.FAILED, detail = error.message?.take(500)) }
+            journal.append(conversationId.toString(), "task.failed", buildJsonObject { put("run_id", task.runId); put("error", error.message?.take(500)) })
             throw error
         } finally {
             if (autonomous && activeAgentTasks[conversationId]?.runId == task.runId) generationLoop.endTaskUi()
@@ -1839,6 +1841,7 @@ class ChatService(
                                 enabledSkills = assistant.enabledSkills,
                                 allSkills = skillManager.listSkills(),
                                 skillManager = skillManager,
+                    termuxBridge = chatToolFactory.termuxSkills.takeIf { me.rerere.rikkahub.data.ai.tools.LocalToolOption.Termux in assistant.localTools },
                             )
                         )
                     }

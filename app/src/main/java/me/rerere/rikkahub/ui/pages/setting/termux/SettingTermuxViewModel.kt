@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import me.rerere.rikkahub.data.preferences.TermuxDefaults
@@ -13,7 +14,48 @@ import me.rerere.rikkahub.data.preferences.TermuxRuntimeConfig
 
 class SettingTermuxViewModel(
     private val prefs: TermuxPreferences,
+    private val skillManager: me.rerere.rikkahub.data.files.SkillManager,
+    private val skillBridge: me.rerere.rikkahub.skills.TermuxSkillBridge,
 ) : ViewModel() {
+
+    val skills = prefs.skillConfigFlow().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), me.rerere.rikkahub.skills.TermuxSkillConfig())
+    private val _skillStatus = kotlinx.coroutines.flow.MutableStateFlow(TermuxSkillsState())
+    val skillStatus = _skillStatus.asStateFlow()
+
+    fun setSkills(config: me.rerere.rikkahub.skills.TermuxSkillConfig) {
+        viewModelScope.launch { prefs.setSkillConfig(config) }
+    }
+
+    fun refreshSkills() = skillAction {
+        skillBridge.status()
+    }
+
+    fun syncSkills() = skillAction {
+        val installed = skillManager.listSkills()
+        installed.forEachIndexed { index, skill ->
+            _skillStatus.value = _skillStatus.value.copy(progress = "${index + 1}/${installed.size} · ${skill.name}")
+            val result = skillBridge.prepare(skill)
+            check((result["success"] as? kotlinx.serialization.json.JsonPrimitive)?.content == "true") { result.toString() }
+        }
+        skillBridge.status()
+    }
+
+    fun clearSkills() = skillAction { skillBridge.clear() }
+
+    private fun skillAction(block: suspend () -> kotlinx.serialization.json.JsonObject) {
+        if (_skillStatus.value.busy) return
+        _skillStatus.value = _skillStatus.value.copy(busy = true, error = null, progress = null)
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val result = block()
+                check((result["success"] as? kotlinx.serialization.json.JsonPrimitive)?.content == "true") { result.toString() }
+                fun number(key: String) = (result[key] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toLongOrNull() ?: 0
+                _skillStatus.value = TermuxSkillsState(packages = number("packages"), bytes = number("bytes"))
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (e: Exception) { _skillStatus.value = _skillStatus.value.copy(error = e.message) }
+            finally { _skillStatus.value = _skillStatus.value.copy(busy = false, progress = null) }
+        }
+    }
 
     /**
      * Combined settings state. Nested [combine] calls stay within the 5-argument typed
@@ -105,3 +147,12 @@ class SettingTermuxViewModel(
         val maxStdoutBytes: Int,
     )
 }
+
+
+data class TermuxSkillsState(
+    val busy: Boolean = false,
+    val packages: Long? = null,
+    val bytes: Long = 0,
+    val progress: String? = null,
+    val error: String? = null,
+)

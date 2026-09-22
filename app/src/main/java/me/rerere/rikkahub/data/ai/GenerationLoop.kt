@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.retryWhen
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import me.rerere.rikkahub.service.AgentOverlay
 import me.rerere.rikkahub.service.RikkaAccessibilityService
@@ -1042,6 +1043,7 @@ class GenerationLoop(
                             val markedTool = tool.copy(executionStartedAt = System.currentTimeMillis())
                             me.rerere.ai.provider.GenerationTrace.record(conversationId?.toString(), "tool.started", buildJsonObject {
                                 put("tool_call_id", tool.toolCallId); put("tool", tool.toolName); put("input", tool.input)
+                                messages.lastOrNull()?.generationMetrics?.lastOrNull()?.requestId?.let { put("parent_request_id", it) }
                             })
                             run {
                                 val lastMsg = messages.lastOrNull()
@@ -1095,6 +1097,13 @@ class GenerationLoop(
                                 output = maybeTruncateToolOutput(tool.toolCallId, result, hasShellAccess)
                             )
                         }.onFailure {
+                            val failure = it
+                            withContext(kotlinx.coroutines.NonCancellable) {
+                                me.rerere.ai.provider.GenerationTrace.record(conversationId?.toString(), "tool.result", buildJsonObject {
+                                    put("tool_call_id", tool.toolCallId); put("tool", tool.toolName)
+                                    put("error_type", failure.javaClass.simpleName); put("error", failure.message?.take(500))
+                                })
+                            }
                             if (it is CancellationException) throw it
                             // Stack trace stays in logcat for debugging; the JSON envelope
                             // sent BACK to the LLM gets just the exception's message and a

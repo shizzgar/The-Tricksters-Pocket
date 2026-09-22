@@ -118,17 +118,20 @@ class SkillsVM(
                     return@launch
                 }
 
-                val fileContents = LinkedHashMap<String, String>()
+                val fileContents = LinkedHashMap<String, ByteArray>()
+                var totalBytes = 0L
                 for ((relativePath, downloadUrl) in files) {
-                    val content = downloadText(downloadUrl)
+                    val content = downloadBytes(downloadUrl)
                     if (content == null) {
                         withContext(Dispatchers.Main) { onResult(false, "Failed to download file: $relativePath") }
                         return@launch
                     }
+                    totalBytes += content.size
+                    require(totalBytes <= me.rerere.rikkahub.skills.SkillPackage.MAX_BYTES) { "Skill package exceeds 20 MiB" }
                     fileContents[relativePath] = content
                 }
 
-                val saved = skillManager.saveSkillFilesAtomically(name, fileContents)
+                val saved = skillManager.saveSkillFileBytesAtomically(name, fileContents)
                 if (!saved) {
                     withContext(Dispatchers.Main) { onResult(false, "Failed to save skill files") }
                     return@launch
@@ -304,13 +307,8 @@ class SkillsVM(
             val frontmatter = SkillFrontmatterParser.parse(skillMd.readText())
             val skillName = frontmatter["name"]?.takeIf { it.isNotBlank() }
                 ?: return false to "skill_import_missing_skill_md"
-            // Collect every file into a relativePath -> content map, then atomic-save.
-            val files = LinkedHashMap<String, String>()
-            rootDir.walkTopDown().filter { it.isFile }.forEach { f ->
-                val rel = f.relativeTo(rootDir).path.replace(File.separatorChar, '/')
-                files[rel] = f.readText()
-            }
-            val saved = skillManager.saveSkillFilesAtomically(skillName, files)
+            val files = me.rerere.rikkahub.skills.SkillPackage.readFiles(rootDir)
+            val saved = skillManager.saveSkillFileBytesAtomically(skillName, files)
             return if (saved) true to skillName else false to "skill_import_unsupported_file_type"
         } finally {
             runCatching { workDir.deleteRecursively() }
@@ -325,6 +323,7 @@ class SkillsVM(
         basePath: String,
         result: MutableList<Pair<String, String>>,
     ): Boolean {
+        require(dirPath.split('/').size <= 32) { "Skill directory is too deep" }
         val apiUrl = "https://api.github.com/repos/$owner/$repo/contents/$dirPath?ref=$branch"
         val json = downloadText(apiUrl) ?: return false
         val array = JSONArray(json)
@@ -337,6 +336,7 @@ class SkillsVM(
                 "file" -> {
                     val downloadUrl = item.optString("download_url").takeIf { it.isNotBlank() }
                         ?: return false
+                    require(result.size < me.rerere.rikkahub.skills.SkillPackage.MAX_FILES) { "Skill package exceeds 200 files" }
                     result.add(relativePath to downloadUrl)
                 }
 
@@ -370,13 +370,25 @@ class SkillsVM(
         return GitHubRepoInfo(owner, repo, branch, subPath)
     }
 
-    private fun downloadText(url: String): String? {
+    private fun downloadText(url: String): String? = downloadBytes(url)?.toString(Charsets.UTF_8)
+
+    private fun downloadBytes(url: String): ByteArray? {
         val connection = URL(url).openConnection() as HttpURLConnection
         connection.connectTimeout = 10_000
         connection.readTimeout = 30_000
         connection.setRequestProperty("Accept", "application/vnd.github+json")
         return try {
-            if (connection.responseCode == 200) connection.inputStream.bufferedReader().readText()
+            if (connection.responseCode == 200) connection.inputStream.use { input ->
+                val output = java.io.ByteArrayOutputStream()
+                val buffer = ByteArray(8192)
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    require(output.size().toLong() + count <= me.rerere.rikkahub.skills.SkillPackage.MAX_BYTES) { "Skill file exceeds 20 MiB" }
+                    output.write(buffer, 0, count)
+                }
+                output.toByteArray()
+            }
             else null
         } finally {
             connection.disconnect()

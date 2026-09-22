@@ -114,12 +114,22 @@ internal class ScheduledProvider<T : ProviderSetting>(
                 val requestId = params.progressTracker?.state?.value?.requestId ?: java.util.UUID.randomUUID().toString()
                 GenerationTrace.request(requestId, messages, scoped, false)
                 observer?.dispatched()
-                delegate.generateText(providerSetting, messages, scoped).also { result ->
+                try { delegate.generateText(providerSetting, messages, scoped).also { result ->
                     result.usage?.let { observer?.usage(it) }
                     GenerationTrace.record(scoped.sessionId, "model.response", kotlinx.serialization.json.buildJsonObject {
                         put("request_id", kotlinx.serialization.json.JsonPrimitive(requestId))
                         put("response", kotlinx.serialization.json.Json.encodeToJsonElement(TextGenerationResult.serializer(), result))
+                        GenerationTrace.timing(params.progressTracker?.state?.value).forEach { (key, value) -> put(key, value) }
                     })
+                } } catch (failure: Throwable) {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                        GenerationTrace.record(scoped.sessionId, "model.response", kotlinx.serialization.json.buildJsonObject {
+                            put("request_id", kotlinx.serialization.json.JsonPrimitive(requestId))
+                            put("error_type", kotlinx.serialization.json.JsonPrimitive(failure.javaClass.simpleName))
+                            GenerationTrace.timing(params.progressTracker?.state?.value).forEach { (key, value) -> put(key, value) }
+                        })
+                    }
+                    throw failure
                 }
             }
         } }
@@ -173,6 +183,7 @@ internal class ScheduledProvider<T : ProviderSetting>(
                             GenerationTrace.record(scoped.sessionId, "model.response", kotlinx.serialization.json.buildJsonObject {
                                 put("request_id", kotlinx.serialization.json.JsonPrimitive(requestId))
                                 put("stream_finished", kotlinx.serialization.json.JsonPrimitive(receivedFinish))
+                                GenerationTrace.timing(params.progressTracker?.state?.value).forEach { (key, value) -> put(key, value) }
                                 streamError?.let { put("error_type", kotlinx.serialization.json.JsonPrimitive(it)) }
                                 finishReason?.let { put("finish_reason", kotlinx.serialization.json.JsonPrimitive(it)) }
                             })

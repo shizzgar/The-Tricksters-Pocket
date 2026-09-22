@@ -35,6 +35,7 @@ class ChatToolFactory(
     private val mcpManager: McpManager,
     private val skillManager: SkillManager,
     private val workspaceRepository: WorkspaceRepository,
+    val termuxSkills: me.rerere.rikkahub.skills.TermuxSkillBridge? = null,
 ) {
     suspend fun createTools(
         settings: Settings,
@@ -70,6 +71,8 @@ class ChatToolFactory(
                 createSkillTools(
                     enabledSkills = assistant.enabledSkills,
                     allSkills = skillManager.listSkills(),
+                    skillManager = skillManager,
+                    termuxBridge = termuxSkills.takeIf { LocalToolOption.Termux in assistant.localTools },
                 )
             )
         }

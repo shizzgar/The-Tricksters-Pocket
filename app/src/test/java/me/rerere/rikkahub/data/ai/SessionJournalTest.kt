@@ -45,4 +45,27 @@ class SessionJournalTest {
         index.writeText(index.readText().replace("tool.result", "tool.forged"))
         assertTrue(runCatching { SessionJournal(root).append(id, "task.resume", buildJsonObject {}) }.isFailure)
     }
+
+    @Test fun `legacy records are projected without rewriting old hashes`() = runBlocking {
+        val root = folder.newFolder()
+        val record = SessionJournal(root).append(id, "model.request", buildJsonObject { put("request_id", "legacy"); put("model", "old") })
+        val material = "${record.sequence}\n${record.timestamp}\n${record.source}\n${record.payloadHash}\n${record.previousHash}"
+        val hash = java.security.MessageDigest.getInstance("SHA-256").digest(material.toByteArray()).joinToString("") { "%02x".format(it) }
+        val legacy = record.copy(hash = hash, summary = null)
+        File(root, "$id/events.jsonl").writeText(Json.encodeToString(TraceRecord.serializer(), legacy) + "\n")
+        val reopened = SessionJournal(root)
+        val projection = reopened.trajectory(id)
+        assertEquals("old", projection.entries.single().summary.title)
+        assertEquals(hash, projection.entries.single().record.hash)
+        assertEquals(hash, reopened.append(id, "model.response", buildJsonObject { put("request_id", "legacy") }).previousHash)
+    }
+
+    @Test fun `summary tampering invalidates index integrity`() = runBlocking {
+        val root = folder.newFolder()
+        SessionJournal(root).append(id, "model.request", buildJsonObject { put("model", "original-model") })
+        val index = File(root, "$id/events.jsonl")
+        index.writeText(index.readText().replace("original-model", "forged-model"))
+        assertNotNull(SessionJournal(root).trajectory(id).error)
+        assertTrue(runCatching { SessionJournal(root).append(id, "tool.result", buildJsonObject {}) }.isFailure)
+    }
 }

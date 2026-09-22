@@ -16,7 +16,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
 
 @Serializable
-data class TraceRecord(val sequence: Long, val timestamp: Long, val source: String, val payloadHash: String, val previousHash: String, val hash: String)
+data class TraceRecord(val sequence: Long, val timestamp: Long, val source: String, val payloadHash: String, val previousHash: String, val hash: String, val summary: TraceSummary? = null)
 
 data class TracePage(val records: List<TraceRecord>, val before: Long?, val total: Long, val error: String? = null)
 
@@ -38,7 +38,13 @@ class SessionJournal(private val root: File) {
         FileOutputStream(temp).use { it.write(bytes); it.fd.sync() }
         check(temp.renameTo(file)) { "Cannot save task checkpoint" }
     }
-    private fun validHash(r: TraceRecord) = r.hash == digest("${r.sequence}\n${r.timestamp}\n${r.source}\n${r.payloadHash}\n${r.previousHash}".toByteArray())
+    private fun indexDigest(sequence: Long, at: Long, source: String, payloadHash: String, previousHash: String, summary: TraceSummary?): String =
+        digest(("$sequence\n$at\n$source\n$payloadHash\n$previousHash" +
+            (summary?.let { "\n" + json.encodeToString(TraceSummary.serializer(), it) } ?: "")).toByteArray())
+    private fun validHash(r: TraceRecord) = r.hash == indexDigest(r.sequence, r.timestamp, r.source, r.payloadHash, r.previousHash, r.summary)
+    private val legacySummaries = object : LinkedHashMap<String, TraceSummary>(256, .75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, TraceSummary>?) = size > 2000
+    }
 
     /** A crash may leave an uncommitted final fragment. Preserve it before removing only that fragment. */
     private fun recoverUncommittedTail(index: File) {
@@ -86,8 +92,9 @@ class SessionJournal(private val root: File) {
             val sequence = (previous?.sequence ?: 0L) + 1L
             val at = System.currentTimeMillis()
             val prev = previous?.hash.orEmpty()
-            val hash = digest("$sequence\n$at\n$source\n$payloadHash\n$prev".toByteArray())
-            val record = TraceRecord(sequence, at, source, payloadHash, prev, hash)
+            val summary = traceSummary(source, payload)
+            val hash = indexDigest(sequence, at, source, payloadHash, prev, summary)
+            val record = TraceRecord(sequence, at, source, payloadHash, prev, hash, summary)
             FileOutputStream(index, true).use { it.write((json.encodeToString(TraceRecord.serializer(), record) + "\n").toByteArray()); it.fd.sync() }
             heads[id] = record
             changes.value++
@@ -111,11 +118,29 @@ class SessionJournal(private val root: File) {
                 if (source != null && !record.source.startsWith(source)) return@forEach
                 if (query.isNotBlank() && !record.source.contains(query, true) && !runCatching { payloadLocked(id, record).contains(query, true) }.getOrDefault(false)) return@forEach
                 result.addLast(record)
-                while (result.size > limit.coerceIn(1, 200)) result.removeFirst()
+                while (result.size > limit.coerceIn(1, 20_000)) result.removeFirst()
             } }
             TracePage(result.toList().asReversed(), result.firstOrNull()?.sequence?.takeIf { it > 1 }, total, error)
         }
     }
+    /** Legacy journals are projected lazily, without rewriting their immutable event chain. */
+    suspend fun trajectory(id: String, limit: Int = 600): TrajectoryPage = withContext(Dispatchers.IO) {
+        val page = page(id, limit = limit)
+        var error = page.error
+        val entries = page.records.asReversed().mapNotNull { record ->
+            currentCoroutineContext().ensureActive()
+            try {
+                val summary = record.summary ?: synchronized(legacySummaries) { legacySummaries[record.hash] }
+                    ?: traceSummary(record.source, Json.parseToJsonElement(payloadLocked(id, record)).jsonObject).also {
+                        synchronized(legacySummaries) { legacySummaries[record.hash] = it }
+                    }
+                TraceEntry(record, summary)
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (e: Exception) { error = e.message; null }
+        }
+        TrajectoryPage(entries, page.total, page.records.size >= limit && page.before != null, error)
+    }
+
     private fun payloadLocked(id: String, record: TraceRecord): String {
         require(record.payloadHash.matches(Regex("[a-f0-9]{64}")))
         val file = File(directory(id), "payloads/${record.payloadHash}.json.gz")
@@ -123,7 +148,7 @@ class SessionJournal(private val root: File) {
         check(digest(bytes) == record.payloadHash) { "Trace payload hash mismatch" }
         return bytes.toString(Charsets.UTF_8)
     }
-    suspend fun payload(id: String, record: TraceRecord): String = withContext(Dispatchers.IO) { synchronized(lock) { payloadLocked(id, record) } }
+    suspend fun payload(id: String, record: TraceRecord): String = withContext(Dispatchers.IO) { payloadLocked(id, record) }
     suspend fun saveTask(task: AgentTaskRecord) = withContext(Dispatchers.IO) { synchronized(lock) {
         atomic(File(directory(task.conversationId), "task.json"), json.encodeToString(AgentTaskRecord.serializer(), task).toByteArray())
         changes.value++

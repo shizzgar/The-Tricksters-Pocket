@@ -37,6 +37,18 @@ object GenerationTrace {
         })
     }
 
+    fun timing(progress: GenerationProgress?): JsonObject = buildJsonObject {
+        progress ?: return@buildJsonObject
+        val now = progress.finishedAt ?: System.nanoTime() / 1_000_000
+        val start = progress.dispatchedAt ?: progress.startedAt
+        put("elapsed_ms", (now - start).coerceAtLeast(0))
+        progress.firstContentAt?.let { put("first_content_ms", (it - start).coerceAtLeast(0)) }
+        progress.usage?.let { usage ->
+            put("prompt_tokens", usage.promptTokens)
+            put("completion_tokens", usage.completionTokens)
+        }
+    }
+
     suspend fun chunks(session: String?, id: String, chunks: List<StreamChunk>) = record(session, "model.stream", buildJsonObject {
         put("request_id", id)
         put("chunks", Json.encodeToJsonElement(ListSerializer(StreamChunk.serializer()), chunks))

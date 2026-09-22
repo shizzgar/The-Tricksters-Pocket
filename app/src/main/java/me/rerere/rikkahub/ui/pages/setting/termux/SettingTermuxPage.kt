@@ -107,6 +107,8 @@ fun SettingTermuxPage(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            TermuxSkillsSettings(vm)
+
             // Section 1: Status
             CardGroup(
                 title = { Text(stringResource(R.string.setting_termux_section_status)) },

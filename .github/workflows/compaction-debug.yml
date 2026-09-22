@@ -3,7 +3,7 @@ name: Agent runtime debug APK
 on:
   workflow_dispatch:
   push:
-    branches: [fix/configurable-compaction-runtime]
+    branches: [fix/configurable-compaction-runtime, feat/trajectory-termux-skills]
 
 permissions:
   contents: read
@@ -36,7 +36,7 @@ jobs:
         with:
           cache-read-only: false
       - name: Test durable Termux supervisor
-        run: python3 -m unittest discover -s tests -p 'test_termux_job_runtime.py' -v
+        run: python3 -m unittest discover -s tests -p 'test_termux_*runtime.py' -v
       - name: Run HTTP and provider tests
         run: bash ./gradlew --no-daemon --max-workers=2 :common:testDebugUnitTest :ai:testDebugUnitTest
       - name: Run runtime, Termux presentation and settings tests
@@ -45,6 +45,10 @@ jobs:
           --tests 'me.rerere.rikkahub.data.ai.CompactionRuntimeTest'
           --tests 'me.rerere.rikkahub.data.ai.AgentTaskRuntimeTest'
           --tests 'me.rerere.rikkahub.data.ai.SessionJournalTest'
+          --tests 'me.rerere.rikkahub.data.ai.TrajectoryTest'
+          --tests 'me.rerere.rikkahub.skills.SkillPackageTest'
+          --tests 'me.rerere.rikkahub.skills.SkillZipImporterTest'
+          --tests 'me.rerere.rikkahub.data.ai.tools.SkillsToolsTest'
           --tests 'me.rerere.rikkahub.data.ai.GenerationTurnClockTest'
           --tests 'me.rerere.rikkahub.data.ai.ContextCompaction*Test'
           --tests 'me.rerere.rikkahub.data.ai.CompactionEvidenceTest'
