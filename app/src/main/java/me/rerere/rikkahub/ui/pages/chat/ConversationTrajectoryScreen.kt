@@ -147,6 +147,7 @@ internal fun ConversationTrajectoryScreen(conversation: Conversation, active: Bo
                 error?.let { Text(it, Modifier.padding(12.dp), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
                 BoxWithConstraints(Modifier.weight(1f)) {
                     val wide = maxWidth >= 840.dp
+                    val inspectorWidth = (maxWidth * .6f).coerceAtLeast(400.dp)
                     Row(Modifier.fillMaxSize()) {
                         if (selected == null || wide) Column(Modifier.weight(1f).fillMaxHeight()) {
                             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -233,7 +234,7 @@ internal fun ConversationTrajectoryScreen(conversation: Conversation, active: Bo
                         }
                         if (selected != null) {
                             if (wide) VerticalDivider()
-                            TraceInspector(journal, session, selected, Modifier.then(if (wide) Modifier.width((maxWidth * .6f).coerceAtLeast(400.dp)) else Modifier.fillMaxSize()),
+                            TraceInspector(journal, session, selected, Modifier.then(if (wide) Modifier.width(inspectorWidth) else Modifier.fillMaxSize()),
                                 related = spans, onSelect = { selectedId = it }, onChild = { child -> parents.add(session); session = child })
                         }
                     }
@@ -508,8 +509,11 @@ private fun TraceInspector(journal: SessionJournal, session: String, span: Trace
                         item { TextButton(onClick = { scope.launch {
                             val data = payload as? JsonObject
                             val text = if (tab == 1 && record?.source == "tool.started") (data?.get("input") as? JsonPrimitive)?.contentOrNull ?: payload.toString() else payload.toString()
-                            clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Trace payload", text)))
-                            actionMessage = context.getString(R.string.trace_copied)
+                            if (text.length > 128_000) actionMessage = context.getString(R.string.trace_copy_too_large)
+                            else {
+                                clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Trace payload", text)))
+                                actionMessage = context.getString(R.string.trace_copied)
+                            }
                         } }) { Text(stringResource(R.string.trace_copy_payload)) } }
                         item {
                             if (tab == 3) TraceValue(stringResource(R.string.trajectory_content), payload, expandedInitially = true)

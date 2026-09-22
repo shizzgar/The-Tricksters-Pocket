@@ -18,7 +18,7 @@ internal data class SkillSnapshot(val entries: List<SkillEntry>, val revision: S
     val files get() = entries.count { !it.directory }
     val bytes get() = entries.sumOf { it.size }
 }
-internal data class SkillDocument(val path: String, val bytes: ByteArray, val hash: String, val text: String?)
+internal data class SkillDocument(val path: String, val bytes: ByteArray, val hash: String, val text: String?, val modified: Long = 0)
 internal class SkillConflict : java.io.IOException("The package changed since it was opened. Reload it before saving; your draft has been kept.")
 
 /** The editor never converts binary data to text. A package mutation is staged, checked and recoverable. */
@@ -36,8 +36,8 @@ internal class SkillWorkspace(private val root: File, stateRoot: File, private v
     fun open(path: String): SkillDocument = locked {
         val file = resolve(root, path)
         require(file.isFile && file.length() <= SkillPackage.MAX_BYTES) { "File is unavailable or exceeds 20 MiB" }
-        val bytes = file.inputStream().use { it.readBytes() }
-        SkillDocument(path, bytes, SkillPackage.digest(bytes), decodeText(bytes))
+        val bytes = readBounded(file)
+        SkillDocument(path, bytes, SkillPackage.digest(bytes), decodeText(bytes), file.lastModified())
     }
     fun write(path: String, bytes: ByteArray, revision: String, originalHash: String? = null, create: Boolean = false): SkillSnapshot = mutate(revision) { dir ->
         val target = resolve(dir, path)
@@ -152,6 +152,15 @@ internal class SkillWorkspace(private val root: File, stateRoot: File, private v
             require(paths.isNotEmpty()) { "Select a file or folder" }
             return paths.filter { path -> paths.none { other -> path != other && path.startsWith("$other/") } }
         }
+        private fun readBounded(file: File): ByteArray = file.inputStream().use { input ->
+            val out = java.io.ByteArrayOutputStream(); val buffer = ByteArray(8192)
+            while (true) {
+                val n = input.read(buffer); if (n < 0) break
+                require(out.size().toLong() + n <= SkillPackage.MAX_BYTES) { "File exceeds 20 MiB" }
+                out.write(buffer, 0, n)
+            }
+            out.toByteArray()
+        }
         private fun copyTree(source: File, target: File) {
             require(!Files.isSymbolicLink(source.toPath())) { "Symbolic links are not supported" }
             if (source.isDirectory) {
@@ -159,7 +168,7 @@ internal class SkillWorkspace(private val root: File, stateRoot: File, private v
                 source.listFiles().orEmpty().forEach { copyTree(it, File(target, it.name)) }
             } else {
                 require(source.isFile) { "Unsupported file type" }
-                source.copyTo(target); target.setExecutable(source.canExecute(), true)
+                target.writeBytes(readBounded(source)); target.setExecutable(source.canExecute(), true)
                 target.setLastModified(source.lastModified())
             }
         }
@@ -180,11 +189,12 @@ internal class SkillWorkspace(private val root: File, stateRoot: File, private v
                 require(files <= SkillPackage.MAX_FILES && bytes <= SkillPackage.MAX_BYTES && entries.size < 400) { "Package exceeds 200 files, 400 entries or 20 MiB" }
                 entries += SkillEntry(path, file.isDirectory, size, file.lastModified(), file.canExecute())
             }
+            var hashedBytes = 0L
             entries.sortedBy { it.path }.forEach { entry ->
                 digest.update((entry.path + if (entry.directory) "/\u0000" else "\u0000${entry.size}\u0000").toByteArray())
                 if (!entry.directory) File(root, entry.path).inputStream().use { input ->
                     val buffer = ByteArray(8192)
-                    while (true) { val count = input.read(buffer); if (count < 0) break; digest.update(buffer, 0, count) }
+                    while (true) { val count = input.read(buffer); if (count < 0) break; hashedBytes += count; require(hashedBytes <= SkillPackage.MAX_BYTES); digest.update(buffer, 0, count) }
                 }
             }
             return SkillSnapshot(entries, digest.digest().joinToString("") { "%02x".format(it) }, false)

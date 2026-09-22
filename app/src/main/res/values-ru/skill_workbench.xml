@@ -70,10 +70,13 @@
     <string name="skill_workbench_encoding">Кодировка</string>
     <string name="skill_workbench_binary">Бинарный файл</string>
     <string name="skill_workbench_properties_saved">Размер и SHA-256 относятся к сохранённой версии.</string>
-    <string name="skill_workbench_limits">Редактирование: UTF-8 до 256 КиБ или бинарные данные до 64 КиБ в HEX. Более крупные файлы доступны для просмотра, замены и экспорта. Лимит пакета: 200 файлов / 20 МиБ.</string>
-    <string name="skill_workbench_preview_limit">Показаны первые 40 000 символов. Экспортируйте сохранённый файл для полного просмотра.</string>
+    <string name="skill_workbench_limits">Редактирование: UTF-8 до 256 КиБ / 4000 строк или бинарные данные до 64 КиБ в HEX. Более крупные файлы доступны для просмотра, замены и экспорта. Лимит пакета: 200 файлов / 20 МиБ.</string>
+    <string name="skill_workbench_preview_limit">Показаны до 40 000 символов / 500 строк. Экспортируйте сохранённый файл для полного просмотра.</string>
     <string name="skill_workbench_edit_hex">Редактировать байты в HEX</string>
     <string name="skill_workbench_replace_file">Заменить файлом с устройства…</string>
     <string name="skill_workbench_reload">Перезагрузить сохранённый файл</string>
     <string name="skill_workbench_save">Сохранить</string>
+    <string name="trace_copy_too_large">Содержимое слишком велико для буфера обмена. Используйте экспорт JSON, чтобы сохранить его целиком.</string>
+    <string name="skill_workbench_copy_limit">Черновик слишком велик для буфера обмена. Сохраните изменения и экспортируйте файл.</string>
+    <string name="skill_workbench_invalid_hex">Для просмотра и сохранения нужны полные пары HEX-байтов (00–FF).</string>
 </resources>

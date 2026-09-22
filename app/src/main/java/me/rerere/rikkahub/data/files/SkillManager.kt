@@ -338,6 +338,7 @@ class SkillManager(
      * delete a default skill and we will not silently re-install it.
      */
     suspend fun seedDefaultSkillsIfNeeded() {
+        SkillWorkspace.recoverAll(getSkillsDir(), File(context.filesDir, "skill_workbench"))
         val assetRoot = "default-skills"
         val assetMgr = context.assets
         val skillNames = try {

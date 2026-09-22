@@ -54,8 +54,13 @@ internal fun SkillEditorPane(editor: SkillEditBuffer, busy: Boolean, modifier: M
     var wrap by rememberSaveable { mutableStateOf(false) }
     var goToLine by remember { mutableStateOf(false) }
     var line by remember { mutableStateOf("") }
+    var copyLimit by remember { mutableStateOf(false) }
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
+    val previewData = remember(document.hash, editor.hex, editor.value.text) {
+        if (editor.hex) runCatching { SkillWorkspace.decodeHex(editor.value.text) } else Result.success(document.bytes)
+    }
+    val displayBytes = previewData.getOrNull() ?: byteArrayOf()
     val extension = document.path.substringAfterLast('.', "").lowercase()
     LaunchedEffect(editor.hex) { if (editor.hex) mode = "code" }
     Column(modifier.testTag("skill-editor")) {
@@ -82,7 +87,7 @@ internal fun SkillEditorPane(editor: SkillEditBuffer, busy: Boolean, modifier: M
                 IconButton(onClick = { searching = !searching }) { Icon(Lucide.Search, stringResource(R.string.skill_workbench_find_replace)) }
                 IconButton(onClick = { wrap = !wrap }) { Icon(Lucide.WrapText, stringResource(R.string.skill_workbench_wrap), tint = if (wrap) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant) }
                 IconButton(onClick = { goToLine = true }) { Icon(Lucide.ListOrdered, stringResource(R.string.skill_workbench_go_line)) }
-                IconButton(onClick = { scope.launch { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(document.path, editor.value.text))) } }) { Icon(Lucide.Copy, stringResource(R.string.jobs_copy)) }
+                IconButton(onClick = { scope.launch { if (editor.value.text.length <= 128_000) clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(document.path, editor.value.text))) else copyLimit = true } }) { Icon(Lucide.Copy, stringResource(R.string.jobs_copy)) }
                 if (!editor.hex) TextButton(onClick = {
                     val selection = editor.value.selection
                     val text = editor.value.text.replaceRange(selection.min, selection.max, "    ")
@@ -119,10 +124,11 @@ internal fun SkillEditorPane(editor: SkillEditBuffer, busy: Boolean, modifier: M
             val effectiveWrap = wrap || editor.value.text.lineSequence().any { it.length > 4000 } || lineCount > 4000
             BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerLow)) {
                 val minWidth = (maxWidth - 64.dp).coerceAtLeast(100.dp)
+                val paneHeight = maxHeight
                 Row(Modifier.fillMaxSize().verticalScroll(vertical).then(if (effectiveWrap) Modifier else Modifier.horizontalScroll(horizontal)).padding(vertical = 12.dp)) {
                     if (!effectiveWrap) Text((1..lineCount).joinToString("\n"), Modifier.width(48.dp).padding(end = 10.dp), style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 20.sp), color = MaterialTheme.colorScheme.outline)
                     BasicTextField(editor.value, onEdit,
-                        modifier = Modifier.then(if (effectiveWrap) Modifier.weight(1f) else Modifier.width(IntrinsicSize.Min).widthIn(min = minWidth)).heightIn(min = maxHeight).padding(horizontal = 12.dp).testTag("skill-code-input"),
+                        modifier = Modifier.then(if (effectiveWrap) Modifier.weight(1f) else Modifier.width(IntrinsicSize.Min).widthIn(min = minWidth)).heightIn(min = paneHeight).padding(horizontal = 12.dp).testTag("skill-code-input"),
                         enabled = !busy, textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 20.sp, color = MaterialTheme.colorScheme.onSurface, textDirection = TextDirection.Ltr),
                         visualTransformation = transform, cursorBrush = SolidColor(MaterialTheme.colorScheme.primary), keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Text))
                 }
@@ -135,40 +141,43 @@ internal fun SkillEditorPane(editor: SkillEditBuffer, busy: Boolean, modifier: M
             if (mode == "info") {
                 EditorFact(stringResource(R.string.skill_workbench_relative_path), document.path)
                 EditorFact(stringResource(R.string.skill_workbench_size), skillSize(document.bytes.size.toLong()))
+                EditorFact(stringResource(R.string.skill_workbench_modified), java.text.DateFormat.getDateTimeInstance().format(java.util.Date(document.modified)))
                 EditorFact(stringResource(R.string.skill_workbench_encoding), if (document.text != null) "UTF-8" else stringResource(R.string.skill_workbench_binary))
                 EditorFact("SHA-256", document.hash)
                 if (editor.dirty) Text(stringResource(R.string.skill_workbench_properties_saved), style = MaterialTheme.typography.bodySmall)
                 Text(stringResource(R.string.skill_workbench_limits), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
-                val picture by produceState<android.graphics.Bitmap?>(null, document.hash) {
-                    if (extension in setOf("png", "jpg", "jpeg", "webp", "gif", "bmp")) value = withContext(Dispatchers.Default) {
+                val picture by produceState<android.graphics.Bitmap?>(null, displayBytes) {
+                    if (extension in setOf("png", "jpg", "jpeg", "webp", "gif", "bmp")) value = withContext(Dispatchers.Default) { runCatching {
                         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                        BitmapFactory.decodeByteArray(document.bytes, 0, document.bytes.size, bounds)
+                        BitmapFactory.decodeByteArray(displayBytes, 0, displayBytes.size, bounds)
                         if (bounds.outWidth !in 1..100_000 || bounds.outHeight !in 1..100_000) null else {
                             var sample = 1
                             while (bounds.outWidth / sample > 2048 || bounds.outHeight / sample > 2048) sample *= 2
-                            BitmapFactory.decodeByteArray(document.bytes, 0, document.bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })
+                            BitmapFactory.decodeByteArray(displayBytes, 0, displayBytes.size, BitmapFactory.Options().apply { inSampleSize = sample })
                         }
-                    }
+                    }.getOrNull() }
                 }
                 picture?.let { Image(it.asImageBitmap(), document.path, Modifier.fillMaxWidth().heightIn(max = 440.dp), contentScale = ContentScale.Fit) }
                 if (document.text != null) {
                     val text = if (editor.editable && !editor.hex) editor.value.text else document.text
+                    val preview = text.lineSequence().take(500).joinToString("\n").take(40_000)
                     SelectionContainer {
-                        if (extension in setOf("md", "markdown")) MarkdownBlock(text.take(40_000))
-                        else Text(text.take(40_000), style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace))
+                        if (extension in setOf("md", "markdown")) MarkdownBlock(preview)
+                        else Text(preview, style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace))
                     }
-                    if (text.length > 40_000) Text(stringResource(R.string.skill_workbench_preview_limit), style = MaterialTheme.typography.bodySmall)
+                    if (preview.length < text.length) Text(stringResource(R.string.skill_workbench_preview_limit), style = MaterialTheme.typography.bodySmall)
                 } else {
                     Text(stringResource(R.string.skill_workbench_binary), style = MaterialTheme.typography.titleMedium)
                     Text("${skillSize(document.bytes.size.toLong())} · ${extension.uppercase()}", style = MaterialTheme.typography.bodySmall)
                     var offset by remember(document.hash) { mutableIntStateOf(0) }
-                    val bytes = document.bytes.copyOfRange(offset.coerceAtMost(document.bytes.size), (offset + 256).coerceAtMost(document.bytes.size))
+                    if (previewData.isFailure) Text(stringResource(R.string.skill_workbench_invalid_hex), color = MaterialTheme.colorScheme.error)
+                    val bytes = displayBytes.copyOfRange(offset.coerceAtMost(displayBytes.size), (offset + 256).coerceAtMost(displayBytes.size))
                     SelectionContainer { Text(SkillWorkspace.encodeHex(bytes), Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 12.sp)) }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         TextButton(onClick = { offset = (offset - 256).coerceAtLeast(0) }, enabled = offset > 0) { Text("←") }
                         Text("0x%08X · %s".format(offset, skillSize(document.bytes.size.toLong())), style = MaterialTheme.typography.labelSmall)
-                        TextButton(onClick = { offset += 256 }, enabled = offset + 256 < document.bytes.size) { Text("→") }
+                        TextButton(onClick = { offset += 256 }, enabled = offset + 256 < displayBytes.size) { Text("→") }
                     }
                     if (document.bytes.size <= SkillWorkspace.MAX_HEX_EDIT_BYTES && !editor.hex) FilledTonalButton(onClick = onHex, enabled = !busy) { Text(stringResource(R.string.skill_workbench_edit_hex)) }
                 }
@@ -181,6 +190,7 @@ internal fun SkillEditorPane(editor: SkillEditBuffer, busy: Boolean, modifier: M
             }
         }
     }
+    if (copyLimit) AlertDialog(onDismissRequest = { copyLimit = false }, text = { Text(stringResource(R.string.skill_workbench_copy_limit)) }, confirmButton = { TextButton(onClick = { copyLimit = false }) { Text(stringResource(R.string.confirm)) } })
     if (goToLine) AlertDialog(onDismissRequest = { goToLine = false }, title = { Text(stringResource(R.string.skill_workbench_go_line)) }, text = {
         OutlinedTextField(line, { line = it }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
     }, confirmButton = { TextButton(onClick = {

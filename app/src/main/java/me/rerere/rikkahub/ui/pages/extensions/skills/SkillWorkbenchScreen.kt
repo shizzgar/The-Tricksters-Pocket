@@ -68,7 +68,7 @@ internal fun SkillWorkbenchScreen(vm: SkillDetailVM, onBack: () -> Unit, onTest:
             Box {
                 IconButton(onClick = { menu = true }) { Icon(Lucide.EllipsisVertical, stringResource(R.string.skill_workbench_actions)) }
                 DropdownMenu(menu, { menu = false }) {
-                    DropdownMenuItem(text = { Text(stringResource(R.string.skill_workbench_export_package)) }, onClick = { menu = false; exportFile(null) }, leadingIcon = { Icon(Lucide.Download, null) })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.skill_workbench_export_package)) }, onClick = { menu = false; guarded { exportFile(null) } }, leadingIcon = { Icon(Lucide.Download, null) })
                     DropdownMenuItem(text = { Text(stringResource(R.string.skill_workbench_restore)) }, enabled = state.snapshot?.canRestore == true && !state.busy, onClick = { menu = false; guarded { prompt = WorkspacePrompt("restore") } }, leadingIcon = { Icon(Lucide.History, null) })
                     DropdownMenuItem(text = { Text(stringResource(R.string.skill_tester_run)) }, onClick = { menu = false; guarded(onTest) }, leadingIcon = { Icon(Lucide.Play, null) })
                     DropdownMenuItem(text = { Text(stringResource(R.string.jobs_refresh)) }, onClick = { menu = false; vm.refresh() }, enabled = !state.busy)

@@ -70,10 +70,13 @@
     <string name="skill_workbench_encoding">Encoding</string>
     <string name="skill_workbench_binary">Binary file</string>
     <string name="skill_workbench_properties_saved">Size and SHA-256 describe the saved version.</string>
-    <string name="skill_workbench_limits">Edit UTF-8 text up to 256 KiB or binary data up to 64 KiB in HEX. Larger files remain available for preview, replacement and export. Package limit: 200 files / 20 MiB.</string>
-    <string name="skill_workbench_preview_limit">Preview shows the first 40,000 characters. Export the saved file to read it in full.</string>
+    <string name="skill_workbench_limits">Edit UTF-8 text up to 256 KiB / 4,000 lines or binary data up to 64 KiB in HEX. Larger files remain available for preview, replacement and export. Package limit: 200 files / 20 MiB.</string>
+    <string name="skill_workbench_preview_limit">Preview shows up to 40,000 characters / 500 lines. Export the saved file to read it in full.</string>
     <string name="skill_workbench_edit_hex">Edit hexadecimal bytes</string>
     <string name="skill_workbench_replace_file">Replace from device…</string>
     <string name="skill_workbench_reload">Reload saved file</string>
     <string name="skill_workbench_save">Save</string>
+    <string name="trace_copy_too_large">This payload is too large for the clipboard. Use Export JSON to save it in full.</string>
+    <string name="skill_workbench_copy_limit">The draft is too large for the clipboard. Save your changes and export the file.</string>
+    <string name="skill_workbench_invalid_hex">Use complete hexadecimal byte pairs (00–FF) to preview or save.</string>
 </resources>

@@ -27,7 +27,7 @@ internal data class SkillEditBuffer(
     val redo: List<String> = emptyList(),
 ) {
     val dirty get() = value.text != baseline
-    val editable get() = if (hex) document.bytes.size <= SkillWorkspace.MAX_HEX_EDIT_BYTES else document.text != null && document.bytes.size <= SkillWorkspace.MAX_EDIT_BYTES
+    val editable get() = if (hex) document.bytes.size <= SkillWorkspace.MAX_HEX_EDIT_BYTES else document.text != null && document.bytes.size <= SkillWorkspace.MAX_EDIT_BYTES && document.text.count { it == '\n' } < 4000
 }
 internal data class SkillWorkbenchState(
     val name: String = "",
@@ -107,7 +107,10 @@ class SkillDetailVM(private val context: Context, private val skillManager: Skil
     fun edit(value: TextFieldValue) {
         val editor = _state.value.editor ?: return
         if (_state.value.busy || !editor.editable) return
-        if (value.text.length > SkillWorkspace.MAX_EDIT_BYTES * 3) return
+        if (value.text.length > SkillWorkspace.MAX_EDIT_BYTES * 3 || value.text.count { it == '\n' } >= 4000) {
+            _state.update { it.copy(message = context.getString(R.string.skill_workbench_limits)) }
+            return
+        }
         val changed = value.text != editor.value.text
         val undo = if (changed) history(editor.undo + editor.value.text) else editor.undo
         _state.update { it.copy(editor = editor.copy(value = value, undo = undo, redo = if (changed) emptyList() else editor.redo)) }
