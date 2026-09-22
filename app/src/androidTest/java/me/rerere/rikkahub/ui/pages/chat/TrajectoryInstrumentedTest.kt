@@ -85,7 +85,9 @@ class TrajectoryInstrumentedTest {
         compose.onNodeWithText("use_skill").performScrollTo().performClick()
         compose.onNodeWithText("Input").performClick()
         compose.waitUntil(10_000) { compose.onAllNodesWithText("reports").fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithText("reports").assertIsDisplayed()
+        compose.onNodeWithText("reports").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Operation context").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Export JSON").assertExists()
         screenshot("trajectory-inspector")
     }
 

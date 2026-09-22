@@ -24,7 +24,7 @@ internal object SkillPackage {
             true
         }.forEach { file ->
             require(!Files.isSymbolicLink(file.toPath())) { "Symbolic links are not supported in skill packages" }
-            if (file.isFile && file.name != ".seeded") {
+            if (file.isFile && file.name !in SkillWorkspace.internalNames) {
                 require(file.canonicalPath.startsWith(canonical.path + File.separator)) { "File is outside the skill" }
                 val relative = file.relativeTo(root).invariantSeparatorsPath
                 require('\\' !in relative && relative != ".rikkahub-manifest.json") { "Unsupported skill path" }
@@ -36,7 +36,9 @@ internal object SkillPackage {
         return files.sortedBy { it.relativeTo(root).invariantSeparatorsPath }
     }
 
-    fun readFiles(root: File): Map<String, ByteArray> {
+    fun readFiles(root: File): Map<String, ByteArray> = SkillPackageLocks.withLock(root) { readFilesLocked(root) }
+
+    private fun readFilesLocked(root: File): Map<String, ByteArray> {
         var total = 0L
         val identity = Files.readAttributes(root.toPath(), java.nio.file.attribute.BasicFileAttributes::class.java)
         val seen = mutableSetOf<String>()

@@ -1,5 +1,11 @@
 package me.rerere.rikkahub.ui.pages.chat
 
+import android.content.ClipData
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -227,8 +233,8 @@ internal fun ConversationTrajectoryScreen(conversation: Conversation, active: Bo
                         }
                         if (selected != null) {
                             if (wide) VerticalDivider()
-                            TraceInspector(journal, session, selected, Modifier.then(if (wide) Modifier.width(400.dp) else Modifier.fillMaxSize()),
-                                onSelect = { selectedId = it }, onChild = { child -> parents.add(session); session = child })
+                            TraceInspector(journal, session, selected, Modifier.then(if (wide) Modifier.width((maxWidth * .6f).coerceAtLeast(400.dp)) else Modifier.fillMaxSize()),
+                                related = spans, onSelect = { selectedId = it }, onChild = { child -> parents.add(session); session = child })
                         }
                     }
                 }
@@ -363,11 +369,16 @@ private fun TraceFlowRow(span: TraceSpan, spans: List<TraceSpan>, selected: Bool
 }
 
 @Composable
-private fun TraceInspector(journal: SessionJournal, session: String, span: TraceSpan, modifier: Modifier, onSelect: (String) -> Unit, onChild: (String) -> Unit) {
+private fun TraceInspector(journal: SessionJournal, session: String, span: TraceSpan, modifier: Modifier, related: List<TraceSpan>, onSelect: (String) -> Unit, onChild: (String) -> Unit) {
     var tab by remember(span.id) { mutableIntStateOf(0) }
     var index by remember(span.id, tab) { mutableIntStateOf(0) }
     var body by remember(span.id, tab, index) { mutableStateOf<JsonElement?>(null) }
     var error by remember(span.id, tab, index) { mutableStateOf<String?>(null) }
+    var actionMessage by remember(span.id) { mutableStateOf<String?>(null) }
+    var exporting by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
     val records = remember(span, tab) {
         when (tab) {
             1 -> span.entries.filter { it.summary.phase == "start" || it.record.source == "compaction.event" }.take(1)
@@ -376,61 +387,138 @@ private fun TraceInspector(journal: SessionJournal, session: String, span: Trace
         }
     }
     val record = records.getOrNull(index.coerceAtMost((records.size - 1).coerceAtLeast(0)))?.record
+    val export = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) scope.launch {
+            exporting = true
+            try {
+                withContext(Dispatchers.IO) {
+                    requireNotNull(context.contentResolver.openOutputStream(uri, "wt")).bufferedWriter().use { writer ->
+                        writer.write("[\n")
+                        span.entries.forEachIndexed { i, entry ->
+                            if (i > 0) writer.write(",\n")
+                            val payload = Json.parseToJsonElement(journal.payload(session, entry.record))
+                            writer.write(buildJsonObject {
+                                put("sequence", entry.record.sequence); put("timestamp", entry.record.timestamp)
+                                put("source", entry.record.source); put("payload", payload)
+                            }.toString())
+                        }
+                        writer.write("\n]")
+                    }
+                }
+                actionMessage = context.getString(R.string.trace_export_done)
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { actionMessage = e.message }
+            finally { exporting = false }
+        }
+    }
     LaunchedEffect(session, record, tab) {
         body = null
+        error = null
         if (tab > 0 && record != null) {
             try { body = Json.parseToJsonElement(journal.payload(session, record)) }
             catch (e: CancellationException) { throw e }
             catch (e: Exception) { error = e.message }
         }
     }
-    LazyColumn(modifier, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item {
-            Text(span.title.ifBlank { traceKind(span.kind) }, style = MaterialTheme.typography.titleLarge)
-            Text("${traceKind(span.kind)} · ${traceState(span.state)}", color = traceColor(span.kind, span.state), style = MaterialTheme.typography.labelMedium)
-        }
-        item {
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf(R.string.trace_overview, R.string.trace_input, R.string.trace_output, R.string.trace_events).forEachIndexed { i, label ->
-                    FilterChip(tab == i, { tab = i }, label = { Text(stringResource(label)) })
+    val peers = related.filter { it.kind != "event" }
+    val position = peers.indexOfFirst { it.id == span.id }
+    @Composable fun ContextPanel() {
+        OutlinedCard(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(stringResource(R.string.trace_operation_context), style = MaterialTheme.typography.titleSmall)
+                TraceFact(stringResource(R.string.trace_started), DateFormat.getDateTimeInstance().format(Date(span.start)))
+                TraceFact(stringResource(R.string.trace_duration), span.durationMs?.let(::traceDuration) ?: "—")
+                span.firstContentMs?.let { TraceFact(stringResource(R.string.trace_first_content), traceDuration(it)) }
+                if (span.inputTokens != null || span.outputTokens != null) TraceFact(stringResource(R.string.trace_tokens), "↑ ${span.inputTokens ?: "—"} · ↓ ${span.outputTokens ?: "—"}")
+                if ((span.receivingMs ?: 0) > 0 && span.outputTokens != null) {
+                    TraceFact(stringResource(R.string.trace_rate), "%.1f tok/s".format(span.outputTokens * 1000.0 / requireNotNull(span.receivingMs)))
                 }
+                TraceFact(stringResource(R.string.trace_events), "${span.entries.size} · #${span.entries.first().record.sequence}–#${span.entries.last().record.sequence}")
+                if (span.partial) Text(stringResource(R.string.trace_partial), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                HorizontalDivider()
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    TextButton(onClick = { scope.launch {
+                        clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Operation ID", span.id)))
+                        actionMessage = context.getString(R.string.trace_copied)
+                    } }) { Text(stringResource(R.string.trace_copy_id)) }
+                    TextButton(onClick = { export.launch("operation-${span.entries.first().record.sequence}.json") }, enabled = !exporting) { Text(stringResource(R.string.trace_export_operation)) }
+                    span.parent?.takeIf { id -> related.any { it.id == id } }?.let { parent ->
+                        TextButton(onClick = { onSelect(parent) }) { Text(stringResource(R.string.trace_parent)) }
+                    }
+                    span.childConversation?.let { child -> TextButton(onClick = { onChild(child) }) { Text(stringResource(R.string.trace_open_child)) } }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    TextButton(onClick = { onSelect(peers[position - 1].id) }, enabled = position > 0) { Text(stringResource(R.string.trace_previous_operation)) }
+                    TextButton(onClick = { onSelect(peers[position + 1].id) }, enabled = position >= 0 && position + 1 < peers.size) { Text(stringResource(R.string.trace_next_operation)) }
+                }
+                if (exporting) LinearProgressIndicator(Modifier.fillMaxWidth())
+                actionMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
             }
         }
-        if (tab == 0) {
-            item {
-                OutlinedCard(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        TraceFact(stringResource(R.string.trace_started), DateFormat.getDateTimeInstance().format(Date(span.start)))
-                        TraceFact(stringResource(R.string.trace_duration), span.durationMs?.let(::traceDuration) ?: "—")
-                        span.firstContentMs?.let { TraceFact(stringResource(R.string.trace_first_content), traceDuration(it)) }
-                        TraceFact(stringResource(R.string.trace_tokens), "↑ ${span.inputTokens ?: "—"} · ↓ ${span.outputTokens ?: "—"}")
-                        TraceFact(stringResource(R.string.trace_rate), if ((span.receivingMs ?: 0) > 0 && span.outputTokens != null) "%.1f tok/s".format(span.outputTokens * 1000.0 / requireNotNull(span.receivingMs)) else "—")
-                        TraceFact(stringResource(R.string.trace_events), span.entries.size.toString())
-                        if (span.partial) Text(stringResource(R.string.trace_partial), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+    }
+    BoxWithConstraints(modifier.testTag("trace-inspector")) {
+        val sidePanel = maxWidth >= 640.dp
+        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                item {
+                    Text(span.title.ifBlank { traceKind(span.kind) }, style = MaterialTheme.typography.titleLarge)
+                    Text("${traceKind(span.kind)} · ${traceState(span.state)}", color = traceColor(span.kind, span.state), style = MaterialTheme.typography.labelMedium)
+                }
+                if (!sidePanel) item { ContextPanel() }
+                item {
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf(R.string.trace_overview, R.string.trace_input, R.string.trace_output, R.string.trace_events).forEachIndexed { i, label ->
+                            FilterChip(tab == i, { tab = i }, label = { Text(stringResource(label)) })
+                        }
+                    }
+                }
+                if (tab == 0) {
+                    if (span.preview.isNotBlank()) item { SelectionContainer { Text(span.preview, style = MaterialTheme.typography.bodyMedium) } }
+                    val children = related.filter { it.parent == span.id }
+                    if (children.isNotEmpty()) item { Text(stringResource(R.string.trace_related_operations), style = MaterialTheme.typography.titleSmall) }
+                    items(children, key = { "linked-${it.id}" }) { child ->
+                        OutlinedCard(onClick = { onSelect(child.id) }, modifier = Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(12.dp)) {
+                                Text(child.title, style = MaterialTheme.typography.titleSmall)
+                                Text("${traceState(child.state)} · ${child.durationMs?.let(::traceDuration) ?: "—"}", style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                    item { Text(stringResource(R.string.trace_event_timeline), style = MaterialTheme.typography.titleSmall) }
+                    items(span.entries, key = { "event-${it.record.sequence}" }) { entry ->
+                        Row(Modifier.fillMaxWidth().clickable { tab = 3; index = span.entries.indexOf(entry) }.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text("+${traceDuration(entry.record.timestamp - span.start)}", Modifier.width(80.dp), style = MaterialTheme.typography.labelSmall, color = traceColor(span.kind))
+                            Column { Text(entry.record.source, style = MaterialTheme.typography.bodySmall); Text("#${entry.record.sequence}", style = MaterialTheme.typography.labelSmall) }
+                        }
+                    }
+                    if (span.kind == "model") item { Text(stringResource(R.string.trace_rate_help), style = MaterialTheme.typography.bodySmall) }
+                } else {
+                    if (records.isEmpty()) item { Text(stringResource(R.string.trace_no_payload)) }
+                    if (records.size > 1) item {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            TextButton(onClick = { index = (index - 1).coerceAtLeast(0) }, enabled = index > 0) { Text("←") }
+                            Text("${index + 1} / ${records.size}", style = MaterialTheme.typography.labelMedium)
+                            TextButton(onClick = { index++ }, enabled = index + 1 < records.size) { Text("→") }
+                        }
+                    }
+                    record?.let { item { Text("#${it.sequence} · ${it.source} · ${timeLabel(it.timestamp)}", style = MaterialTheme.typography.labelSmall) } }
+                    error?.let { item { Text(it, color = MaterialTheme.colorScheme.error) } }
+                    if (record != null && body == null && error == null) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+                    body?.let { payload ->
+                        item { TextButton(onClick = { scope.launch {
+                            val data = payload as? JsonObject
+                            val text = if (tab == 1 && record?.source == "tool.started") (data?.get("input") as? JsonPrimitive)?.contentOrNull ?: payload.toString() else payload.toString()
+                            clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Trace payload", text)))
+                            actionMessage = context.getString(R.string.trace_copied)
+                        } }) { Text(stringResource(R.string.trace_copy_payload)) } }
+                        item {
+                            if (tab == 3) TraceValue(stringResource(R.string.trajectory_content), payload, expandedInitially = true)
+                            else TraceReadablePayload(record?.source.orEmpty(), payload)
+                        }
                     }
                 }
             }
-            if (span.preview.isNotBlank()) item { SelectionContainer { Text(span.preview, style = MaterialTheme.typography.bodyMedium) } }
-            span.parent?.let { parent -> item { OutlinedButton(onClick = { onSelect(parent) }) { Text(stringResource(R.string.trace_parent)) } } }
-            span.childConversation?.let { child -> item { FilledTonalButton(onClick = { onChild(child) }) { Text(stringResource(R.string.trace_open_child)) } } }
-            item { Text(stringResource(R.string.trace_rate_help), style = MaterialTheme.typography.bodySmall) }
-            item { SelectionContainer { Text(span.id, style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace), color = MaterialTheme.colorScheme.onSurfaceVariant) } }
-        } else {
-            if (records.isEmpty()) item { Text(stringResource(R.string.trace_no_payload)) }
-            if (records.size > 1) item {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = { index = (index - 1).coerceAtLeast(0) }, enabled = index > 0) { Text("←") }
-                    Text("${index + 1} / ${records.size}", style = MaterialTheme.typography.labelMedium)
-                    TextButton(onClick = { index++ }, enabled = index + 1 < records.size) { Text("→") }
-                }
-            }
-            record?.let { item { Text("#${it.sequence} · ${it.source} · ${timeLabel(it.timestamp)}", style = MaterialTheme.typography.labelSmall) } }
-            error?.let { item { Text(it, color = MaterialTheme.colorScheme.error) } }
-            if (record != null && body == null && error == null) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
-            body?.let { payload -> item {
-                if (tab == 3) TraceValue(stringResource(R.string.trajectory_content), payload, expandedInitially = true)
-                else TraceReadablePayload(record?.source.orEmpty(), payload)
-            } }
+            if (sidePanel) LazyColumn(Modifier.width(264.dp), contentPadding = PaddingValues(top = 16.dp, end = 16.dp, bottom = 16.dp)) { item { ContextPanel() } }
         }
     }
 }
@@ -445,6 +533,13 @@ private fun TraceFact(label: String, value: String) {
 /** Bounded, selectable tree. Long strings and arrays have pages rather than horizontal scrolling. */
 @Composable
 private fun TraceValue(label: String, value: JsonElement, expandedInitially: Boolean = false) {
+    if (value is JsonPrimitive && (value.contentOrNull?.length ?: 0) < 500 && '\n' !in value.content) {
+        Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(label, Modifier.weight(.4f), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            SelectionContainer(Modifier.weight(.6f)) { Text(value.contentOrNull ?: "null", style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace)) }
+        }
+        return
+    }
     var expanded by remember(value) { mutableStateOf(expandedInitially) }
     var offset by remember(value) { mutableIntStateOf(0) }
     OutlinedCard(Modifier.fillMaxWidth()) {

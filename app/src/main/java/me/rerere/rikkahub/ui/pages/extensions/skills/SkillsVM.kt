@@ -60,7 +60,7 @@ class SkillsVM(
         loadSkills()
     }
 
-    private fun loadSkills() {
+    fun loadSkills() {
         viewModelScope.launch(Dispatchers.IO) {
             _skills.value = skillManager.listSkills()
         }
@@ -68,7 +68,7 @@ class SkillsVM(
 
     fun saveSkill(name: String, content: String, onResult: (Boolean) -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
-            val result = skillManager.saveSkill(name, content)
+            val result = if (skillManager.getSkillDir(name)?.exists() == true) null else skillManager.saveSkill(name, content)
             _skills.value = skillManager.listSkills()
             withContext(Dispatchers.Main) {
                 onResult(result != null)
