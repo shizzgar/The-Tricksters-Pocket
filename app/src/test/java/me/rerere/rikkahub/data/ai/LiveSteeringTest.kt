@@ -56,4 +56,16 @@ class LiveSteeringTest {
         assertTrue(canSteerAtBoundary(messages))
         assertEquals(messages, supersedeUnstartedTools(messages))
     }
+
+    @Test fun `existing human answers and denials survive a simultaneous update`() {
+        val answer = tool("ask").copy(approvalState = ToolApprovalState.Answered("use the existing directory"))
+        val denied = tool("denied").copy(approvalState = ToolApprovalState.Denied("do not delete anything"))
+        val settled = supersedeUnstartedTools(listOf(assistant(answer, denied, tool("next")))).single().getTools()
+        assertEquals(answer.approvalState, settled[0].approvalState)
+        assertEquals(listOf(UIMessagePart.Text("use the existing directory")), settled[0].output)
+        assertEquals(denied.approvalState, settled[1].approvalState)
+        assertTrue(settled[1].output.toString().contains("do not delete anything"))
+        assertTrue(settled[2].output.toString().contains("superseded_by_user_input"))
+        assertTrue(settled.all { it.isExecuted && it.executionStartedAt == null })
+    }
 }

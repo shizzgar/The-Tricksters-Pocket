@@ -567,7 +567,11 @@ class GenerationLoop(
             unstarted.forEach { tool ->
                 me.rerere.ai.provider.GenerationTrace.record(conversationId?.toString(), "tool.result", buildJsonObject {
                     put("tool_call_id", tool.toolCallId); put("tool", tool.toolName)
-                    put("status", "not_executed"); put("reason", "superseded_by_user_input")
+                    when (tool.approvalState) {
+                        is ToolApprovalState.Answered -> put("status", "answered")
+                        is ToolApprovalState.Denied -> put("status", "denied")
+                        else -> { put("status", "not_executed"); put("reason", "superseded_by_user_input") }
+                    }
                     put("output", json.encodeToJsonElement(kotlinx.serialization.builtins.ListSerializer(UIMessagePart.serializer()), settled.getValue(tool.toolCallId).output))
                 })
             }
