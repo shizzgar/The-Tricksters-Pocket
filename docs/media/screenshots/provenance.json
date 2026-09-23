@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "source_commit": "3bb42b0c2487923c5beddde826c0377899e4f207",
+  "workflow_run": "https://github.com/shizzgar/rikkahub-agent/actions/runs/35792969182",
+  "artifact_id": 10722937629,
+  "android_api": 35,
+  "content": "Unmodified Android instrumentation screenshots. Model data and file contents are test fixtures, not device benchmarks.",
+  "files": [
+    {
+      "file": "skill-workbench-binary-ru.png",
+      "width": 1080,
+      "height": 2400,
+      "bytes": 171947,
+      "sha256": "ec0ffd468a4a1a71143a59ffbdcbfc5d48dabfd2954544ce12172739b6d17d89"
+    },
+    {
+      "file": "skill-workbench-editor.png",
+      "width": 1080,
+      "height": 2400,
+      "bytes": 122976,
+      "sha256": "d9e7a133753d5024ff50bd6b4fe58885596101d037cbc863ba4ee2f55ca3b2f0"
+    },
+    {
+      "file": "skill-workbench-files.png",
+      "width": 1080,
+      "height": 2400,
+      "bytes": 124455,
+      "sha256": "66955edbda42cd474ee1a09d700f13716bf14894021081455f75f3fad9c587e0"
+    },
+    {
+      "file": "skill-workbench-wide.png",
+      "width": 1920,
+      "height": 1200,
+      "bytes": 74590,
+      "sha256": "08507ee06e8d86a68c28ce71648768eadea5d115f841076c24513b4677bf8a3c"
+    },
+    {
+      "file": "tool-access-russian.png",
+      "width": 1080,
+      "height": 2040,
+      "bytes": 134812,
+      "sha256": "dfdcec05396309731d19a2a9c6f635ca86db6ca89c0a206c1f2bf6a6ba29ea54"
+    },
+    {
+      "file": "trajectory-flow.png",
+      "width": 1080,
+      "height": 2400,
+      "bytes": 192010,
+      "sha256": "7f719297040a52476d4db6fe6b19dfc6449d6d321946d354882e31f21dd7d9d9"
+    },
+    {
+      "file": "trajectory-inspector.png",
+      "width": 1080,
+      "height": 2400,
+      "bytes": 124231,
+      "sha256": "af8ba445266cff784f964a0a4a1a826bf4ae73e95e387c1dc5cbf9aa5d2af8ad"
+    },
+    {
+      "file": "trajectory-messages-compact.png",
+      "width": 1080,
+      "height": 2400,
+      "bytes": 67250,
+      "sha256": "1e5203932207f696c0a2a4722e89a828b2f3d88f25d723d9e0f4fb8f0bbd511e"
+    },
+    {
+      "file": "trajectory-russian-dark.png",
+      "width": 1080,
+      "height": 2400,
+      "bytes": 217297,
+      "sha256": "8bbd62248bf8901f06d33c777bd0bfc37593077f80d699c173529d2f56b0d844"
+    },
+    {
+      "file": "trajectory-tools-compact.png",
+      "width": 1080,
+      "height": 2400,
+      "bytes": 183707,
+      "sha256": "91d4fc96c955388fbf1ff85fcc2aff7863828fe069721950ec00fb193ee1e854"
+    },
+    {
+      "file": "trajectory-waterfall.png",
+      "width": 1080,
+      "height": 2400,
+      "bytes": 205866,
+      "sha256": "cd0e7747f26d61edbff7c86969aa828222778b076219dd552141e2f9afc2e602"
+    }
+  ]
+}

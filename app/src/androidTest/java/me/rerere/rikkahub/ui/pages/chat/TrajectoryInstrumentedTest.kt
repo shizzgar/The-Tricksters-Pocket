@@ -2,6 +2,13 @@ package me.rerere.rikkahub.ui.pages.chat
 
 import android.content.res.Configuration
 import android.graphics.Bitmap
+import android.net.Uri
+import androidx.activity.compose.LocalActivityResultRegistryOwner
+import androidx.activity.result.ActivityResultRegistry
+import androidx.activity.result.ActivityResultRegistryOwner
+import androidx.activity.result.contract.ActivityResultContract
+import androidx.core.app.ActivityOptionsCompat
+import androidx.core.content.FileProvider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -15,12 +22,14 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.File
 import java.util.Locale
+import java.util.zip.ZipFile
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
 import me.rerere.rikkahub.data.ai.SessionJournal
 import me.rerere.rikkahub.data.model.Conversation
 import org.junit.Rule
 import org.junit.Test
+import org.junit.Assert.*
 import kotlin.uuid.Uuid
 
 class TrajectoryInstrumentedTest {
@@ -52,11 +61,21 @@ class TrajectoryInstrumentedTest {
         journal
     }
 
-    private fun show(russian: Boolean = false) {
+    private fun show(russian: Boolean = false, exportUri: Uri? = null) {
         val journal = fixture()
         val localized = context.createConfigurationContext(Configuration(context.resources.configuration).apply { setLocale(Locale.forLanguageTag(if (russian) "ru" else "en")) })
+        val exportOwner = exportUri?.let { uri -> object : ActivityResultRegistryOwner {
+            override val activityResultRegistry = object : ActivityResultRegistry() {
+                override fun <I, O> onLaunch(requestCode: Int, contract: ActivityResultContract<I, O>, input: I, options: ActivityOptionsCompat?) {
+                    assertTrue(input.toString().endsWith(".zip"))
+                    dispatchResult(requestCode, uri)
+                }
+            }
+        } }
         compose.setContent {
+            val activityOwner = requireNotNull(LocalActivityResultRegistryOwner.current)
             CompositionLocalProvider(
+                LocalActivityResultRegistryOwner provides (exportOwner ?: activityOwner),
                 LocalContext provides localized,
                 LocalConfiguration provides localized.resources.configuration,
                 LocalResources provides localized.resources,
@@ -95,5 +114,26 @@ class TrajectoryInstrumentedTest {
         show(russian = true)
         screenshot("trajectory-russian-dark")
         compose.onAllNodesWithText("Инструменты").onFirst().assertExists()
+    }
+
+    @Test fun fullTraceExportUsesDocumentDestinationAndIgnoresSearchFilter() {
+        val destination = File(context.cacheDir, "trajectory-export-$id.zip")
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", destination)
+        show(exportUri = uri)
+        compose.onNodeWithText("Search operations, commands, errors").performTextInput("no-matching-operation")
+        compose.onNodeWithTag("trace-export-all").performClick()
+        compose.waitUntil(15_000) { compose.onAllNodesWithText("Trace exported · events: 12 · sessions: 1").fetchSemanticsNodes().isNotEmpty() }
+        ZipFile(destination).use { zip ->
+            val manifest = Json.parseToJsonElement(zip.getInputStream(zip.getEntry("manifest.json")).bufferedReader().use { it.readText() }).jsonObject
+            assertEquals(12L, manifest.getValue("event_count").jsonPrimitive.long)
+            assertTrue(manifest.getValue("complete").jsonPrimitive.boolean)
+            assertEquals(id.toString(), manifest.getValue("conversation_id").jsonPrimitive.content)
+            val index = zip.getInputStream(zip.getEntry("sessions/$id/events.jsonl")).bufferedReader().use { it.readLines() }
+            assertEquals(12, index.size)
+            assertTrue(index.any { "tool.result" in it })
+            assertTrue(index.any { "model.request" in it })
+        }
+        screenshot("trajectory-full-export")
+        destination.delete()
     }
 }

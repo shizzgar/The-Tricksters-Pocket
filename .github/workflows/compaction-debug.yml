@@ -3,7 +3,14 @@ name: Agent runtime debug APK
 on:
   workflow_dispatch:
   push:
-    branches: [fix/configurable-compaction-runtime, feat/trajectory-termux-skills]
+    branches: [master, fix/configurable-compaction-runtime, feat/trajectory-termux-skills]
+    paths-ignore:
+      - 'README*.md'
+      - 'CHANGELOG.md'
+      - 'CONTRIBUTING.md'
+      - '.github/PULL_REQUEST_TEMPLATE.md'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
 
 permissions:
   contents: read
@@ -45,6 +52,7 @@ jobs:
           --tests 'me.rerere.rikkahub.data.ai.CompactionRuntimeTest'
           --tests 'me.rerere.rikkahub.data.ai.AgentTaskRuntimeTest'
           --tests 'me.rerere.rikkahub.data.ai.SessionJournalTest'
+          --tests 'me.rerere.rikkahub.data.ai.TraceArchiveTest'
           --tests 'me.rerere.rikkahub.data.ai.TrajectoryTest'
           --tests 'me.rerere.rikkahub.skills.SkillPackageTest'
           --tests 'me.rerere.rikkahub.skills.SkillWorkspaceTest'
@@ -103,12 +111,12 @@ jobs:
           mkdir -p build/trajectory-qa
           test_status=0
           adb shell am instrument -w -r -e class me.rerere.rikkahub.ui.pages.chat.TrajectoryInstrumentedTest,me.rerere.rikkahub.ui.pages.extensions.skills.SkillWorkbenchInstrumentedTest,me.rerere.rikkahub.ui.pages.assistant.detail.ToolAccessInstrumentedTest,me.rerere.rikkahub.ui.pages.chat.TracePayloadInstrumentedTest,me.rerere.rikkahub.data.datastore.RebroAssistantInstrumentedTest excp.rikkahub.debug.test/androidx.test.runner.AndroidJUnitRunner | tee build/trajectory-qa/instrumentation.txt || test_status=$?
-          grep -Fq 'OK (11 tests)' build/trajectory-qa/instrumentation.txt || test_status=1
+          grep -Fq 'OK (12 tests)' build/trajectory-qa/instrumentation.txt || test_status=1
           adb shell wm size 1920x1200
           adb shell wm density 160
           adb shell am instrument -w -r -e class me.rerere.rikkahub.ui.pages.extensions.skills.SkillWorkbenchWideInstrumentedTest excp.rikkahub.debug.test/androidx.test.runner.AndroidJUnitRunner | tee build/trajectory-qa/wide-instrumentation.txt || test_status=$?
           grep -Fq 'OK (1 test)' build/trajectory-qa/wide-instrumentation.txt || test_status=1
-          for name in trajectory-waterfall trajectory-flow trajectory-inspector trajectory-russian-dark skill-workbench-files skill-workbench-editor skill-workbench-binary-ru skill-workbench-wide tool-access-russian trajectory-tools-compact trajectory-messages-compact; do
+          for name in trajectory-waterfall trajectory-flow trajectory-inspector trajectory-russian-dark skill-workbench-files skill-workbench-editor skill-workbench-binary-ru skill-workbench-wide tool-access-russian trajectory-tools-compact trajectory-messages-compact trajectory-full-export; do
             adb exec-out run-as excp.rikkahub.debug cat "files/trajectory-qa/$name.png" > "build/trajectory-qa/$name.png" || test_status=1
           done
           cp /tmp/trajectory-emulator.log build/trajectory-qa/emulator.log

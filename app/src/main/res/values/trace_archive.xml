@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="trace_archive_export">Export full trace</string>
+    <string name="trace_archive_exporting">Exporting trace…</string>
+    <string name="trace_archive_scope">ZIP · all recorded events and subagents · includes private content</string>
+    <string name="trace_archive_done">Trace exported · events: %1$d · sessions: %2$d</string>
+    <string name="trace_archive_issues">Exported %1$d events across %2$d sessions; %3$d issues listed in issues.jsonl</string>
+    <string name="trace_archive_failed">Export failed. Any remaining destination file is incomplete.</string>
+    <string name="trace_archive_cancelled">Export cancelled. Any remaining destination file is incomplete.</string>
+</resources>

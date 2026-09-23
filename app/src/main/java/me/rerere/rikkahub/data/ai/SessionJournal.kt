@@ -161,6 +161,50 @@ class SessionJournal(private val root: File, private val clock: () -> Long = Sys
             runCatching { json.decodeFromString<AgentTaskRecord>(File(dir, "task.json").readText()) }.getOrNull()
         }.filter { it.status in setOf("running", "waiting_network") && it.recoverAutomatically }
     } }
+
+    /** Export the entire recorded conversation, independently of Trajectory's display window. */
+    suspend fun exportArchive(
+        id: String,
+        output: java.io.OutputStream,
+        cacheDirectory: File,
+        metadata: JsonObject = buildJsonObject {},
+    ): TraceArchiveResult = withContext(Dispatchers.IO) {
+        require(java.util.UUID.fromString(id).toString() == id)
+        check(cacheDirectory.isDirectory || cacheDirectory.mkdirs())
+        val staging = java.nio.file.Files.createTempDirectory(cacheDirectory.toPath(), "trace-export-").toFile()
+        try {
+            val readerContext = currentCoroutineContext()
+            TraceArchiveWriter(staging, { readerContext.ensureActive() }, ::validHash) { session, target ->
+                // Only the mutable index/checkpoint are copied under the writer lock. Payloads
+                // are immutable. Compression and the potentially slow document provider run outside it.
+                synchronized(lock) {
+                    readerContext.ensureActive()
+                    require(java.util.UUID.fromString(session).toString() == session)
+                    val source = File(root, session)
+                    check(target.isDirectory || target.mkdirs())
+                    val exists = source.isDirectory
+                    source.listFiles().orEmpty().filter {
+                        it.name in setOf("events.jsonl", "task.json") || it.name.matches(Regex("uncommitted-[a-f0-9]{64}\\.fragment"))
+                    }.forEach { file ->
+                        readerContext.ensureActive()
+                        file.inputStream().use { input -> target.resolve(file.name).outputStream().use { out ->
+                            val buffer = ByteArray(64 * 1024)
+                            while (true) {
+                                readerContext.ensureActive()
+                                val read = input.read(buffer)
+                                if (read < 0) break
+                                out.write(buffer, 0, read)
+                            }
+                        } }
+                    }
+                    TraceArchiveSnapshot(session, System.currentTimeMillis(), target,
+                        File(source, "payloads").listFiles().orEmpty().filter {
+                            it.isFile && it.name.matches(Regex("[a-f0-9]{64}\\.json\\.gz"))
+                        }, exists)
+                }
+            }.write(id, output, metadata)
+        } finally { staging.deleteRecursively() }
+    }
     companion object {
         private val instances = ConcurrentHashMap<String, SessionJournal>()
         fun at(filesDir: File): SessionJournal = instances.getOrPut(filesDir.absolutePath) { SessionJournal(File(filesDir, "session_journal")) }

@@ -1,6 +1,7 @@
 package me.rerere.rikkahub.ui.pages.chat
 
 import android.content.ClipData
+import android.provider.DocumentsContract
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.ClipEntry
@@ -18,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -36,6 +38,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.*
@@ -43,6 +47,8 @@ import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.ArrowLeft01
 import me.rerere.hugeicons.stroke.Cancel01
 import me.rerere.hugeicons.stroke.Refresh01
+import me.rerere.hugeicons.stroke.Download01
+import me.rerere.rikkahub.BuildConfig
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.ai.*
 import me.rerere.rikkahub.data.model.Conversation
@@ -79,6 +85,43 @@ internal fun ConversationTrajectoryScreen(conversation: Conversation, active: Bo
     var searching by remember { mutableStateOf(false) }
     val isRoot = session == conversation.id.toString()
     val selected = spans.find { it.id == selectedId }
+    val exportScope = rememberCoroutineScope()
+    var exportingArchive by remember { mutableStateOf(false) }
+    var exportJob by remember { mutableStateOf<Job?>(null) }
+    var archiveMessage by remember { mutableStateOf<String?>(null) }
+    var pendingExportSession by rememberSaveable { mutableStateOf<String?>(null) }
+    val archivePicker = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+        val exportSession = pendingExportSession
+        pendingExportSession = null
+        if (uri != null && exportSession != null) exportJob = exportScope.launch {
+            exportingArchive = true
+            archiveMessage = null
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    requireNotNull(context.contentResolver.openOutputStream(uri, "wt")) { "Cannot open export destination" }.use { output ->
+                        journal.exportArchive(exportSession, output, context.cacheDir, buildJsonObject {
+                            put("application_id", BuildConfig.APPLICATION_ID)
+                            put("version_name", BuildConfig.VERSION_NAME)
+                            put("version_code", BuildConfig.VERSION_CODE)
+                        })
+                    }
+                }
+                archiveMessage = context.getString(
+                    if (result.warnings == 0) R.string.trace_archive_done else R.string.trace_archive_issues,
+                    result.events, result.sessions, result.warnings,
+                )
+            } catch (e: Exception) {
+                // This URI was just created by our document picker. A failed/cancelled archive
+                // must not be reported as a complete ZIP. Some providers cannot remove it.
+                withContext(NonCancellable + Dispatchers.IO) {
+                    runCatching { DocumentsContract.deleteDocument(context.contentResolver, uri) }
+                }
+                archiveMessage = context.getString(if (e is CancellationException) R.string.trace_archive_cancelled else R.string.trace_archive_failed)
+                if (e is CancellationException) throw e
+                error = e.message
+            } finally { exportingArchive = false; exportJob = null }
+        }
+    }
 
     LaunchedEffect(session, limit, before, live, refresh, active) {
         var revision = -1L
@@ -143,7 +186,21 @@ internal fun ConversationTrajectoryScreen(conversation: Conversation, active: Bo
                     TextButton(onClick = { live = !live }) { Text(stringResource(if (live) R.string.trace_live else R.string.trace_paused)) }
                     IconButton(onClick = { refresh++ }, enabled = !busy) { Icon(HugeIcons.Refresh01, contentDescription = stringResource(R.string.jobs_refresh)) }
                 }
-                if (busy || searching) LinearProgressIndicator(Modifier.fillMaxWidth())
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedButton(onClick = {
+                        pendingExportSession = conversation.id.toString()
+                        archivePicker.launch("trajectory-${conversation.id}-${System.currentTimeMillis()}.zip")
+                    }, enabled = !exportingArchive, modifier = Modifier.weight(1f).testTag("trace-export-all")) {
+                        Icon(HugeIcons.Download01, contentDescription = null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(if (exportingArchive) R.string.trace_archive_exporting else R.string.trace_archive_export))
+                    }
+                    if (exportingArchive) TextButton(onClick = { exportJob?.cancel() }) { Text(stringResource(R.string.cancel)) }
+                }
+                Text(stringResource(R.string.trace_archive_scope), Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                archiveMessage?.let { Text(it, Modifier.padding(horizontal = 16.dp, vertical = 4.dp).testTag("trace-export-status"), style = MaterialTheme.typography.bodySmall) }
+                if (busy || searching || exportingArchive) LinearProgressIndicator(Modifier.fillMaxWidth())
                 error?.let { Text(it, Modifier.padding(12.dp), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
                 BoxWithConstraints(Modifier.weight(1f)) {
                     val wide = maxWidth >= 840.dp
