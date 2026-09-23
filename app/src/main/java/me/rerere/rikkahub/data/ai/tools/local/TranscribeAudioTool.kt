@@ -375,7 +375,7 @@ private suspend fun findWhisperModelViaShell(context: Context): String? {
  * The LLM should call this FIRST when the user sends an audio file or asks for
  * transcription.
  */
-fun whisperStatusTool(context: Context, settingsStore: SettingsStore): Tool = Tool(
+fun whisperStatusTool(context: Context, settingsStore: SettingsStore, callerAssistantId: String? = null): Tool = Tool(
     name = "whisper_status",
     description = """
         Check whether whisper.cpp transcription is ready to use. Returns a structured
@@ -393,8 +393,11 @@ fun whisperStatusTool(context: Context, settingsStore: SettingsStore): Tool = To
         val missingSteps = mutableListOf<String>()
 
         // 1. Is Termux enabled in this assistant's local tools?
-        val assistant = settingsStore.settingsFlow.value.getCurrentAssistant()
-        val termuxEnabledInAssistant = assistant.localTools.contains(LocalToolOption.Termux)
+        val assistant = if (callerAssistantId == null) settingsStore.settingsFlow.value.getCurrentAssistant()
+            else settingsStore.settingsFlow.value.assistants.firstOrNull { it.id.toString() == callerAssistantId }
+        val whisperEnabled = assistant?.localTools?.contains(LocalToolOption.Whisper) == true
+        if (!whisperEnabled) missingSteps.add("enable_whisper_toggle")
+        val termuxEnabledInAssistant = assistant?.localTools?.contains(LocalToolOption.Termux) == true
         if (!termuxEnabledInAssistant) missingSteps.add("enable_termux_toggle")
 
         // 2. Is Termux app installed and permission granted?
@@ -408,7 +411,7 @@ fun whisperStatusTool(context: Context, settingsStore: SettingsStore): Tool = To
         var modelPresent = false
         var modelPath: String? = null
 
-        if (termuxState == TermuxIntegration.State.READY) {
+        if (termuxEnabledInAssistant && whisperEnabled && termuxState == TermuxIntegration.State.READY) {
             // Probe whisper-cli
             val candidatesShell = WHISPER_CLI_CANDIDATES.joinToString(" ") { "'${it.replace("'", "'\\''")}'" }
             val cliScript = """
@@ -449,7 +452,7 @@ fun whisperStatusTool(context: Context, settingsStore: SettingsStore): Tool = To
             missingSteps.add("download_model")
         }
 
-        val readyToTranscribe = termuxEnabledInAssistant && termuxAppInstalled && whisperCliInstalled && modelPresent
+        val readyToTranscribe = whisperEnabled && termuxEnabledInAssistant && termuxAppInstalled && whisperCliInstalled && modelPresent
 
         listOf(UIMessagePart.Text(buildJsonObject {
             put("termux_enabled_in_assistant", termuxEnabledInAssistant)

@@ -39,6 +39,7 @@ class ConversationSession(
     private val refCount = AtomicInteger(0)
 
     // 处理状态（如 OCR 识别中）
+    val generationProgress = me.rerere.ai.provider.GenerationProgressTracker()
     val processingStatus = MutableStateFlow<String?>(null)
 
     // 生成任务（内聚在 session 中）

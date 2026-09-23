@@ -1,0 +1,11 @@
+{
+  "agents": [
+    "native_exports"
+  ],
+  "options": {
+    "native_exports": {
+      "module_pattern": "^libc\\.so$",
+      "symbol_pattern": "^(open|connect|read|write|pthread_)"
+    }
+  }
+}

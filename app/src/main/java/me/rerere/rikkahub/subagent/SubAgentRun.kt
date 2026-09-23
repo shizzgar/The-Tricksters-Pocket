@@ -46,8 +46,8 @@ enum class SubAgentStatus {
 }
 
 object SubAgentDefaults {
-    const val DEFAULT_TIMEOUT_SECONDS = 300
-    const val MAX_TIMEOUT_SECONDS = 1800
+    const val DEFAULT_TIMEOUT_SECONDS = 1800
+    const val MAX_TIMEOUT_SECONDS = 14400
     const val DEFAULT_MAX_TRIPS = 12
     const val MAX_MAX_TRIPS = 30
     const val MAX_LABEL_LENGTH = 60
@@ -155,3 +155,4 @@ data class SubAgentProfile(
     val modelId: Uuid? = null,
     val enabled: Boolean = true,
 )
+

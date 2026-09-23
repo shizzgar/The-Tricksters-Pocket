@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="generation_progress_preparing">Подготовка запроса к модели</string>
+    <string name="generation_progress_queued">В очереди приложения</string>
+    <string name="generation_progress_waiting">Ожидание ответа модели</string>
+    <string name="generation_progress_receiving">Поступает ответ модели</string>
+    <string name="generation_progress_completed">Запрос к модели завершён</string>
+    <string name="generation_progress_failed">Ошибка запроса к модели</string>
+    <string name="generation_progress_cancelled">Запрос к модели отменён</string>
+    <string name="generation_progress_idle">С последнего фрагмента: %1$s</string>
+    <string name="generation_progress_queue_time">Очередь приложения: %1$s</string>
+    <string name="generation_progress_first_content">Первый фрагмент после отправки: %1$s</string>
+    <string name="generation_progress_waiting_note">Ожидание может включать соединение, очередь сервера и prefill. Без телеметрии сервера эти этапы неразличимы. Время относится к текущей попытке; служебные события потока не считаются содержательным ответом.</string>
+    <string name="jobs_title">Фоновые задания</string>
+    <string name="jobs_entry_hint">Состояние, журналы и отмена в этом диалоге</string>
+    <string name="jobs_scope">Управляемые задания Termux этого диалога. Состояние показано на момент проверки; обновите для повторной проверки. Закрытие экрана не останавливает задания.</string>
+    <string name="jobs_close">Закрыть</string>
+    <string name="jobs_back">Назад</string>
+    <string name="jobs_refresh">Обновить</string>
+    <string name="jobs_observation_error">Текущее состояние не подтверждено. Обновите перед повторным действием.</string>
+    <string name="jobs_empty">В этом диалоге управляемые задания не найдены. Фоновые shell-команды и терминальные сессии учитываются отдельно.</string>
+    <string name="jobs_more">Ещё задания</string>
+    <string name="jobs_command">Команда</string>
+    <string name="jobs_directory">Рабочий каталог</string>
+    <string name="jobs_cancel">Запросить отмену</string>
+    <string name="jobs_forget">Удалить журналы завершённого задания</string>
+    <string name="jobs_bytes">Байты %1$d–%2$d из %3$d сохранённых</string>
+    <string name="jobs_log_truncated">Достигнут лимит хранения. Часть вывода безвозвратно отброшена.</string>
+    <string name="jobs_encoding">Одна страница UTF-8. Некорректные байты заменены; копируется показанный текст.</string>
+    <string name="jobs_previous">Назад</string>
+    <string name="jobs_next">Далее</string>
+    <string name="jobs_cancel_note">Отменить эту управляемую группу процессов? Отделённые или привилегированные дочерние процессы могут продолжить работу. Запрос ещё не подтверждает остановку.</string>
+    <string name="jobs_forget_note">Безвозвратно удалить stdout и stderr завершённого задания? Запись запуска останется для защиты от повторного выполнения.</string>
+    <string name="jobs_confirm">Подтвердить</string>
+    <string name="jobs_checked">Проверено: %1$s</string>
+    <string name="jobs_copy">Копировать текст</string>
+    <string name="jobs_empty_page">На этой странице нет вывода.</string>
+</resources>

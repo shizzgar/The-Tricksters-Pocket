@@ -44,6 +44,9 @@ class TermuxPreferences(private val context: Context) {
     private val maxStdoutKey      = intPreferencesKey("max_stdout_bytes")
     private val maxStderrKey      = intPreferencesKey("max_stderr_bytes")
     private val aptWrapKey        = booleanPreferencesKey("apt_wrap_enabled")
+    private val skillsEnabledKey = booleanPreferencesKey("skills_enabled")
+    private val skillsAutoSyncKey = booleanPreferencesKey("skills_auto_sync")
+    private val skillsDirectoryKey = stringPreferencesKey("skills_directory")
     private val lastVerifiedMsKey = longPreferencesKey("last_verified_ms")
 
     init {
@@ -176,6 +179,24 @@ class TermuxPreferences(private val context: Context) {
 
     fun aptWrapEnabledFlow(): Flow<Boolean> = store.data.map { prefs ->
         prefs[aptWrapKey] ?: TermuxDefaults.DEFAULT_APT_WRAP_ENABLED
+    }
+
+    fun skillConfigFlow(): Flow<me.rerere.rikkahub.skills.TermuxSkillConfig> = store.data.map { prefs ->
+        me.rerere.rikkahub.skills.TermuxSkillConfig(
+            enabled = prefs[skillsEnabledKey] ?: true,
+            syncOnUse = prefs[skillsAutoSyncKey] ?: true,
+            directory = prefs[skillsDirectoryKey]?.takeIf(me.rerere.rikkahub.skills.TermuxSkillConfig::validDirectory)
+                ?: me.rerere.rikkahub.skills.TermuxSkillConfig.DEFAULT_DIRECTORY,
+        )
+    }
+
+    suspend fun setSkillConfig(config: me.rerere.rikkahub.skills.TermuxSkillConfig) {
+        require(me.rerere.rikkahub.skills.TermuxSkillConfig.validDirectory(config.directory))
+        store.edit {
+            it[skillsEnabledKey] = config.enabled
+            it[skillsAutoSyncKey] = config.syncOnUse
+            it[skillsDirectoryKey] = config.directory.trimEnd('/')
+        }
     }
 
     // --- Suspend writers (clamped before persist) -----------------------------------------

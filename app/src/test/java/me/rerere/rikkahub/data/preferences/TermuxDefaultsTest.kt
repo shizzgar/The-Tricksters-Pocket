@@ -159,10 +159,9 @@ class TermuxDefaultsTest {
     }
 
     @Test
-    fun turnBudget_defaultIs10Minutes() {
-        // Pin that the default matches the original GenerationHandler constant (10 min),
-        // not the spec's 5 min — per the task override instruction.
-        assertEquals(10L * 60L * 1_000L, TermuxDefaults.DEFAULT_TURN_BUDGET_MS)
+    fun turnBudget_defaultIs60Minutes() {
+        // Long-context local inference has a 60-minute default agent budget.
+        assertEquals(60L * 60L * 1_000L, TermuxDefaults.DEFAULT_TURN_BUDGET_MS)
     }
 
     @Test

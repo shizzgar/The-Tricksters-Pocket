@@ -1,0 +1,6 @@
+{
+  "agents": [
+    "native_network",
+    "android_url"
+  ]
+}

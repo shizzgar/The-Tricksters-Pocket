@@ -17,6 +17,8 @@ local.properties
 /docs/superpowers/
 **/CLAUDE.md
 **/AGENTS.md
+# Runtime documentation from the supplied kit, covered by its package manifest.
+!app/src/main/assets/default-skills/rebro-frida/assets/rebro-frida-pack/AGENTS.md
 
 # Sibling clones of upstream projects used as references during development
 /termux-api/

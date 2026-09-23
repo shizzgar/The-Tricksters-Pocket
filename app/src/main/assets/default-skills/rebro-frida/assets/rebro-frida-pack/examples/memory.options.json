@@ -1,0 +1,7 @@
+{
+  "native_memory": {
+    "module": "libc.so",
+    "offset": "0x0",
+    "length": 64
+  }
+}

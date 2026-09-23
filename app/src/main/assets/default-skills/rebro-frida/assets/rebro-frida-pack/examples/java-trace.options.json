@@ -1,0 +1,9 @@
+{
+  "java_trace": {
+    "class_name": "com.example.app.Example",
+    "method": "calculate",
+    "signature": [
+      "int"
+    ]
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "agents": [
+    "native_module_watch",
+    "native_dlopen"
+  ]
+}

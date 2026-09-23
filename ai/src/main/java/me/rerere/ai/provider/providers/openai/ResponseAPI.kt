@@ -61,7 +61,8 @@ import me.rerere.ai.util.redactSecrets
 import me.rerere.ai.util.stringSafe
 import me.rerere.ai.util.toHeaders
 import me.rerere.common.android.Logging
-import me.rerere.common.http.await
+import me.rerere.ai.util.forTextGeneration
+import me.rerere.ai.util.generateResponseBody
 import me.rerere.common.http.jsonObjectOrNull
 import me.rerere.common.http.jsonPrimitiveOrNull
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -216,17 +217,9 @@ class ResponseAPI(
             Log.i(TAG, "generateText: ${json.encodeToString(redactSecrets(requestBody))}")
         }
 
-        // await() waits for the response headers; reading the body can still block.
-        client.newCall(request).await().use { response ->
-            if (!response.isSuccessful) {
-                throw Exception("Failed to get response: ${response.code} ${response.body.string()}")
-            }
-
-            val bodyStr = response.body.string()
-            Log.i(TAG, "generateText: $bodyStr")
-            val bodyJson = json.parseToJsonElement(bodyStr).jsonObject
-            parseResponseOutput(bodyJson)
-        }
+        val bodyStr = client.generateResponseBody(request, params)
+        val bodyJson = json.parseToJsonElement(bodyStr).jsonObject
+        parseResponseOutput(bodyJson)
     }
 
     override suspend fun streamText(
@@ -385,7 +378,7 @@ class ResponseAPI(
             }
         }
 
-        val eventSource = EventSources.createFactory(client)
+        val eventSource = EventSources.createFactory(client.forTextGeneration(params))
             .newEventSource(request, listener)
 
         awaitClose {

@@ -1,0 +1,7 @@
+{
+  "agents": [
+    "native_probe",
+    "native_modules",
+    "native_threads"
+  ]
+}

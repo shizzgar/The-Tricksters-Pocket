@@ -1,0 +1,89 @@
+python_tests
+test_build_all_profiles_and_bridge_adapters_in_node (test_controller.Tests.test_build_all_profiles_and_bridge_adapters_in_node) ... ok
+test_catalog_files_and_profile_selections (test_controller.Tests.test_catalog_files_and_profile_selections) ... ok
+test_file_pins_detect_tamper (test_controller.Tests.test_file_pins_detect_tamper) ... ok
+test_host_quota_boundaries_and_errors (test_controller.Tests.test_host_quota_boundaries_and_errors) ... ok
+test_native_build_needs_no_frida_or_bridge (test_controller.Tests.test_native_build_needs_no_frida_or_bridge) ... ok
+test_option_schema_and_example_selections (test_controller.Tests.test_option_schema_and_example_selections) ... ok
+test_required_options_and_bad_limits (test_controller.Tests.test_required_options_and_bad_limits) ... ok
+test_runtime_and_cleanup_errors_produce_nonzero_exit (test_controller.Tests.test_runtime_and_cleanup_errors_produce_nonzero_exit) ... ok
+test_session_success_cleans_up_and_records_counters (test_controller.Tests.test_session_success_cleans_up_and_records_counters) ... ok
+test_spawn_load_failure_resumes_and_cleans_up (test_controller.Tests.test_spawn_load_failure_resumes_and_cleans_up) ... ok
+test_timeout_requests_frida_cancellation (test_controller.Tests.test_timeout_requests_frida_cancellation) ... ok
+test_unsupported_bridge_and_missing_bridge (test_controller.Tests.test_unsupported_bridge_and_missing_bridge) ... ok
+
+----------------------------------------------------------------------
+Ran 12 tests in 11.814s
+
+OK
+
+javascript_tests
+PASS initialize + cleanup native_probe
+PASS initialize + cleanup native_modules
+PASS initialize + cleanup native_module_watch
+PASS initialize + cleanup native_threads
+PASS initialize + cleanup native_thread_watch
+PASS initialize + cleanup native_exports
+PASS initialize + cleanup native_imports
+PASS initialize + cleanup native_symbols
+PASS initialize + cleanup native_trace
+PASS initialize + cleanup native_dlopen
+PASS initialize + cleanup native_files
+PASS initialize + cleanup native_network
+PASS initialize + cleanup native_pthreads
+PASS initialize + cleanup native_memory
+PASS initialize + cleanup native_scan
+PASS initialize + cleanup native_stalker_calls
+PASS initialize + cleanup java_probe
+PASS initialize + cleanup java_classes
+PASS initialize + cleanup java_methods
+PASS initialize + cleanup java_loaders
+PASS initialize + cleanup java_classload
+PASS initialize + cleanup java_trace
+PASS initialize + cleanup java_reflection
+PASS initialize + cleanup java_dex
+PASS initialize + cleanup java_threads
+PASS initialize + cleanup android_lifecycle
+PASS initialize + cleanup android_intents
+PASS initialize + cleanup android_webview
+PASS initialize + cleanup android_prefs
+PASS initialize + cleanup android_sqlite
+PASS initialize + cleanup android_files
+PASS initialize + cleanup android_url
+PASS initialize + cleanup android_okhttp
+PASS initialize + cleanup android_crypto
+PASS initialize + cleanup android_digest
+PASS initialize + cleanup android_binder
+PASS initialize + cleanup android_assets
+PASS initialize + cleanup jni_register
+PASS profile app-observe.json
+PASS profile binder.json
+PASS profile crypto-metadata.json
+PASS profile dynamic-code.json
+PASS profile exports.json
+PASS profile java-smoke.json
+PASS profile java-survey.json
+PASS profile jni.json
+PASS profile modules.json
+PASS profile native-io.json
+PASS profile native-smoke.json
+PASS profile native-survey.json
+PASS profile network.json
+PASS profile okhttp.json
+PASS profile storage.json
+PASS profile threads.json
+PASS Java preserves receiver/args/return/exception and removes its own replacement token
+PASS Existing Java hook is preserved and later replacement is not removed
+PASS String redaction + no object toString invocation
+PASS Quotas stop and detach listeners
+PASS Missing Java + missing module observer give failed status
+PASS Late module gets hook, wrong module does not
+PASS Memory read rejects range crossing + oversized scan
+PASS IPv4 connect parses network byte order without reading payload
+PASS RegisterNatives table uses pointers + JNI row stride
+PASS Stalker is stopped on function exit + script cleanup
+PASS All Java observer callbacks preserve original return and handle representative arguments
+{"node_tests":65,"device_tested":false}
+
+Syntax, JSON and local documentation links: passed.
+Device validation: not performed.

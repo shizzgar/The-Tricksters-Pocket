@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="generation_first_response_timeout">First model response · minutes</string>
+    <string name="generation_first_response_description">Streaming only: time from dispatch to the first model event. SSE heartbeat comments do not reset it. The total budget also includes the local queue.</string>
+    <string name="generation_runtime_title">Text generation · runtime</string>
+    <string name="generation_runtime_description">Applies to text providers, including chat, titles and compaction. Does not change tool timeouts. Cancelling a queued request prevents dispatch.</string>
+    <string name="generation_connect_timeout">Connection timeout · seconds</string>
+    <string name="generation_connect_description">Time allowed to establish a connection: 5–120 seconds.</string>
+    <string name="generation_read_timeout">Read / SSE idle timeout · minutes</string>
+    <string name="generation_read_description">Maximum silence while waiting for headers, prefill or the next bytes. Recommended for long local contexts: 30 minutes.</string>
+    <string name="generation_request_timeout">Complete request budget · minutes</string>
+    <string name="generation_request_description">Includes the local queue and generation. Compaction uses its own request budget below. A turn also has its budget in Termux settings.</string>
+    <string name="generation_parallel_requests">Concurrent generations</string>
+    <string name="generation_parallel_description">Shared by all text providers: 1–8. For two vLLM replicas: 2. Waiting priority: continuation, required compaction, chat, background, title. Active requests are not interrupted.</string>
+</resources>

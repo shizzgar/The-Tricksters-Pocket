@@ -1,0 +1,162 @@
+name: Agent runtime debug APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master, fix/configurable-compaction-runtime, feat/trajectory-termux-skills]
+    paths-ignore:
+      - 'README*.md'
+      - 'CHANGELOG.md'
+      - 'CONTRIBUTING.md'
+      - '.github/PULL_REQUEST_TEMPLATE.md'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: compaction-debug-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v4
+      - name: Install the SDK used by this project
+        run: sdkmanager 'platforms;android-37.0' 'build-tools;37.0.0' 'cmake;3.22.1'
+      - uses: oven-sh/setup-bun@v2
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-read-only: false
+      - name: Test durable Termux supervisor
+        run: python3 -m unittest discover -s tests -p 'test_termux_*runtime.py' -v
+      - name: Run HTTP and provider tests
+        run: bash ./gradlew --no-daemon --max-workers=2 :common:testDebugUnitTest :ai:testDebugUnitTest
+      - name: Run runtime, Termux presentation and settings tests
+        run: >-
+          bash ./gradlew --no-daemon --max-workers=2 :app:testDebugUnitTest
+          --tests 'me.rerere.rikkahub.data.ai.CompactionRuntimeTest'
+          --tests 'me.rerere.rikkahub.data.ai.AgentTaskRuntimeTest'
+          --tests 'me.rerere.rikkahub.data.ai.SessionJournalTest'
+          --tests 'me.rerere.rikkahub.data.ai.TraceArchiveTest'
+          --tests 'me.rerere.rikkahub.data.ai.TrajectoryTest'
+          --tests 'me.rerere.rikkahub.skills.SkillPackageTest'
+          --tests 'me.rerere.rikkahub.skills.SkillWorkspaceTest'
+          --tests 'me.rerere.rikkahub.skills.SkillManagementToolsTest'
+          --tests 'me.rerere.rikkahub.skills.SkillAutoEnableTest'
+          --tests 'me.rerere.rikkahub.data.ai.tools.ToolAvailabilityTest'
+          --tests 'me.rerere.rikkahub.data.ai.tools.ToolApprovalDefaultsTest'
+          --tests 'me.rerere.rikkahub.data.ai.tools.LenientLocalToolListSerializerTest'
+          --tests 'me.rerere.rikkahub.data.files.SkillManagerSeedDecisionTest'
+          --tests 'me.rerere.rikkahub.skills.SkillZipImporterTest'
+          --tests 'me.rerere.rikkahub.data.ai.tools.SkillsToolsTest'
+          --tests 'me.rerere.rikkahub.data.ai.GenerationTurnClockTest'
+          --tests 'me.rerere.rikkahub.data.ai.ContextCompaction*Test'
+          --tests 'me.rerere.rikkahub.data.ai.CompactionEvidenceTest'
+          --tests 'me.rerere.rikkahub.ui.components.message.tools.CompactionPresentationTest'
+          --tests 'me.rerere.rikkahub.ui.pages.chat.AutoCompactionMessageGroupTest'
+          --tests 'me.rerere.rikkahub.ui.pages.chat.TracePayloadPreviewTest'
+          --tests 'me.rerere.rikkahub.ui.pages.chat.TermuxJobsControllerTest'
+          --tests 'me.rerere.rikkahub.data.ai.tools.local.Termux*Test'
+          --tests 'me.rerere.rikkahub.data.ai.GenerationHandlerTurnBudgetTest'
+          --tests 'me.rerere.rikkahub.data.datastore.PreferencesStoreTest'
+          --tests 'me.rerere.rikkahub.data.datastore.RebroAssistantTest'
+          --tests 'me.rerere.rikkahub.data.preferences.TermuxDefaultsTest'
+          --tests 'me.rerere.rikkahub.ui.components.message.tools.TermuxPresentationTest'
+          --tests 'me.rerere.rikkahub.ui.components.message.tools.WebFetchPresentationTest'
+          --tests 'me.rerere.rikkahub.data.ai.tools.local.WebFetch*Test'
+          --tests 'me.rerere.rikkahub.data.ai.tools.local.WebExtractToolTest'
+          --tests 'me.rerere.rikkahub.service.ChatServiceTest'
+          --tests 'me.rerere.rikkahub.service.ConversationSessionTest'
+          --tests 'me.rerere.rikkahub.subagent.*Test'
+      - name: Build debug APKs
+        run: bash ./gradlew --no-daemon --max-workers=2 :app:assembleDebug
+      - name: Exercise trajectory on an Android emulator and capture screens
+        timeout-minutes: 20
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager 'system-images;android-35;google_apis;x86_64' 'emulator' 'platform-tools'
+          echo no | avdmanager create avd --name trajectory --package 'system-images;android-35;google_apis;x86_64' --device pixel_6 --force
+          sudo chmod a+rw /dev/kvm
+          "$ANDROID_HOME/emulator/emulator" -avd trajectory -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect > /tmp/trajectory-emulator.log 2>&1 &
+          adb wait-for-device
+          booted=false
+          for attempt in $(seq 1 90); do
+            if adb shell getprop sys.boot_completed | tr -d '\r' | grep -q 1; then booted=true; break; fi
+            sleep 2
+          done
+          test "$booted" = true
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+          adb shell input keyevent 82
+          bash ./gradlew --no-daemon --max-workers=2 :app:assembleDebugAndroidTest
+          adb install -r app/build/outputs/apk/debug/*x86_64*.apk
+          adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+          mkdir -p build/trajectory-qa
+          test_status=0
+          adb shell am instrument -w -r -e class me.rerere.rikkahub.ui.pages.chat.TrajectoryInstrumentedTest,me.rerere.rikkahub.ui.pages.extensions.skills.SkillWorkbenchInstrumentedTest,me.rerere.rikkahub.ui.pages.assistant.detail.ToolAccessInstrumentedTest,me.rerere.rikkahub.ui.pages.chat.TracePayloadInstrumentedTest,me.rerere.rikkahub.data.datastore.RebroAssistantInstrumentedTest excp.rikkahub.debug.test/androidx.test.runner.AndroidJUnitRunner | tee build/trajectory-qa/instrumentation.txt || test_status=$?
+          grep -Fq 'OK (12 tests)' build/trajectory-qa/instrumentation.txt || test_status=1
+          adb shell wm size 1920x1200
+          adb shell wm density 160
+          adb shell am instrument -w -r -e class me.rerere.rikkahub.ui.pages.extensions.skills.SkillWorkbenchWideInstrumentedTest excp.rikkahub.debug.test/androidx.test.runner.AndroidJUnitRunner | tee build/trajectory-qa/wide-instrumentation.txt || test_status=$?
+          grep -Fq 'OK (1 test)' build/trajectory-qa/wide-instrumentation.txt || test_status=1
+          for name in trajectory-waterfall trajectory-flow trajectory-inspector trajectory-russian-dark skill-workbench-files skill-workbench-editor skill-workbench-binary-ru skill-workbench-wide tool-access-russian trajectory-tools-compact trajectory-messages-compact trajectory-full-export; do
+            adb exec-out run-as excp.rikkahub.debug cat "files/trajectory-qa/$name.png" > "build/trajectory-qa/$name.png" || test_status=1
+          done
+          cp /tmp/trajectory-emulator.log build/trajectory-qa/emulator.log
+          exit "$test_status"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: trajectory-visual-checks
+          path: |
+            build/trajectory-qa/
+            app/build/reports/androidTests/
+            app/build/outputs/androidTest-results/
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Verify ARM64 APK and record provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          apks=(app/build/outputs/apk/debug/*arm64-v8a*.apk)
+          test "${#apks[@]}" -eq 1
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose "${apks[0]}"
+          mkdir -p build/compaction-delivery
+          cp "${apks[0]}" build/compaction-delivery/rikkahub-compaction-arm64-debug.apk
+          git rev-parse HEAD > build/compaction-delivery/COMMIT.txt
+          cd build/compaction-delivery
+          sha256sum rikkahub-compaction-arm64-debug.apk > SHA256SUMS
+      - uses: actions/upload-artifact@v7
+        with:
+          name: rikkahub-compaction-arm64-debug
+          path: build/compaction-delivery/
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: compaction-test-results
+          path: |
+            common/build/test-results/
+            ai/build/test-results/
+            app/build/test-results/
+          if-no-files-found: warn
+          retention-days: 14

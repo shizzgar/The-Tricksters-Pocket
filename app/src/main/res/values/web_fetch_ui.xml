@@ -1,0 +1,27 @@
+<resources>
+    <string name="web_fetch_title">Web request</string>
+    <string name="web_fetch_running">Fetching page</string>
+    <string name="web_fetch_received">Response received</string>
+    <string name="web_fetch_http_error">HTTP error response</string>
+    <string name="web_fetch_failed">Request or extraction failed</string>
+    <string name="web_fetch_partial">Partial content</string>
+    <string name="web_fetch_address">Response address</string>
+    <string name="web_fetch_requested_address">Requested address</string>
+    <string name="web_fetch_source_cut">The source read limit was reached. This response does not contain the complete resource.</string>
+    <string name="web_fetch_next_page">Continuation offset: %1$d</string>
+    <string name="web_fetch_no_body">No body text in this result.</string>
+    <string name="web_fetch_response_body">Response body</string>
+    <string name="web_fetch_readable_text">Page text</string>
+    <string name="web_fetch_links">Links · %1$d</string>
+    <string name="web_fetch_link">Link</string>
+    <string name="web_fetch_headers">Response headers · %1$d</string>
+    <string name="web_fetch_request">Original request arguments</string>
+    <string name="web_fetch_raw_result">Original tool result</string>
+    <string name="web_fetch_open">Open in browser</string>
+    <string name="web_fetch_empty">Empty response body</string>
+    <string name="web_fetch_site">Site</string>
+    <string name="web_fetch_language">Language</string>
+    <string name="web_fetch_content_type">Content type</string>
+    <string name="web_fetch_offset">Start offset</string>
+    <string name="web_fetch_chars">Returned characters</string>
+</resources>

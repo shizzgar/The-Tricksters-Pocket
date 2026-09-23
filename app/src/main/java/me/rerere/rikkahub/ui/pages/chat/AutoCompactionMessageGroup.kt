@@ -24,6 +24,7 @@ internal data class AutoCompactionMessageGroup(
 
     val displayMessage: UIMessage = terminalNode.currentMessage.copy(
         parts = nodes.flatMap { it.currentMessage.parts },
+        generationMetrics = nodes.flatMap { it.currentMessage.generationMetrics }.distinctBy { it.requestId },
         annotations = nodes.flatMap { it.currentMessage.annotations },
         createdAt = nodes.first().currentMessage.createdAt,
     )
@@ -38,7 +39,7 @@ internal fun List<MessageNode>.groupAutomaticCompactionMessages(): List<AutoComp
         val groupedNodes = mutableListOf(this[index])
         while (
             groupedNodes.last().currentMessage.role == MessageRole.ASSISTANT &&
-            ContextCompactionPresentation.hasDisplayTool(groupedNodes.last().currentMessage) &&
+            ContextCompactionPresentation.hasAutomaticDisplayTool(groupedNodes.last().currentMessage) &&
             index + 1 < size &&
             this[index + 1].currentMessage.role == MessageRole.ASSISTANT
         ) {

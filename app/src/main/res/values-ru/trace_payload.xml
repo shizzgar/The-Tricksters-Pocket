@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="trace_field_count">Полей: %1$d</string>
+    <string name="trace_item_count">Элементов: %1$d</string>
+    <string name="trace_character_count">Символов: %1$d</string>
+    <string name="trace_find_tool">Найти tool по имени или описанию</string>
+    <string name="trace_tools_no_matches">Инструменты не найдены</string>
+    <string name="trace_messages">Сообщения</string>
+</resources>

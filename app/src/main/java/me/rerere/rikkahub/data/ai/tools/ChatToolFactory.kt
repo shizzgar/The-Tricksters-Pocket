@@ -35,6 +35,7 @@ class ChatToolFactory(
     private val mcpManager: McpManager,
     private val skillManager: SkillManager,
     private val workspaceRepository: WorkspaceRepository,
+    val termuxSkills: me.rerere.rikkahub.skills.TermuxSkillBridge? = null,
 ) {
     suspend fun createTools(
         settings: Settings,
@@ -60,19 +61,11 @@ class ChatToolFactory(
         if (shouldUseExternalWebSearch(assistant, model)) {
             addAll(createSearchTools(settings))
         }
-        addAll(localTools.getTools(assistant.localTools))
+        addAll(localTools.getTools(assistant.localTools, ToolInvocationContext(callerAssistantId = assistant.id.toString())))
         if (assistant.enableRecentChatsReference) {
             addAll(createConversationTools(conversationRepository, assistant.id))
         }
         addAll(createWorkspaceToolsIfReady(assistant.workspaceId?.toString(), workspaceCwd))
-        if (assistant.enabledSkills.isNotEmpty()) {
-            addAll(
-                createSkillTools(
-                    enabledSkills = assistant.enabledSkills,
-                    allSkills = skillManager.listSkills(),
-                )
-            )
-        }
 
         val mcpTools = validateMcpServerNames()
         mcpTools.forEach { (serverId, serverName, tool) ->

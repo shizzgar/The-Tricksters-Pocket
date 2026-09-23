@@ -1,0 +1,27 @@
+<resources>
+    <string name="web_fetch_title">Веб-запрос</string>
+    <string name="web_fetch_running">Загрузка страницы</string>
+    <string name="web_fetch_received">Ответ получен</string>
+    <string name="web_fetch_http_error">Ответ с ошибкой HTTP</string>
+    <string name="web_fetch_failed">Ошибка запроса или извлечения текста</string>
+    <string name="web_fetch_partial">Неполное содержимое</string>
+    <string name="web_fetch_address">Адрес ответа</string>
+    <string name="web_fetch_requested_address">Запрошенный адрес</string>
+    <string name="web_fetch_source_cut">Достигнут предел чтения исходника. Ответ содержит ресурс не целиком.</string>
+    <string name="web_fetch_next_page">Смещение для продолжения: %1$d</string>
+    <string name="web_fetch_no_body">В этом результате нет текста тела ответа.</string>
+    <string name="web_fetch_response_body">Тело ответа</string>
+    <string name="web_fetch_readable_text">Текст страницы</string>
+    <string name="web_fetch_links">Ссылки · %1$d</string>
+    <string name="web_fetch_link">Ссылка</string>
+    <string name="web_fetch_headers">Заголовки ответа · %1$d</string>
+    <string name="web_fetch_request">Исходные аргументы запроса</string>
+    <string name="web_fetch_raw_result">Исходный результат инструмента</string>
+    <string name="web_fetch_open">Открыть в браузере</string>
+    <string name="web_fetch_empty">Пустое тело ответа</string>
+    <string name="web_fetch_site">Сайт</string>
+    <string name="web_fetch_language">Язык</string>
+    <string name="web_fetch_content_type">Тип содержимого</string>
+    <string name="web_fetch_offset">Начальное смещение</string>
+    <string name="web_fetch_chars">Возвращено символов</string>
+</resources>

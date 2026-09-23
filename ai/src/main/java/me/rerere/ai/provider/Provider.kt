@@ -77,6 +77,16 @@ data class TextGenerationParams(
     val customHeaders: List<CustomHeader> = emptyList(),
     val customBody: List<CustomBody> = emptyList(),
     val sessionId: String? = null,
+    /** Optional transport deadline for non-streaming HTTP generation; null keeps provider defaults.
+     * This is local execution metadata and must not be sent in the model request JSON. */
+    val requestTimeoutMillis: Long? = null,
+    val readTimeoutMillis: Long? = null,
+    val connectTimeoutMillis: Long? = null,
+    val firstResponseTimeoutMillis: Long? = null,
+    val priority: GenerationPriority = GenerationPriority.INTERACTIVE,
+    val isCompaction: Boolean = false,
+    @kotlinx.serialization.Transient val progressTracker: GenerationProgressTracker? = null,
+    @kotlinx.serialization.Transient val requestObserver: GenerationRequestObserver? = null,
 )
 
 @Serializable

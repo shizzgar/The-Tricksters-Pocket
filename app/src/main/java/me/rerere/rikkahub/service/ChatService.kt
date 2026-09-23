@@ -35,9 +35,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlin.coroutines.coroutineContext
 import me.rerere.ai.core.MessageRole
 import me.rerere.ai.core.ReasoningLevel
 import me.rerere.ai.core.Tool
@@ -68,8 +71,18 @@ import me.rerere.rikkahub.RouteActivity
 import me.rerere.rikkahub.utils.cancelNotification
 import me.rerere.rikkahub.utils.sendNotification
 import me.rerere.rikkahub.R
+import me.rerere.rikkahub.data.ai.applyAndAcknowledge
 import me.rerere.rikkahub.data.ai.GenerationChunk
+import me.rerere.rikkahub.data.ai.AgentTaskRecord
+import me.rerere.rikkahub.data.ai.AgentTaskCycleState
+import me.rerere.rikkahub.data.ai.GenerationSliceOutcome
+import me.rerere.rikkahub.data.ai.GenerationStopReason
+import me.rerere.rikkahub.data.ai.SessionJournal
+import me.rerere.rikkahub.data.ai.conversationCheckpoint
+import me.rerere.rikkahub.data.ai.shouldContinueTask
+import me.rerere.rikkahub.data.ai.canContinueAutomatically
 import me.rerere.rikkahub.data.ai.GenerationLoop
+import me.rerere.rikkahub.data.ai.CompactionRuntimeLimits
 import me.rerere.rikkahub.data.ai.ContextBudgetPlanner
 import me.rerere.rikkahub.data.ai.ContextCompactionPlanner
 import me.rerere.rikkahub.data.ai.ContextCompactionPresentation
@@ -100,6 +113,7 @@ import me.rerere.rikkahub.data.event.AppEvent
 import me.rerere.rikkahub.data.event.AppEventBus
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.datastore.Settings
+import me.rerere.rikkahub.data.datastore.compactionRuntimeLimits
 import me.rerere.rikkahub.data.datastore.AutoCompactionThresholdMode
 import me.rerere.rikkahub.data.datastore.DEFAULT_AUTO_MODEL_ID
 import me.rerere.rikkahub.data.datastore.findModelById
@@ -134,10 +148,7 @@ import java.util.concurrent.atomic.AtomicLong
 import kotlin.uuid.Uuid
 
 private const val TAG = "ChatService"
-private const val COMPACTION_REQUEST_TIMEOUT_MS = 3 * 60_000L
-private const val COMPACTION_TOTAL_TIMEOUT_MS = 8 * 60_000L
 private const val COMPACTION_MAX_REQUEST_OUTPUT_TOKENS = 16_384
-private const val MAX_PARALLEL_COMPACTION_REQUESTS = 4
 private const val MAX_FULL_CONTEXT_MAP_GROUPS = 8
 /**
  * Cap the automatic-compaction raw tail at half of the trigger threshold (after reserving room
@@ -187,9 +198,13 @@ private fun Throwable.isContextLimitError(): Boolean {
 internal fun backgroundTextGenerationParams(
     model: Model,
     reasoningLevel: ReasoningLevel = ReasoningLevel.OFF,
+    sessionId: String? = null,
+    priority: me.rerere.ai.provider.GenerationPriority = me.rerere.ai.provider.GenerationPriority.BACKGROUND,
 ): TextGenerationParams = TextGenerationParams(
     model = model,
     reasoningLevel = reasoningLevel,
+    sessionId = sessionId,
+    priority = priority,
     customHeaders = model.customHeaders,
     customBody = model.customBodies,
 )
@@ -316,9 +331,13 @@ internal fun isStalledTurn(succeeded: Boolean, lastMessage: UIMessage?): Boolean
 internal fun createForkConversation(
     source: Conversation,
     messageNodes: List<MessageNode>,
+    existingTitles: Set<String> = emptySet(),
 ): Conversation = Conversation(
     id = Uuid.random(),
     assistantId = source.assistantId,
+    title = generateSequence(1) { it + 1 }
+        .map { "${source.title}($it)" }
+        .first { it !in existingTitles },
     messageNodes = messageNodes,
     customSystemPrompt = source.customSystemPrompt,
     modeInjectionIds = source.modeInjectionIds,
@@ -397,6 +416,7 @@ class ChatService(
         sessionMutexes.getOrPut(conversationId) { Mutex() }
 
     private val compactionMutexes = ConcurrentHashMap<Uuid, Mutex>()
+    private val manualCompactionJobs = ConcurrentHashMap<Uuid, Deferred<Result<Unit>>>()
     private fun compactionMutexFor(conversationId: Uuid): Mutex =
         compactionMutexes.getOrPut(conversationId) { Mutex() }
 
@@ -485,12 +505,68 @@ class ChatService(
     val generationDoneFlow: SharedFlow<Uuid> = _generationDoneFlow.asSharedFlow()
 
     // 前台状态管理
+    private val journal = SessionJournal.at(context.filesDir)
+    private val activeAgentTasks = ConcurrentHashMap<Uuid, AgentTaskRecord>()
+    private val taskMutexes = ConcurrentHashMap<Uuid, Mutex>()
+    private val recoveryStarted = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    private suspend fun updateAgentTask(id: Uuid, expectedRunId: String? = null, transform: (AgentTaskRecord) -> AgentTaskRecord) {
+        taskMutexes.getOrPut(id) { Mutex() }.withLock {
+            val old = activeAgentTasks[id] ?: journal.task(id.toString()) ?: return@withLock
+            if (expectedRunId != null && old.runId != expectedRunId) return@withLock
+            val updated = transform(old).copy(updatedAt = System.currentTimeMillis())
+            journal.saveTask(updated)
+            if (activeAgentTasks.containsKey(id)) activeAgentTasks[id] = updated
+        }
+    }
+
+    /** Recovery runs only when the Android application is running again, never bypassing force-stop. */
+    private fun restoreAgentTasks() {
+        if (!recoveryStarted.compareAndSet(false, true)) return
+        appScope.launch(Dispatchers.IO) {
+            if (!settingsStore.settingsFlow.first().networkSetting.generationRuntime.resumeTasksAfterRestart) return@launch
+            journal.unfinished().forEach { task ->
+                val id = runCatching { Uuid.parse(task.conversationId) }.getOrNull() ?: return@forEach
+                if (getOrCreateSession(id).getJob() != null) return@forEach
+                ensureHydrated(id)
+                val current = getConversationFlow(id).value
+                if (task.checkpoint == null || task.checkpoint != conversationCheckpoint(current.currentMessages)) {
+                    journal.saveTask(task.copy(status = "paused", reason = GenerationStopReason.PROCESS_LOST,
+                        detail = "Saved conversation differs from the task checkpoint; review before resuming."))
+                } else {
+                    resumeAgentTask(id, automatically = true)
+                }
+            }
+        }
+    }
+
+    suspend fun agentTaskState(id: Uuid): AgentTaskRecord? = journal.task(id.toString())
+
+    fun resumeAgentTask(id: Uuid, automatically: Boolean = false) {
+        val session = getOrCreateSession(id)
+        synchronized(session) {
+            if (session.getJob() != null) return
+            val job = launchGenerationJob(id) {
+                ensureHydrated(id)
+                val saved = journal.task(id.toString())
+                if (automatically && !me.rerere.rikkahub.data.ai.mayRestoreAgentTask(saved,
+                    conversationCheckpoint(getConversationFlow(id).value.currentMessages),
+                    settingsStore.settingsFlow.first().networkSetting.generationRuntime.resumeTasksAfterRestart)) return@launchGenerationJob
+                handleMessageComplete(id, resumed = if (automatically) saved else saved?.copy(
+                    loopGuardTrips = 0, startedAt = System.currentTimeMillis(),
+                ))
+            }
+            session.setJob(job)
+            job.start()
+        }
+    }
+
     private val _isForeground = MutableStateFlow(false)
     val isForeground: StateFlow<Boolean> = _isForeground.asStateFlow()
 
     private val lifecycleObserver = LifecycleEventObserver { _, event ->
         when (event) {
-            Lifecycle.Event.ON_START -> _isForeground.value = true
+            Lifecycle.Event.ON_START -> { _isForeground.value = true; restoreAgentTasks() }
             Lifecycle.Event.ON_STOP -> {
                 _isForeground.value = false
                 // A user leaving the app does not cancel AppScope generation. Flush the latest
@@ -506,11 +582,14 @@ class ChatService(
     }
 
     init {
+        me.rerere.ai.provider.GenerationTrace.sink = { id, source, payload -> journal.append(id, source, payload); Unit }
         ProcessLifecycleOwner.get().lifecycle.addObserver(lifecycleObserver)
     }
 
     fun cleanup() = runCatching {
         ProcessLifecycleOwner.get().lifecycle.removeObserver(lifecycleObserver)
+        manualCompactionJobs.values.forEach { it.cancel() }
+        manualCompactionJobs.clear()
         sessions.values.forEach { it.cleanup() }
         sessions.clear()
         sessionMutexes.clear()
@@ -584,7 +663,10 @@ class ChatService(
      * user reset it. Safe to call when no session exists — no-op.
      */
     fun dropSession(conversationId: Uuid) {
-        val session = sessions.remove(conversationId) ?: return
+        val manualCompaction = manualCompactionJobs.remove(conversationId)
+        val session = sessions.remove(conversationId)
+        manualCompaction?.cancel()
+        if (session == null) return
         session.cleanup()
         sessionMutexes.remove(conversationId)
         compactionMutexes.remove(conversationId)
@@ -627,6 +709,8 @@ class ChatService(
         val session = sessions[conversationId] ?: return flowOf(null)
         return session.generationJob
     }
+
+    fun getGenerationProgressFlow(conversationId: Uuid) = getOrCreateSession(conversationId).generationProgress.state
 
     fun getProcessingStatusFlow(conversationId: Uuid): StateFlow<String?> {
         return getOrCreateSession(conversationId).processingStatus
@@ -1297,8 +1381,12 @@ class ChatService(
 
             val startedAt = System.currentTimeMillis()
             val output = try {
-                withTimeoutOrNull(60_000L) { tool.execute(toolPart.inputAsJson()) }
-                    ?: return RerunToolResult.Failure("timed out after 60s")
+                if (toolPart.toolName.startsWith("termux_")) {
+                    tool.execute(toolPart.inputAsJson())
+                } else {
+                    withTimeoutOrNull(60_000L) { tool.execute(toolPart.inputAsJson()) }
+                        ?: return RerunToolResult.Failure("timed out after 60s; execution outcome is unknown")
+                }
             } catch (c: CancellationException) {
                 throw c
             } catch (t: Throwable) {
@@ -1372,7 +1460,7 @@ class ChatService(
         model: Model,
         settings: Settings,
     ): List<Tool> = buildList {
-        if (assistant.enableWebSearch) {
+        if (me.rerere.rikkahub.data.ai.tools.shouldUseExternalWebSearch(assistant, model)) {
             addAll(createSearchTools(settings))
         }
         val invocationCtx = me.rerere.rikkahub.data.ai.tools.ToolInvocationContext(
@@ -1383,16 +1471,8 @@ class ChatService(
         )
         addAll(localTools.getTools(assistant.localTools, invocationCtx))
         addAll(createWorkspaceToolsIfReady(assistant.workspaceId?.toString(), conversation.workspaceCwd))
-        if (assistant.enabledSkills.isNotEmpty()) {
-            addAll(
-                createSkillTools(
-                    enabledSkills = assistant.enabledSkills,
-                    allSkills = skillManager.listSkills(),
-                    skillManager = skillManager,
-                )
-            )
-        }
         mcpManager.getAllAvailableTools().forEach { (serverId, serverName, mcpTool) ->
+            if (serverName.isEmpty() || !serverName.all { it in 'a'..'z' || it in 'A'..'Z' || it in '0'..'9' }) return@forEach
             val mcpToolName = me.rerere.rikkahub.data.ai.mcp.buildMcpToolName(serverId, serverName, mcpTool.name)
             add(
                 Tool(
@@ -1415,7 +1495,88 @@ class ChatService(
         conversationId: Uuid,
         messageRange: ClosedRange<Int>? = null,
         allowContextRetry: Boolean = true,
+        resumed: AgentTaskRecord? = null,
     ) {
+        val config = settingsStore.settingsFlow.first().networkSetting.generationRuntime.normalized()
+        val headless = me.rerere.rikkahub.data.ai.tools.HeadlessConversations.isHeadless(conversationId)
+        val autonomous = config.autonomousContinuation && messageRange == null && !headless
+        val current = getConversationFlow(conversationId).value
+        val task = (resumed ?: AgentTaskRecord(conversationId.toString())).copy(
+            status = "running", reason = null, detail = null,
+            checkpoint = conversationCheckpoint(current.currentMessages),
+            recoverAutomatically = autonomous && config.resumeTasksAfterRestart,
+        )
+        taskMutexes.getOrPut(conversationId) { Mutex() }.withLock {
+            journal.saveTask(task)
+            activeAgentTasks[conversationId] = task
+        }
+        var networkFailures = 0
+        val cycleState = AgentTaskCycleState(task.loopGuardTrips)
+        try {
+            if (autonomous) generationLoop.beginTaskUi()
+            journal.append(conversationId.toString(), if (resumed == null) "task.started" else "task.resumed", buildJsonObject {
+                put("run_id", task.runId); put("autonomous", autonomous); put("recovery_enabled", task.recoverAutomatically)
+            })
+            while (true) {
+                val latest = requireNotNull(activeAgentTasks[conversationId])
+                if (config.taskTimeoutMinutes > 0 && System.currentTimeMillis() - latest.startedAt >= config.taskTimeoutMinutes * 60_000L) {
+                    updateAgentTask(conversationId, task.runId) { it.copy(status = "paused", reason = GenerationStopReason.TASK_DEADLINE) }
+                    break
+                }
+                val before = conversationCheckpoint(getConversationFlow(conversationId).value.currentMessages)
+                val result = runGenerationSlice(conversationId, messageRange, allowContextRetry, autonomous, cycleState)
+                val after = conversationCheckpoint(getConversationFlow(conversationId).value.currentMessages)
+                val liveConfig = settingsStore.settingsFlow.first().networkSetting.generationRuntime.normalized()
+                val waitingForNetwork = autonomous && liveConfig.autonomousContinuation && liveConfig.waitForNetworkRecovery && result.reason == GenerationStopReason.NETWORK_WAIT
+                val continueTask = waitingForNetwork || shouldContinueTask(autonomous && liveConfig.autonomousContinuation, result, before != after)
+                val reason = if (autonomous && result.reason.canContinueAutomatically() && before == after)
+                    GenerationStopReason.NO_PROGRESS else result.reason
+                updateAgentTask(conversationId, task.runId) { it.copy(
+                    status = if (waitingForNetwork) "waiting_network" else if (continueTask) "running" else if (reason == GenerationStopReason.COMPLETED) "completed" else "paused",
+                    reason = reason, cycles = it.cycles + 1, loopGuardTrips = cycleState.loopGuardTrips, steps = it.steps + result.steps, checkpoint = after,
+                ) }
+                journal.append(conversationId.toString(), "task.checkpoint", buildJsonObject {
+                    put("run_id", task.runId); put("reason", reason.name); put("continuing", continueTask)
+                    put("steps", result.steps); put("checkpoint", after)
+                })
+                if (!continueTask) break
+                if (waitingForNetwork) {
+                    networkFailures++
+                    val delayMs = minOf(300_000L, 5_000L * (1L shl networkFailures.coerceAtMost(6)))
+                    getOrCreateSession(conversationId).processingStatus.value = context.getString(R.string.agent_network_wait, delayMs / 1000)
+                    kotlinx.coroutines.delay(delayMs)
+                    updateAgentTask(conversationId, task.runId) { it.copy(status = "running") }
+                } else networkFailures = 0
+                // Yield fairly without adding synthetic user messages or discarding approval state.
+                kotlinx.coroutines.yield()
+            }
+        } catch (cancel: CancellationException) {
+            withContext(NonCancellable) {
+                updateAgentTask(conversationId, task.runId) { it.copy(status = if (cancel is kotlinx.coroutines.TimeoutCancellationException) "paused" else "cancelled",
+                    reason = if (cancel is kotlinx.coroutines.TimeoutCancellationException) GenerationStopReason.FAILED else GenerationStopReason.CANCELLED,
+                    detail = if (cancel is kotlinx.coroutines.TimeoutCancellationException) "Operation deadline exceeded" else null) }
+                journal.append(conversationId.toString(), if (cancel is kotlinx.coroutines.TimeoutCancellationException) "task.deadline" else "task.cancelled", buildJsonObject { put("run_id", task.runId) })
+            }
+            throw cancel
+        } catch (error: Exception) {
+            updateAgentTask(conversationId, task.runId) { it.copy(status = "paused", reason = GenerationStopReason.FAILED, detail = error.message?.take(500)) }
+            journal.append(conversationId.toString(), "task.failed", buildJsonObject { put("run_id", task.runId); put("error", error.message?.take(500)) })
+            throw error
+        } finally {
+            if (autonomous && activeAgentTasks[conversationId]?.runId == task.runId) generationLoop.endTaskUi()
+            if (activeAgentTasks[conversationId]?.runId == task.runId) sessions[conversationId]?.processingStatus?.value = null
+            activeAgentTasks.computeIfPresent(conversationId) { _, record -> record.takeUnless { it.runId == task.runId } }
+        }
+    }
+
+    private suspend fun runGenerationSlice(
+        conversationId: Uuid,
+        messageRange: ClosedRange<Int>? = null,
+        allowContextRetry: Boolean = true,
+        autonomousCycle: Boolean = false,
+        cycleState: AgentTaskCycleState = AgentTaskCycleState(),
+    ): GenerationSliceOutcome {
+        var outcome = GenerationSliceOutcome(GenerationStopReason.FAILED)
         val settings = settingsStore.settingsFlow.first()
         // Resolve the assistant from this conversation's own assistantId — the global
         // current-assistant pointer can have moved if the user switched assistants while
@@ -1488,7 +1649,7 @@ class ChatService(
                     ),
                     conversationId = conversationId,
                 )
-                return
+                return outcome
             }
 
             // start generating
@@ -1515,14 +1676,26 @@ class ChatService(
             }
             val messagesForGeneration = if (messageRange != null) {
                 compactedMessageView?.messages
-                    ?: conversation.currentMessages.subList(
+                    ?: ContextCompactionPresentation.stripDisplayTools(conversation.currentMessages.subList(
                         messageRange.start,
                         messageRange.endInclusive + 1,
-                    )
+                    ))
             } else {
                 compactedMessageView!!.messages
             }
+            session.generationProgress.prepare()
             generationLoop.generateText(
+                generationProgress = session.generationProgress,
+                autonomousCycle = autonomousCycle,
+                manageUiLifecycle = !autonomousCycle,
+                maxSteps = me.rerere.rikkahub.data.ai.AgentTaskPolicy.stepLimit(conversationId.toString())
+                    ?: me.rerere.rikkahub.data.ai.limits.ToolRuntimeLimits.maxToolSteps,
+                cycleState = cycleState,
+                onStopped = { outcome = it },
+                shouldYieldToQueuedMessage = {
+                    val queue = session.messageQueue.state.value
+                    autonomousCycle && !queue.paused && queue.messages.firstOrNull()?.isEditing == false
+                },
                 settings = settings,
                 model = model,
                 processingStatus = session.processingStatus,
@@ -1572,6 +1745,7 @@ class ChatService(
                                 toolApprovalPreferences.current().contains(toolName))
                     }
                 },
+                awaitToolResultPersistence = true,
                 onAfterToolExecution = { generatedMessages ->
                     if (messageRange != null || !settings.enableAutoCompaction) {
                         null
@@ -1606,17 +1780,6 @@ class ChatService(
                                 processingStatus = session.processingStatus,
                                 force = true,
                             )
-                            compacted.newlyCreatedAutoCompaction?.let { compaction ->
-                                generatedMessages.lastOrNull()
-                                    ?.takeIf { it.role == MessageRole.ASSISTANT }
-                                    ?.let { sourceMessage ->
-                                        attachAutomaticCompactionPresentation(
-                                            conversationId = conversationId,
-                                            messageId = sourceMessage.id,
-                                            compaction = compaction,
-                                        )
-                                    }
-                            }
                             compactedMessageView = compacted
                             compacted.messages
                         }
@@ -1643,6 +1806,13 @@ class ChatService(
                     add(workspaceReminderTransformer)
                 },
                 outputTransformers = outputTransformers,
+                refreshTools = {
+                    val liveSettings = settingsStore.settingsFlow.value
+                    val liveAssistant = liveSettings.assistants.firstOrNull { it.id == assistant.id }
+                    if (liveAssistant == null) emptyList() else buildToolsForRerun(
+                        liveAssistant, conversationId, getConversationFlow(conversationId).value, model, liveSettings,
+                    )
+                },
                 tools = buildList {
                     if (useExternalWebSearch) {
                         addAll(createSearchTools(settings))
@@ -1663,15 +1833,6 @@ class ChatService(
                     )
                     addAll(localTools.getTools(assistant.localTools, invocationCtx))
                     addAll(createWorkspaceToolsIfReady(assistant.workspaceId?.toString(), conversation.workspaceCwd))
-                    if (assistant.enabledSkills.isNotEmpty()) {
-                        addAll(
-                            createSkillTools(
-                                enabledSkills = assistant.enabledSkills,
-                                allSkills = skillManager.listSkills(),
-                                skillManager = skillManager,
-                            )
-                        )
-                    }
                     mcpManager.getAllAvailableTools().also { allTools ->
                         // Upstream name validation: a server name that isn't pure
                         // English+digits would produce an invalid `mcp__<name>__tool`
@@ -1691,7 +1852,7 @@ class ChatService(
                                 ),
                                 conversationId = conversationId,
                             )
-                            return
+                            return outcome
                         }
                     }.forEach { (serverId, serverName, tool) ->
                         // Namespace MCP tools by a server-id slug so two enabled servers that
@@ -1755,7 +1916,7 @@ class ChatService(
                 // cancellation are reported by their existing error paths and must not emit a
                 // misleading completion notification here.
                 if (
-                    completionCause == null &&
+                    completionCause == null && !outcome.reason.canContinueAutomatically() && outcome.reason != GenerationStopReason.USER_MESSAGE &&
                     !isForeground.value &&
                     settings.displaySetting.enableNotificationOnMessageGeneration
                 ) {
@@ -1777,7 +1938,7 @@ class ChatService(
                 }
             }.collect { chunk ->
                 when (chunk) {
-                    is GenerationChunk.Messages -> {
+                    is GenerationChunk.Messages -> chunk.applyAndAcknowledge {
                         val currentConversation = getConversationFlow(conversationId).value
                         val updatedConversation = if (compactedMessageView?.compaction != null) {
                             ContextCompactionView.mergeGeneratedMessages(
@@ -1786,11 +1947,19 @@ class ChatService(
                                 generatedMessages = chunk.messages,
                             )
                         } else {
-                            currentConversation.updateCurrentMessages(chunk.messages)
+                            currentConversation.updateCurrentMessages(chunk.messages.map { replacement ->
+                                currentConversation.currentMessages.firstOrNull { it.id == replacement.id }
+                                    ?.let { ContextCompactionPresentation.preserveDisplayTools(it, replacement) }
+                                    ?: replacement
+                            })
                         }
                         updateConversation(conversationId, updatedConversation)
                         markStreamingPersistence(conversationId)
-                        persistStreamingStateIfDue(conversationId)
+                        if (chunk.persistenceReceipt != null) {
+                            persistStreamingStateNow(conversationId, requireSuccess = true)
+                        } else {
+                            persistStreamingStateIfDue(conversationId)
+                        }
 
                         // Persist immediately when a tool transitions to "execution
                         // started but no output yet" — this writes the executionStartedAt
@@ -1855,24 +2024,22 @@ class ChatService(
                 Log.w(TAG, "Context-limit retry compaction failed", it)
             }.getOrNull()
             if (forcedView?.compaction != null) {
-                forcedView.newlyCreatedAutoCompaction?.let { compaction ->
-                    getConversationFlow(conversationId).value.currentMessages
-                        .lastOrNull { it.role == MessageRole.ASSISTANT }
-                        ?.let { sourceMessage ->
-                            attachAutomaticCompactionPresentation(
-                                conversationId = conversationId,
-                                messageId = sourceMessage.id,
-                                compaction = compaction,
-                            )
-                        }
-                }
-                handleMessageComplete(
+                return runGenerationSlice(
                     conversationId = conversationId,
                     messageRange = null,
                     allowContextRetry = false,
+                    autonomousCycle = autonomousCycle,
+                    cycleState = cycleState,
                 )
-                return
             }
+        }
+
+        val progressAtFailure = getOrCreateSession(conversationId).generationProgress.state.value
+        if (autonomousCycle && settings.networkSetting.enableAutoRetry && settings.networkSetting.generationRuntime.waitForNetworkRecovery &&
+            generationFailure != null && progressAtFailure?.phase == me.rerere.ai.provider.GenerationPhase.FAILED &&
+            me.rerere.rikkahub.data.ai.canWaitForNetwork(generationFailure, progressAtFailure.firstContentAt != null)) {
+            persistStreamingStateNow(conversationId, requireSuccess = true)
+            return GenerationSliceOutcome(GenerationStopReason.NETWORK_WAIT, outcome.steps)
         }
 
         // Retry status is transient. Clear it before surfacing the final result so a failed
@@ -1908,6 +2075,7 @@ class ChatService(
             Logging.log(TAG, "handleMessageComplete: $it")
             Logging.log(TAG, it.stackTraceToString())
         }.onSuccess {
+            if (autonomousCycle && (outcome.reason.canContinueAutomatically() || outcome.reason == GenerationStopReason.USER_MESSAGE)) return@onSuccess
             val finalConversation = getConversationFlow(conversationId).value
 
             if (isStalledTurn(succeeded = true, lastMessage = finalConversation.currentMessages.lastOrNull())) {
@@ -1930,6 +2098,7 @@ class ChatService(
                 generateTitle(conversationId, finalConversation)
             }
         }
+        return if (generationResult.isFailure) GenerationSliceOutcome(GenerationStopReason.FAILED, outcome.steps) else outcome
     }
 
     private suspend fun createWorkspaceToolsIfReady(workspaceId: String?, cwd: String? = null): List<Tool> {
@@ -2092,11 +2261,14 @@ class ChatService(
                                 .takeLast(4).joinToString("\n\n") { it.summaryAsText(maxLength = 500) })
                     ),
                 ),
-                params = backgroundTextGenerationParams(model, settings.fastModelReasoningLevel),
+                params = backgroundTextGenerationParams(model, settings.fastModelReasoningLevel,
+                    sessionId = "$conversationId:title:${conversation.currentMessages.lastOrNull()?.id ?: Uuid.random()}",
+                    priority = me.rerere.ai.provider.GenerationPriority.TITLE),
             )
 
             applyTitle(result.message.toText().trim().ifBlank { fallback })
         }.onFailure {
+            if (it is CancellationException) throw it
             // Title generation is auxiliary — a failure here doesn't block the chat
             // and surfaces visibly as a blank conversation title in the list. Don't
             // push it onto the user-facing error stream: when the title model 429s,
@@ -2142,7 +2314,8 @@ class ChatService(
                                 .takeLast(8).joinToString("\n\n") { it.summaryAsText(maxLength = 500) }),
                     )
                 ),
-                params = backgroundTextGenerationParams(model, settings.fastModelReasoningLevel),
+                params = backgroundTextGenerationParams(model, settings.fastModelReasoningLevel,
+                    sessionId = "$conversationId:suggestions:${conversation.currentMessages.lastOrNull()?.id ?: Uuid.random()}"),
             )
             val suggestions =
                 result.message.toText().split("\n").map { it.trim() }
@@ -2160,6 +2333,7 @@ class ChatService(
                 )
             )
         }.onFailure {
+            if (it is CancellationException) throw it
             // Suggestion generation is auxiliary — log only, don't push onto the
             // user-facing error stream (mirrors the generateTitle failure handling).
             Log.w(TAG, "generateSuggestion failed", it)
@@ -2284,7 +2458,7 @@ class ChatService(
     private suspend fun loadCompactedMessageView(conversation: Conversation): CompactedMessageView {
         val compaction = conversationRepo.getCompaction(conversation.id)
             ?: return CompactedMessageView(
-                messages = conversation.currentMessages,
+                messages = ContextCompactionPresentation.stripDisplayTools(conversation.currentMessages),
                 compaction = null,
                 rawTailStartIndex = 0,
             )
@@ -2407,24 +2581,6 @@ class ChatService(
                     .toInt()
         }
 
-    /**
-     * Keep the persisted compaction summary request-only, but show the user the automatic
-     * compression as an executed tool on the assistant message that triggered it.
-     */
-    private fun attachAutomaticCompactionPresentation(
-        conversationId: Uuid,
-        messageId: Uuid,
-        compaction: ConversationCompaction,
-    ) {
-        updateConversationState(conversationId) { current ->
-            ContextCompactionPresentation.attachToMessage(
-                conversation = current,
-                messageId = messageId,
-                tool = ContextCompactionPresentation.createTool(compaction),
-            )
-        }
-    }
-
     suspend fun compressConversation(
         conversationId: Uuid,
         conversation: Conversation,
@@ -2485,6 +2641,8 @@ class ChatService(
             }
         }.also {
             releaseForegroundWork()
+        }.onFailure {
+            if (it is CancellationException) throw it
         }
     }
 
@@ -2504,26 +2662,34 @@ class ChatService(
      * Manual compression can outlive the chat screen. Keep it on [AppScope] so removing the
      * activity from recents does not cancel an in-progress multi-pass compression request.
      */
+    @Synchronized
     fun compressConversationAsync(
         conversationId: Uuid,
         conversation: Conversation,
         additionalPrompt: String,
         targetTokens: Int,
         keepRecentMessages: Int = 32,
-    ): Deferred<Result<Unit>> = appScope.async {
-        compressConversation(
-            conversationId = conversationId,
-            conversation = conversation,
-            additionalPrompt = additionalPrompt,
-            targetTokens = targetTokens,
-            keepRecentMessages = keepRecentMessages,
-        ).onFailure {
-            addError(
-                it,
+    ): Deferred<Result<Unit>> {
+        manualCompactionJobs[conversationId]?.takeUnless { it.isCompleted }?.let { return it }
+        val job = appScope.async(start = CoroutineStart.LAZY) {
+            compressConversation(
                 conversationId = conversationId,
-                title = context.getString(R.string.error_title_compress_conversation),
-            )
+                conversation = conversation,
+                additionalPrompt = additionalPrompt,
+                targetTokens = targetTokens,
+                keepRecentMessages = keepRecentMessages,
+            ).onFailure {
+                addError(
+                    it,
+                    conversationId = conversationId,
+                    title = context.getString(R.string.error_title_compress_conversation),
+                )
+            }
         }
+        manualCompactionJobs[conversationId] = job
+        job.invokeOnCompletion { manualCompactionJobs.remove(conversationId, job) }
+        job.start()
+        return job
     }
 
     private suspend fun generateAndStoreCompaction(
@@ -2534,7 +2700,84 @@ class ChatService(
         additionalPrompt: String,
         targetTokens: Int,
         isAuto: Boolean,
-    ): ConversationCompaction = withTimeout(COMPACTION_TOTAL_TIMEOUT_MS) {
+        runtimeLimits: CompactionRuntimeLimits = settings.compactionRuntimeLimits(),
+    ): ConversationCompaction = coroutineScope {
+        val messageId = conversation.currentMessages.lastOrNull()?.id
+            ?: error("No messages selected for compression")
+        val session = getOrCreateSession(conversation.id)
+        val started = SystemClock.elapsedRealtime()
+        var event = ContextCompactionPresentation.startTool(
+            isAuto, System.currentTimeMillis(), started,
+            ContextBudgetPlanner.estimateInputTokens(messagesToCompress), targetTokens,
+        )
+        val operationId = event.toolCallId
+        session.acquire()
+        ContextCompactionPresentation.register(operationId, coroutineContext[Job]!!)
+        suspend fun publish(next: UIMessagePart.Tool) {
+            journal.append(conversation.id.toString(), "compaction.event", buildJsonObject {
+                put("operation_id", operationId)
+                put("event", kotlinx.serialization.json.Json.encodeToJsonElement(UIMessagePart.Tool.serializer(), next))
+            })
+            event = next
+            // Use the captured session. A reset/deletion must not resurrect it through
+            // getOrCreateSession while cancellation writes its final UI state.
+            session.state.update { current ->
+                if (sessions[conversation.id] !== session) current else ContextCompactionPresentation.attachToMessage(
+                    if (current.messageNodes.isEmpty()) conversation else current, messageId, next,
+                )
+            }
+            if (sessions[conversation.id] !== session) return
+            try {
+                persistenceMutexFor(conversation.id).withLock {
+                    if (sessions[conversation.id] === session) {
+                        persistConversationSnapshot(conversation.id, session.state.value, updateSearchIndex = false)
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not persist compression event", e)
+            }
+        }
+        try {
+            publish(event)
+            val result = generateCompactionContent(
+                conversation, settings, messagesToCompress, rawTailStartIndex,
+                additionalPrompt, targetTokens, isAuto, runtimeLimits,
+            ) { fields -> publish(ContextCompactionPresentation.update(event, fields)) }
+            // Once committed, cancellation of a caller must not turn a completed event into
+            // "cancelled". Persist the final duration even if its details sheet was closed.
+            withContext(NonCancellable) {
+                publish(ContextCompactionPresentation.completeTool(event, result, SystemClock.elapsedRealtime() - started))
+            }
+            result
+        } catch (e: Exception) {
+            withContext(NonCancellable) {
+                publish(ContextCompactionPresentation.update(event, buildJsonObject {
+                    put("state", if (e is CancellationException) "cancelled" else "failed")
+                    put("elapsed_ms", (SystemClock.elapsedRealtime() - started).coerceAtLeast(0))
+                    put("finished_at_ms", System.currentTimeMillis())
+                    if (e !is CancellationException) put("error", e.message.orEmpty().take(2000))
+                }, output = ""))
+            }
+            throw e
+        } finally {
+            ContextCompactionPresentation.unregister(operationId)
+            session.release()
+        }
+    }
+
+    private suspend fun generateCompactionContent(
+        conversation: Conversation,
+        settings: Settings,
+        messagesToCompress: List<UIMessage>,
+        rawTailStartIndex: Int,
+        additionalPrompt: String,
+        targetTokens: Int,
+        isAuto: Boolean,
+        runtimeLimits: CompactionRuntimeLimits,
+        onProgress: suspend (JsonObject) -> Unit,
+    ): ConversationCompaction = runtimeLimits.operation {
         require(messagesToCompress.isNotEmpty()) { "No messages selected for compression" }
         require(rawTailStartIndex in 1..conversation.messageNodes.size) {
             "Invalid compaction boundary"
@@ -2555,6 +2798,12 @@ class ChatService(
         }
 
         val providerHandler = providerManager.getProviderByType(provider)
+        onProgress(buildJsonObject {
+            put("model", model.modelId)
+            put("request_timeout_ms", runtimeLimits.requestTimeoutMs)
+            put("operation_timeout_ms", runtimeLimits.totalTimeoutMs)
+            put("parallel_requests", runtimeLimits.parallelRequests)
+        })
         // In token-threshold mode the user has supplied an explicit request-size ceiling for
         // this model family. Prefer it over missing/stale provider metadata. In percent mode we
         // still use the model's advertised context, falling back to the planner's conservative
@@ -2574,17 +2823,22 @@ class ChatService(
         val rawContextRetentionReport = ContextCompactionPlanner.rawContextRetentionReport(
             conversation.currentMessages.drop(rawTailStartIndex)
         )
-        // Reserve roughly one third of the configured target for a deterministic ledger of
-        // completed tool results. This remains in the request even if the model's prose summary
-        // ignores a tool record.
+        // Rebuild deterministic evidence from originals, never from an already truncated digest.
+        val originalPrefix = conversation.currentMessages.take(rawTailStartIndex)
         val toolDigest = ContextCompactionPlanner.mandatoryToolExecutionDigest(
-            messages = messagesToCompress,
-            maxTokens = (targetTokens / 3).coerceAtLeast(1),
+            messages = originalPrefix,
+            maxTokens = (targetTokens / 4).coerceAtLeast(1),
         )
-        // The deterministic tool digest is appended after the model response. It does not
-        // consume the model's output budget, so keep the configured prose target intact.
-        val modelSummaryTargetTokens = targetTokens.coerceAtLeast(1)
+        val userRequests = me.rerere.rikkahub.data.ai.CompactionEvidence.recentUserRequests(
+            originalPrefix, (targetTokens / 6).coerceAtMost(1600),
+        )
+        val fixedContext = listOf(toolDigest, userRequests, rawContextRetentionReport)
+            .filter { it.isNotBlank() }.joinToString("\n\n")
+        val modelSummaryTargetTokens = (targetTokens -
+            ContextCompactionPlanner.estimateTokens(fixedContext) - 128).coerceAtLeast(256)
 
+        val compactionOperationId = Uuid.random()
+        val compactionPart = java.util.concurrent.atomic.AtomicInteger()
         suspend fun compressSources(
             sources: List<String>,
             requestedTargetTokens: Int,
@@ -2617,19 +2871,36 @@ class ChatService(
                 )
             }
 
-            val result = withTimeout(COMPACTION_REQUEST_TIMEOUT_MS) {
-                providerHandler.generateText(
-                    providerSetting = provider,
-                    messages = listOf(UIMessage.user(prompt)),
-                    params = backgroundTextGenerationParams(model).copy(
-                        maxTokens = requestedTargetTokens,
-                    ),
-                )
-            }
+            repeat(2) { attempt ->
+                val result = runtimeLimits.request {
+                    providerHandler.generateText(
+                        providerSetting = provider,
+                        messages = listOf(
+                            UIMessage.system(ContextCompactionPlanner.requiredToolRetentionInstructions()),
+                            UIMessage.user(prompt + if (attempt == 0) "" else
+                                "\n\nThe previous attempt exhausted its output allowance. Produce a shorter COMPLETE handoff; keep current scope, material evidence and next action. Omit routine history."),
+                        ),
+                        params = backgroundTextGenerationParams(model,
+                            sessionId = "${conversation.id}:compaction:$compactionOperationId:${compactionPart.incrementAndGet()}",
+                            priority = if (isAuto) me.rerere.ai.provider.GenerationPriority.COMPACTION
+                                else me.rerere.ai.provider.GenerationPriority.BACKGROUND,
+                        ).copy(
+                            maxTokens = requestedTargetTokens,
+                            requestTimeoutMillis = runtimeLimits.requestTimeoutMs,
+                            isCompaction = true,
+                        ),
+                    )
+                }
 
-            return result.message.toText().trim()
-                .takeIf { it.isNotBlank() }
-                ?: throw IllegalStateException("Failed to generate compressed summary")
+                if (attempt == 0 && result.finishReason in setOf("length", "max_tokens")) return@repeat
+                check(result.finishReason !in setOf("length", "max_tokens", "content_filter")) {
+                    "Compaction answer was cut off (${result.finishReason}); original context has been preserved"
+                }
+                return result.message.toText().trim()
+                    .takeIf { it.isNotBlank() }
+                    ?: throw IllegalStateException("Failed to generate compressed summary")
+            }
+            error("Failed to produce a complete compaction handoff; original context has been preserved")
         }
 
         // Ordinary compression is a map pass over a small number of large groups. The full
@@ -2660,14 +2931,16 @@ class ChatService(
             "Compaction plan: model=${model.modelId}, contextLimit=" +
                 "${compressionContextLength ?: "default"}, inputBudget=$mapInputBudgetTokens, " +
                 "fullGroups=${fullSourceGroups.size}, selectedGroups=${sourceGroups.size}, " +
-                "parallelism=$MAX_PARALLEL_COMPACTION_REQUESTS, mapPreviews=$usingMapPreviews",
+                "parallelism=${runtimeLimits.parallelRequests}, " +
+                "requestTimeoutMs=${runtimeLimits.requestTimeoutMs}, " +
+                "totalTimeoutMs=${runtimeLimits.totalTimeoutMs}, mapPreviews=$usingMapPreviews",
         )
 
         suspend fun compressGroups(
             groups: List<List<String>>,
             requestedTargetTokens: Int,
         ): List<String> = groups
-            .chunked(MAX_PARALLEL_COMPACTION_REQUESTS)
+            .chunked(runtimeLimits.parallelRequests)
             .flatMap { batch ->
                 coroutineScope {
                     batch.map { group ->
@@ -2679,10 +2952,11 @@ class ChatService(
             }
 
         var reductionPasses = 0
+        var finalRequestCap = modelSummaryTargetTokens.coerceAtMost(COMPACTION_MAX_REQUEST_OUTPUT_TOKENS)
         var finalSummary: String? = null
         while (finalSummary == null) {
             val passTargetTokens = if (sourceGroups.size == 1) {
-                modelSummaryTargetTokens.coerceAtMost(COMPACTION_MAX_REQUEST_OUTPUT_TOKENS)
+                finalRequestCap
             } else {
                 ContextCompactionPlanner.mapOutputTargetTokens(
                     finalTargetTokens = ContextCompactionPlanner.intermediateTargetTokens(
@@ -2698,42 +2972,44 @@ class ChatService(
                 "Compaction pass ${reductionPasses + 1}: groups=${sourceGroups.size}, " +
                     "targetTokens=$passTargetTokens",
             )
+            onProgress(buildJsonObject {
+                put("phase", if (reductionPasses == 0) "summarizing" else "merging")
+                put("pass", reductionPasses + 1)
+                put("parts", sourceGroups.size)
+            })
             val summaries = compressGroups(sourceGroups, passTargetTokens)
             val combinedSummary = summaries.joinToString("\n\n")
-            if (
-                summaries.size == 1 ||
-                ContextCompactionPlanner.estimateTokens(combinedSummary) <= mapInputBudgetTokens
+            if (summaries.size == 1 &&
+                ContextCompactionPlanner.estimateTokens(combinedSummary) <= modelSummaryTargetTokens
             ) {
-                // Preserve group order. For the common two-group case this is the final result,
-                // so no extra reduce request is needed.
                 finalSummary = combinedSummary
                 continue
             }
+            if (summaries.size == 1) {
+                val measured = ContextCompactionPlanner.estimateTokens(combinedSummary)
+                finalRequestCap = (finalRequestCap.toLong() * modelSummaryTargetTokens * 3 / (measured.toLong() * 4))
+                    .toInt().coerceAtLeast(256)
+            }
+            // Even two map summaries that fit the input window require a reduce pass: a plain
+            // concatenation retains contradictory interim diagnoses and duplicate next steps.
+            // An over-budget final answer is re-summarized, never cut in the middle of evidence.
 
             sourceGroups = ContextCompactionPlanner.partitionSources(
                 sources = summaries,
                 maxInputTokens = mapInputBudgetTokens,
             )
             reductionPasses++
-            check(reductionPasses <= 12) {
+            check(reductionPasses <= 4) {
                 "Compression model did not reduce the conversation enough to merge its summaries"
             }
         }
 
-        val expectedBoundary = conversation.messageNodes
-            .take(rawTailStartIndex)
-            .map { node -> node.id to node.currentMessage.id }
-        val latestBoundary = getConversationFlow(conversation.id).value.messageNodes
-            .take(rawTailStartIndex)
-            .map { node -> node.id to node.currentMessage.id }
-        check(expectedBoundary == latestBoundary) {
-            "Conversation changed while context was being compressed"
-        }
-
+        onProgress(buildJsonObject { put("phase", "saving") })
         val compaction = ConversationCompaction(
             conversationId = conversation.id,
             summary = listOfNotNull(
-                finalSummary,
+                "[Summary of previous conversation]\n$finalSummary",
+                userRequests.takeIf { it.isNotBlank() },
                 toolDigest.takeIf { it.isNotBlank() },
                 rawContextRetentionReport.takeIf { it.isNotBlank() },
             )
@@ -2745,7 +3021,31 @@ class ChatService(
             sourceTokenEstimate = ContextBudgetPlanner.estimateInputTokens(messagesToCompress),
             createdAt = Instant.now(),
         )
-        conversationRepo.upsertCompaction(compaction)
+        check(ContextCompactionPlanner.estimateTokens(compaction.summary) < compaction.sourceTokenEstimate) {
+            "Compaction did not reduce context size; original context has been preserved"
+        }
+        check(ContextCompactionPlanner.estimateTokens(compaction.summary) <= targetTokens + 64) {
+            "Compaction exceeded the complete handoff budget; original context has been preserved"
+        }
+        // Serialize with conversation writes, and validate again after Room returns: an
+        // in-memory edit can occur while the database call is suspended. Never leave a stale
+        // replacement active when the selected source really changed.
+        persistenceMutexFor(conversation.id).withLock {
+            fun verifySource() {
+                val reason = ContextCompactionPresentation.sourcePrefixChangeReason(
+                    conversation, getConversationFlow(conversation.id).value, rawTailStartIndex,
+                )
+                check(reason == null) { "Conversation changed while context was being compressed ($reason)" }
+            }
+            verifySource()
+            conversationRepo.upsertCompaction(compaction)
+            try {
+                verifySource()
+            } catch (error: IllegalStateException) {
+                withContext(NonCancellable) { conversationRepo.clearCompaction(conversation.id) }
+                throw error
+            }
+        }
         compaction
     }
 
@@ -3010,9 +3310,10 @@ class ChatService(
     private suspend fun persistStreamingStateNow(
         conversationId: Uuid,
         updateSearchIndex: Boolean = false,
+        requireSuccess: Boolean = false,
     ) {
         val observedMarker = pendingStreamingPersistence[conversationId] ?: return
-        val persisted = runCatching {
+        val result = runCatching {
             persistenceMutexFor(conversationId).withLock {
                 persistConversationSnapshot(
                     conversationId = conversationId,
@@ -3022,7 +3323,11 @@ class ChatService(
             }
         }.onFailure {
             Log.w(TAG, "persistStreamingStateNow failed for $conversationId", it)
-        }.getOrDefault(false)
+        }
+        // Periodic writes can retry at the next chunk. A compaction checkpoint cannot:
+        // its source must include the completed tool result before the producer resumes.
+        val persisted = if (requireSuccess) result.getOrThrow() else result.getOrDefault(false)
+        if (requireSuccess) check(persisted) { "Could not persist tool result before context compression" }
 
         if (persisted) {
             lastStreamingPersistAt[conversationId] = SystemClock.elapsedRealtime()
@@ -3086,6 +3391,9 @@ class ChatService(
             )
         }
 
+        if (activeAgentTasks.containsKey(conversationId)) {
+            updateAgentTask(conversationId) { it.copy(checkpoint = conversationCheckpoint(conversation.currentMessages)) }
+        }
         // 删除消息或切换分支也可能解除工具审批阻塞，保存成功后重新检查队列。
         // 调度器仍会检查当前生成任务、待审批工具、暂停状态及编辑占位。
         dispatchNextQueuedMessage(conversationId)
@@ -3225,9 +3533,17 @@ class ChatService(
                 )
             }
 
-        val forkConversation = createForkConversation(currentConversation, copiedNodes)
+        val existingTitles = conversationRepo
+            .getConversationsOfAssistant(currentConversation.assistantId)
+            .first()
+            .mapTo(mutableSetOf()) { it.title }
+        val forkConversation = createForkConversation(currentConversation, copiedNodes, existingTitles)
 
         saveConversation(forkConversation.id, forkConversation)
+        journal.append(forkConversation.id.toString(), "conversation.forked", buildJsonObject {
+            put("parent_conversation", currentConversation.id.toString())
+            put("copied_message_count", forkConversation.currentMessages.size)
+        })
         return forkConversation
     }
 
@@ -3365,6 +3681,10 @@ class ChatService(
 
     // 停止当前会话生成任务（不清理会话缓存）
     suspend fun stopGeneration(conversationId: Uuid) {
+        // Persist Stop even when a recovery coroutine has not acquired its in-memory task yet.
+        runCatching {
+            updateAgentTask(conversationId) { if (it.status == "completed") it else it.copy(status = "cancelled", reason = GenerationStopReason.CANCELLED) }
+        }.onFailure { Log.w(TAG, "Could not persist Stop; cancelling the live job anyway", it) }
         // Cancel BEFORE the mutex so the cancelled coroutines can drain their own writes
         // (which may try to acquire the same mutex via their save path). Also pause the
         // message queue so nothing auto-dispatches into the conversation we're stopping.

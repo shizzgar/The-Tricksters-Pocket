@@ -61,7 +61,8 @@ import me.rerere.ai.util.redactSecrets
 import me.rerere.ai.util.stringSafe
 import me.rerere.ai.util.toHeaders
 import me.rerere.common.android.Logging
-import me.rerere.common.http.await
+import me.rerere.ai.util.forTextGeneration
+import me.rerere.ai.util.generateResponseBody
 import me.rerere.common.http.jsonArrayOrNull
 import me.rerere.common.http.jsonObjectOrNull
 import me.rerere.common.http.jsonPrimitiveOrNull
@@ -112,12 +113,7 @@ class ChatCompletionsAPI(
             Log.i(TAG, "generateText: ${json.encodeToString(redactSecrets(requestBody))}")
         }
 
-        val response = client.newCall(request).await()
-        if (!response.isSuccessful) {
-            throw Exception("Failed to get response: ${response.code} ${response.body.string()}")
-        }
-
-        val bodyStr = response.body.string()
+        val bodyStr = client.generateResponseBody(request, params)
         val bodyJson = json.parseToJsonElement(bodyStr).jsonObject
 
         // 从 JsonObject 中提取必要的信息
@@ -230,7 +226,7 @@ class ChatCompletionsAPI(
             }
         }
 
-        val eventSource = EventSources.createFactory(client).newEventSource(request, listener)
+        val eventSource = EventSources.createFactory(client.forTextGeneration(params)).newEventSource(request, listener)
 
         awaitClose {
             println("[awaitClose] 关闭eventSource ")
@@ -477,7 +473,14 @@ class ChatCompletionsAPI(
                     }
                 }
             }
-        }.mergeCustomBody(params.customBody)
+        }.mergeCustomBody(params.customBody).let { body ->
+            if (!params.isCompaction) body else JsonObject(body.toMutableMap().apply {
+                // Summary calls have a deliberately small reasoning budget. Enforce the
+                // contract AFTER custom-body merging; normal conversations keep overrides.
+                remove("thinking_token_budget")
+                if (containsKey("reasoning_effort")) put("reasoning_effort", JsonPrimitive("low"))
+            })
+        }
     }
 
     // Mirrors the native ClaudeProvider's breakpoint placement, but in OpenAI message
@@ -636,7 +639,6 @@ class ChatCompletionsAPI(
                     group.tools.forEach { tool ->
                         add(buildJsonObject {
                             put("role", "tool")
-                            put("name", tool.toolName)
                             put("tool_call_id", tool.toolCallId)
                             put("content", tool.toToolResultContent(supportInputModalities))
                         })

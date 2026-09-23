@@ -554,7 +554,7 @@
   <string name="reasoning_picker_title">Adjust Model Thinking Depth</string>
   <string name="reasoning_xhigh">XHigh</string>
   <string name="regenerate">Regenerate</string>
-  <string name="regenerate_confirm_message">Are you sure you want to regenerate this message?</string>
+  <string name="regenerate_confirm_message">Are you sure you want to regenerate this message? All messages below this message will be deleted.</string>
   <string name="render_with_webview">Render with WebView</string>
   <string name="rikkahub_provider_description">Official free AI service, using user sponsorship funds to provide some free models for new users as fallback, no API key required. Has strict rate limits, if you have purchased your own provider, please use your own provider as much as possible.</string>
   <string name="safe_mode_assistants">Assistants</string>
@@ -2541,4 +2541,13 @@
   <string name="workspace_detail_compatibility_mode">Compatibility mode</string>
   <string name="workspace_detail_compatibility_mode_desc">Try enabling this if the terminal fails to start. It may reduce performance. Applies to new terminal tabs and subsequent commands.</string>
   <string name="workspace_detail_settings_save_failed">Failed to save settings</string>
+  <string name="compaction_runtime_title">Context compaction runtime</string>
+  <string name="compaction_elapsed">Compressing context… %1$d:%2$02d elapsed</string>
+  <string name="compaction_runtime_description">Shared by automatic and manual compaction. Changes apply to the next operation. Automatic compaction has a separate, cumulative time allowance per agent turn.</string>
+  <string name="compaction_request_timeout">Per-request timeout (minutes)</string>
+  <string name="compaction_request_timeout_description">1–120 minutes, including provider queue and generation. Increasing this also raises the HTTP response deadline; your proxy may have a shorter limit.</string>
+  <string name="compaction_total_timeout">Whole-operation timeout (minutes)</string>
+  <string name="compaction_total_timeout_description">Up to 240 minutes; at least the per-request timeout. Covers all map/reduce passes. Also caps cumulative automatic compaction time within one agent turn.</string>
+  <string name="compaction_parallel_requests">Parallel requests</string>
+  <string name="compaction_parallel_requests_description">1–4 requests per batch. Use 1 or 2 if concurrent requests overload your inference server.</string>
 </resources>

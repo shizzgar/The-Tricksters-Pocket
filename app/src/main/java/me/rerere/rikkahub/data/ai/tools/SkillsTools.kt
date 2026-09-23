@@ -23,11 +23,29 @@ fun createSkillTools(
      * content tool is not offered.
      */
     skillManager: SkillManager? = null,
+    termuxBridge: me.rerere.rikkahub.skills.TermuxSkillBridge? = null,
+    currentEnabledSkills: () -> Set<String> = { enabledSkills },
 ): List<Tool> {
-    val available = allSkills.filter { it.name in enabledSkills }
-    if (available.isEmpty()) return emptyList()
+    fun available() = (skillManager?.listSkills() ?: allSkills).filter { it.name in currentEnabledSkills() }
+    if (available().isEmpty()) return emptyList()
 
     return listOfNotNull(
+        termuxBridge?.let { bridge ->
+            Tool(
+                name = "termux_skill_sync",
+                description = "Make an enabled skill's COMPLETE package available in Termux, including SKILL.md, scripts, references and binary assets. Returns skill_root: use it as working_dir with Termux tools. Reuses verified unchanged revisions. Copies files only; does not execute scripts or install dependencies. Use after auto-loaded skills or when automatic sync is disabled.",
+                parameters = { InputSchema.Obj(properties = buildJsonObject {
+                    put("name", buildJsonObject { put("type", "string"); put("description", "Enabled skill name") })
+                }, required = listOf("name")) },
+                execute = { args ->
+                    val name = (args.jsonObject["name"] as? kotlinx.serialization.json.JsonPrimitive)?.content
+                    val skill = available().firstOrNull { it.name == name }
+                    val result = if (skill == null) buildJsonObject { put("success", false); put("error", "skill_not_enabled_or_missing") }
+                        else bridge.prepare(skill)
+                    listOf(UIMessagePart.Text(result.toString()))
+                },
+            )
+        },
         // Phase 16 audit fix — read-only accessor so the LLM can show a skill's content
         // without re-installing it. Sits under the same skills surface as use_skill.
         skillManager?.let { manager ->
@@ -45,12 +63,17 @@ fun createSkillTools(
             """.trimIndent(),
             systemPrompt = { _, _ ->
                 buildString {
+                    if (available().isEmpty()) return@buildString
+                    appendLine("Skill examples are instructions, not tool permissions. Only the tools declared in this request are available. Never call a disabled tool mentioned by a skill.")
+                    if (termuxBridge != null) {
+                        appendLine("Enabled skills can be copied as full packages to Termux using termux_skill_sync. use_skill also prepares them when automatic sync is enabled. Only a successful result's skill_root is a usable Termux path; RikkaHub private paths are not accessible to Termux. Auto-loaded instructions do not themselves sync files: call termux_skill_sync before running their scripts. Run from skill_root so relative paths resolve; keep generated files in a separate workspace. Copies never grant extra tool permissions.")
+                    }
                     // Auto-load skills with `auto_load: true` in their SKILL.md frontmatter:
                     // their body (auto_load_path file if set, else SKILL.md) is inlined into
                     // the system prompt every turn, no `use_skill` call needed. Use for the
                     // "core persona" skills (agent-core/SOUL.md). Models that previously
                     // never bothered to discover the SOUL via use_skill now see it on turn 1.
-                    val autoLoaded = available.filter { it.autoLoad }
+                    val autoLoaded = available().filter { it.autoLoad }
                     autoLoaded.forEach { skill ->
                         val path = skill.autoLoadPath
                         // Both branches go through SkillManager's mtime-aware cache so
@@ -76,7 +99,7 @@ fun createSkillTools(
                     }
 
                     // Lazy skills — listed for discovery; loaded on demand via `use_skill`.
-                    val lazy = available.filterNot { it.autoLoad }
+                    val lazy = available().filterNot { it.autoLoad }
                     if (lazy.isNotEmpty()) {
                         appendLine("**Skills**")
                         appendLine("You have access to the following skills. Use the `use_skill` tool to load a skill's instructions when the user's request matches.")
@@ -125,7 +148,7 @@ fun createSkillTools(
                             put(
                                 "available_skills",
                                 kotlinx.serialization.json.buildJsonArray {
-                                    enabledSkills.forEach {
+                                    currentEnabledSkills().forEach {
                                         add(kotlinx.serialization.json.JsonPrimitive(it))
                                     }
                                 },
@@ -151,7 +174,7 @@ fun createSkillTools(
                         "missing_required_arg",
                         "use_skill requires a 'name' argument identifying which skill to load.",
                     )
-                if (name !in enabledSkills) {
+                if (name !in currentEnabledSkills()) {
                     return@Tool err(
                         "skill_not_enabled",
                         "Skill '$name' is not in the enabled-skills set for this assistant.",
@@ -161,7 +184,7 @@ fun createSkillTools(
                 // name. A skill whose frontmatter `name:` differs from its folder name
                 // (e.g. folder "directory-name", name "Display Name") is unreachable by a
                 // name-keyed lookup, which is the upstream bug this adopts the fix for.
-                val skill = available.firstOrNull { skill -> skill.name == name }
+                val skill = available().firstOrNull { skill -> skill.name == name }
                     ?: return@Tool err(
                         "skill_not_found",
                         "Skill '$name' is enabled but has no metadata entry on disk.",
@@ -179,7 +202,10 @@ fun createSkillTools(
                         return@Tool tooLargeErr(skillMd)
                     }
                     val content = SkillFrontmatterParser.extractBody(skillMd.readText())
-                    return@Tool listOf(UIMessagePart.Text(content))
+                    val prepared = termuxBridge?.prepare(skill, automatic = true)
+                    return@Tool listOfNotNull(UIMessagePart.Text(content), prepared?.let { result ->
+                        UIMessagePart.Text("Termux skill package: " + result.toString())
+                    })
                 }
                 val target = SkillPaths.resolveSkillFile(skill.skillDir, path)
                     ?: return@Tool err(

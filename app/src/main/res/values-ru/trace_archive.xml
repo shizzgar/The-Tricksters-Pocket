@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="trace_archive_export">Экспорт всей трассы</string>
+    <string name="trace_archive_exporting">Экспорт трассы…</string>
+    <string name="trace_archive_scope">ZIP · все записанные события и подагенты · содержит приватные данные</string>
+    <string name="trace_archive_done">Трасса экспортирована · события: %1$d · диалоги: %2$d</string>
+    <string name="trace_archive_issues">Экспортировано %1$d событий из %2$d диалогов; %3$d проблем указаны в issues.jsonl</string>
+    <string name="trace_archive_failed">Не удалось завершить экспорт. Если файл назначения остался, он неполный.</string>
+    <string name="trace_archive_cancelled">Экспорт отменён. Если файл назначения остался, он неполный.</string>
+</resources>

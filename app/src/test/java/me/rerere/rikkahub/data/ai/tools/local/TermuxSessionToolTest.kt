@@ -31,24 +31,24 @@ class TermuxSessionToolTest {
             TmuxOps.startArgv("rk_x", 200, 50).toList()
         )
         assertEquals(
-            listOf("send-keys", "-t", "rk_x", "-l", "--", "echo 'hi there'"),
+            listOf("send-keys", "-t", "=rk_x", "-l", "--", "echo 'hi there'"),
             TmuxOps.sendTextArgv("rk_x", "echo 'hi there'").toList()
         )
         assertEquals(
-            listOf("send-keys", "-t", "rk_x", "C-c", "Enter"),
+            listOf("send-keys", "-t", "=rk_x", "C-c", "Enter"),
             TmuxOps.sendKeysArgv("rk_x", listOf("C-c", "Enter")).toList()
         )
         assertEquals(
-            listOf("capture-pane", "-t", "rk_x", "-p", "-S", "-200"),
+            listOf("capture-pane", "-t", "=rk_x", "-p", "-S", "-200"),
             TmuxOps.capturePaneArgv("rk_x", 200).toList()
         )
-        assertEquals(listOf("kill-session", "-t", "rk_x"), TmuxOps.killArgv("rk_x").toList())
+        assertEquals(listOf("kill-session", "-t", "=rk_x"), TmuxOps.killArgv("rk_x").toList())
     }
 
     @Test
     fun waitFor_matchesSubstringAndRegex() {
         assertTrue(waitForMatches("Enter password:", "password:"))
-        assertTrue(waitForMatches("user@host:~$ ", "\\$ "))
+        assertTrue(waitForMatches("user@host:~$ ", "\\$ ", regex = true))
         assertTrue(!waitForMatches("nothing here", "password:"))
         // invalid regex falls back to substring
         assertTrue(waitForMatches("a[b", "a[b"))
@@ -80,6 +80,21 @@ class TermuxSessionToolTest {
     fun evaluatePoll_continuesWhileStillChanging() {
         val samples = listOf(PaneSample(0, "a"), PaneSample(200, "b"))
         assertEquals(PollResult.Continue, evaluatePoll(samples, 600, 20_000, null))
+    }
+
+    @Test
+    fun waitPatternDoesNotReturnOnQuietScreen() {
+        val samples = listOf(PaneSample(0, "loading"), PaneSample(1000, "loading"))
+        assertEquals(PollResult.Continue, evaluatePoll(samples, 600, 20000, "DONE"))
+        val later = samples + PaneSample(5000, "DONE")
+        assertEquals(PollResult.Reason.MATCHED, (evaluatePoll(later, 600, 20000, "DONE") as PollResult.Done).reason)
+    }
+
+    @Test
+    fun regexHasBoundedWorkAndLiteralDefault() {
+        assertTrue(waitForMatches("a[b", "a[b"))
+        assertTrue(!waitForMatches("aaaa!", "a+"))
+        assertTrue(!waitForMatches("a".repeat(64000) + "!", "(a+)+$", regex = true))
     }
 
     @Test

@@ -3,6 +3,8 @@ package me.rerere.rikkahub.data.files
 import android.content.Context
 import android.util.Log
 import java.io.File
+import me.rerere.rikkahub.skills.SkillWorkspace
+import me.rerere.rikkahub.skills.SkillPackageLocks
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -37,6 +39,7 @@ class SkillManager(
 
     fun listSkills(): List<SkillMetadata> {
         val skillsDir = getSkillsDir()
+        SkillWorkspace.recoverAll(skillsDir, File(context.filesDir, "skill_workbench"))
         return skillsDir.listFiles()
             ?.filter { it.isDirectory }
             ?.mapNotNull { dir ->
@@ -153,14 +156,19 @@ class SkillManager(
         return parseSkillFile(skillDir.resolve("SKILL.md"), skillDir)
     }
 
-    suspend fun deleteSkill(name: String): Boolean = withContext(Dispatchers.IO) {
-        val skillDir = resolveSkillDir(name) ?: return@withContext false
+    suspend fun deleteSkill(name: String, expectedRevision: String? = null): Boolean = withContext(Dispatchers.IO) {
+        val skillDir = listSkills().firstOrNull { it.name == name }?.skillDir ?: return@withContext false
         // Bundled-ness must be checked before deleteRecursively() destroys the directory:
         // for a non-core bundled skill, ownership is tracked by a `.seeded` sentinel that
         // lives inside this same directory, but bundledSkillNames() reads the asset list,
         // which is unaffected by the delete.
         val isBundled = name in bundledSkillNames()
-        val deleted = skillDir.deleteRecursively()
+        val deleted = SkillPackageLocks.withLock(skillDir) {
+            if (expectedRevision != null && SkillWorkspace(skillDir, File(context.filesDir, "skill_workbench"), name).snapshot().revision != expectedRevision) throw me.rerere.rikkahub.skills.SkillConflict()
+            val state = File(File(context.filesDir, "skill_workbench"), skillDir.name)
+            check(!state.exists() || state.deleteRecursively()) { "Could not clear skill drafts and recovery state" }
+            skillDir.deleteRecursively().also { if (it) invalidateSkill(name) }
+        }
         if (deleted) {
             settingsStore.update { settings ->
                 settings.copy(
@@ -223,6 +231,18 @@ class SkillManager(
         skills
     }
 
+    internal fun workspace(name: String): SkillWorkspace = SkillWorkspace(
+        listSkills().firstOrNull { it.name == name }?.skillDir ?: requireNotNull(resolveSkillDir(name)),
+        File(context.filesDir, "skill_workbench"), name,
+    )
+
+    internal fun createPackage(name: String, files: Map<String, ByteArray>) {
+        require(listSkills().none { it.name == name }) { "A skill already uses this name" }
+        val root = requireNotNull(resolveSkillDir(name)) { "Invalid skill name" }
+        SkillWorkspace.create(root, File(context.filesDir, "skill_workbench"), name, files)
+        invalidateSkill(name)
+    }
+
     fun getSkillDir(skillName: String): File? = resolveSkillDir(skillName)
 
     /**
@@ -245,9 +265,16 @@ class SkillManager(
     fun saveSkillFile(skillName: String, relativePath: String, content: String): Boolean {
         val skillDir = resolveSkillDir(skillName) ?: return false
         val target = SkillPaths.resolveSkillFile(skillDir, relativePath) ?: return false
-        target.parentFile?.mkdirs()
-        target.writeText(content)
-        return true
+        return SkillPackageLocks.withLock(skillDir) {
+            target.parentFile?.mkdirs()
+            val temp = File.createTempFile(".skill-write-", ".tmp", target.parentFile)
+            try {
+                temp.writeText(content)
+                java.nio.file.Files.move(temp.toPath(), target.toPath(), java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+                invalidateSkill(skillName)
+                true
+            } finally { temp.delete() }
+        }
     }
 
     fun saveSkillFilesAtomically(skillName: String, files: Map<String, String>): Boolean {
@@ -258,6 +285,18 @@ class SkillManager(
     }
 
     fun saveSkillFileBytesAtomically(skillName: String, files: Map<String, ByteArray>): Boolean {
+        val root = resolveSkillDir(skillName) ?: return false
+        return SkillPackageLocks.withLock(root) {
+            saveSkillFileBytesLocked(skillName, files).also { if (it) invalidateSkill(skillName) }
+        }
+    }
+
+    fun invalidateSkill(skillName: String) {
+        val root = resolveSkillDir(skillName) ?: return
+        bodyCache.keys.removeAll { it.startsWith(root.absolutePath + File.separator) }
+    }
+
+    private fun saveSkillFileBytesLocked(skillName: String, files: Map<String, ByteArray>): Boolean {
         val skillsDir = getSkillsDir()
         val targetDir = resolveSkillDir(skillName) ?: return false
         val stagingDir = createTempSkillDir(skillsDir, skillName, "staging") ?: return false
@@ -316,6 +355,7 @@ class SkillManager(
      * delete a default skill and we will not silently re-install it.
      */
     suspend fun seedDefaultSkillsIfNeeded() {
+        SkillWorkspace.recoverAll(getSkillsDir(), File(context.filesDir, "skill_workbench"))
         val assetRoot = "default-skills"
         val assetMgr = context.assets
         val skillNames = try {
@@ -340,6 +380,9 @@ class SkillManager(
             val isCoreSkill = bundledSkillMd?.let { content ->
                 SkillFrontmatterParser.parse(content)["auto_load"]?.equals("true", ignoreCase = true) == true
             } == true
+
+            // Files edited in the workbench belong to the user, including bundled core skills.
+            if (targetDir.resolve(".user-edited").exists()) continue
 
             val sentinel = targetDir.resolve(".seeded")
             val coreVersionFile = targetDir.resolve(".core-bundled-hash")

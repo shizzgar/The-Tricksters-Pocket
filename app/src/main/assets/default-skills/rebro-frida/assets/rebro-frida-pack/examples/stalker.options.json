@@ -1,0 +1,7 @@
+{
+  "native_stalker_calls": {
+    "module": "libexample.so",
+    "symbol": "example_entry",
+    "max_ms": 500
+  }
+}

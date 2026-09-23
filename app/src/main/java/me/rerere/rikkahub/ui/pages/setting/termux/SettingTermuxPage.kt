@@ -231,6 +231,8 @@ fun SettingTermuxPage(
                 )
             }
 
+            TermuxSkillsSettings(vm)
+
             // Section 2: Timeouts
             CardGroup(
                 title = { Text(stringResource(R.string.setting_termux_section_timeouts)) },

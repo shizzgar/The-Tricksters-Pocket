@@ -1,0 +1,6 @@
+{
+  "agents": [
+    "android_crypto",
+    "android_digest"
+  ]
+}

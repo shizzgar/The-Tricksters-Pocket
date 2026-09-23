@@ -25,7 +25,7 @@ import java.io.InputStream
 import java.nio.charset.Charset
 
 private const val WEB_FETCH_TIMEOUT_MS = 30_000L
-internal const val WEB_FETCH_BODY_CAP = 8 * 1024  // 8 KB
+internal const val WEB_FETCH_BODY_CAP = 8 * 1024  // returned raw-text characters
 
 /** Cap for extracted prose. Higher than the raw cap because prose is all signal. */
 internal const val WEB_FETCH_EXTRACT_CAP = 32 * 1024
@@ -72,6 +72,7 @@ internal fun buildExtractEnvelope(
     startIndex: Int,
     bodyTruncated: Boolean,
     headers: Map<String, String>?,
+    method: String = "GET",
 ): String {
     val page = WebExtractor.extract(
         html = html,
@@ -90,7 +91,12 @@ internal fun buildExtractEnvelope(
         return buildJsonObject {
             put("error", "empty_extraction")
             put("status", status)
+            put("ok", ok)
             put("final_url", finalUrl)
+            put("extract_mode", mode.name.lowercase())
+            contentType?.let { put("content_type", it) }
+            put("body_truncated", bodyTruncated)
+            put("truncated", bodyTruncated)
             put(
                 "detail",
                 "The page was fetched but no article text could be extracted from it.",
@@ -108,6 +114,9 @@ internal fun buildExtractEnvelope(
         put("ok", ok)
         put("final_url", finalUrl)
         put("extract_mode", mode.name.lowercase())
+        contentType?.let { put("content_type", it) }
+        put("start_index", startIndex)
+        put("returned_chars", page.text.length)
         page.title?.let { put("title", it) }
         page.siteName?.let { put("site_name", it) }
         page.description?.let { put("description", it) }
@@ -126,7 +135,12 @@ internal fun buildExtractEnvelope(
         }
         put("truncated", page.truncated || bodyTruncated)
         put("body_truncated", bodyTruncated)
-        page.nextStartIndex?.let { put("next_start_index", it) }
+        page.nextStartIndex?.let {
+            if (method == "GET") put("next_start_index", it)
+            put("pagination_note", if (method == "GET") "Continuation fetches the URL again; content may change between requests."
+                else "No continuation cursor for POST: repeating the request may repeat its side effects.")
+        }
+        if (bodyTruncated) put("recovery", "Source exceeded the 262144-byte read limit. Continuation only covers the downloaded prefix; use a scoped download for the complete resource.")
         headers?.let { h ->
             put("headers", buildJsonObject { h.forEach { (k, v) -> put(k, v) } })
         }
@@ -149,8 +163,10 @@ fun webFetchTool(client: OkHttpClient): Tool = Tool(
         read a page), 'text' (all body text), 'links', or 'metadata'. Raw returns markup that
         is mostly not content, so pass 'article' when you want to read a page. max_chars caps
         the returned text (default 32768 when extracting, 8192 for raw); when truncated=true
-        pass next_start_index back as start_index to continue. method is GET (default) or
-        POST. Response headers are omitted unless include_headers=true. Private, loopback and
+        pass next_start_index back as start_index to continue a GET. Each continuation refetches
+        the URL; it is not a stored snapshot. Source reads are bounded to 256 KiB; body_truncated
+        means the rest was not downloaded. method is GET (default) or POST. POST has no continuation
+        cursor because repetition can repeat side effects. Response headers are omitted unless include_headers=true. Private, loopback and
         link-local addresses are refused. Returns {status, ok, final_url, extract_mode, title,
         text, truncated, next_start_index} or {error, detail, recovery}.
     """.trimIndent().replace("\n", " "),
@@ -194,7 +210,12 @@ fun webFetchTool(client: OkHttpClient): Tool = Tool(
         )
     },
     execute = { input ->
-        val obj = input.jsonObject
+        val obj = input as? kotlinx.serialization.json.JsonObject
+            ?: return@Tool fmTextPart(fmErrEnvelope("bad_request", "Arguments must be a JSON object"))
+        val scalarKeys = listOf("url", "method", "extract_mode", "body", "max_chars", "start_index", "include_headers")
+        if (scalarKeys.any { obj[it] != null && obj[it] !is kotlinx.serialization.json.JsonPrimitive }) {
+            return@Tool fmTextPart(fmErrEnvelope("bad_request", "Expected scalar URL, method, mode, body and pagination fields"))
+        }
         val url = obj["url"]?.jsonPrimitive?.contentOrNull?.trim()
         if (url.isNullOrBlank()) {
             return@Tool fmTextPart(fmErrEnvelope("missing_url", "url is required"))
@@ -247,13 +268,26 @@ fun webFetchTool(client: OkHttpClient): Tool = Tool(
             )
         val includeHeaders = obj["include_headers"]?.jsonPrimitive?.contentOrNull?.toBoolean() ?: false
         val startIndex = obj["start_index"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0
+        if (obj["start_index"] != null && (obj["start_index"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() == null || startIndex < 0)) {
+            return@Tool fmTextPart(fmErrEnvelope("bad_start_index", "start_index must be a nonnegative integer"))
+        }
+        if (method == "POST" && startIndex != 0) {
+            return@Tool fmTextPart(fmErrEnvelope("post_pagination_not_supported", "POST continuation could repeat a mutation; use a separate GET resource instead"))
+        }
+        if (obj["max_chars"] != null && (obj["max_chars"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0) <= 0) {
+            return@Tool fmTextPart(fmErrEnvelope("bad_max_chars", "max_chars must be a positive integer"))
+        }
+        val requestHeaders = obj["headers"] as? kotlinx.serialization.json.JsonObject
+        if (obj["headers"] != null && (requestHeaders == null || requestHeaders.values.any { it !is kotlinx.serialization.json.JsonPrimitive })) {
+            return@Tool fmTextPart(fmErrEnvelope("bad_request", "headers must be an object of scalar values"))
+        }
         val defaultCap = if (mode == FetchExtract.RAW) WEB_FETCH_BODY_CAP else WEB_FETCH_EXTRACT_CAP
         val maxChars = obj["max_chars"]?.jsonPrimitive?.contentOrNull?.toIntOrNull()
             ?.coerceIn(1, defaultCap) ?: defaultCap
 
         val request = try {
             val builder = Request.Builder().url(url)
-            (obj["headers"] as? kotlinx.serialization.json.JsonObject)?.forEach { (name, value) ->
+            requestHeaders?.forEach { (name, value) ->
                 value.jsonPrimitive.contentOrNull?.let { builder.header(name, it) }
             }
             if (method == "POST") {
@@ -278,18 +312,17 @@ fun webFetchTool(client: OkHttpClient): Tool = Tool(
 
         val result = withTimeoutOrNull(WEB_FETCH_TIMEOUT_MS) {
             try {
-                guarded.newCall(request).execute().use { resp ->
+                fetchWebResponse(guarded, request) { resp ->
                     // Read the body through a bounded buffer instead of resp.body.bytes(),
                     // which would pull the whole (possibly multi-GB) response into memory.
                     // Read at most CAP+1 bytes: the extra byte tells us more remained.
-                    // Raw is capped tight; extraction reads much more markup than the prose it
-                    // yields (roughly 8x), so it gets a larger byte budget before it truncates.
+                    // The source-byte limit is independent of the returned text window.
                     val (raw, bodyTruncated) = readBounded(
                         resp.body.byteStream(),
-                        if (mode == FetchExtract.RAW) WEB_FETCH_BODY_CAP else WEB_FETCH_EXTRACT_CAP * 8,
+                        WEB_FETCH_READ_CAP,
                     )
                     val contentType = resp.header("Content-Type")
-                    val decoded = decodeBody(raw, raw.size, contentType)
+                    val decoded = decodeBody(raw, minOf(raw.size, WEB_FETCH_READ_CAP), contentType)
                     val headerMap = if (includeHeaders) {
                         resp.headers.associate { (n, v) -> n to v }
                     } else {
@@ -297,17 +330,8 @@ fun webFetchTool(client: OkHttpClient): Tool = Tool(
                     }
 
                     if (mode == FetchExtract.RAW) {
-                        buildJsonObject {
-                            put("status", resp.code)
-                            put("ok", resp.isSuccessful)
-                            put("final_url", resp.request.url.toString())
-                            put("extract_mode", "raw")
-                            put("body", decoded)
-                            put("body_truncated", bodyTruncated)
-                            headerMap?.let { h ->
-                                put("headers", buildJsonObject { h.forEach { (k, v) -> put(k, v) } })
-                            }
-                        }.toString()
+                        buildRawFetchEnvelope(resp.code, resp.request.url.toString(), decoded, contentType,
+                            maxChars, startIndex, bodyTruncated, headerMap, method)
                     } else {
                         buildExtractEnvelope(
                             status = resp.code,
@@ -320,13 +344,12 @@ fun webFetchTool(client: OkHttpClient): Tool = Tool(
                             startIndex = startIndex,
                             bodyTruncated = bodyTruncated,
                             headers = headerMap,
+                            method = method,
                         )
                     }
                 }
             } catch (e: java.io.InterruptedIOException) {
-                // OkHttp's callTimeout (set in withEgressGuard) fires this when a call, including
-                // a trickling read, runs past the advertised 30s limit; withTimeoutOrNull cannot
-                // catch this itself since the blocking execute() call has no suspension point.
+                // OkHttp's transport deadline can fire before the coroutine deadline.
                 buildJsonObject {
                     put("error", "timeout")
                     put("detail", "Request exceeded the 30s limit.")

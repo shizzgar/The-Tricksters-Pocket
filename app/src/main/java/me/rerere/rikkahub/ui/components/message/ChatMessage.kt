@@ -113,6 +113,8 @@ fun ChatMessage(
     // rerun-button gate in ChatMessageToolStep, which must not show while any generation
     // is in flight, not just one on this exact message.
     generationActive: Boolean = loading,
+    generationProgress: me.rerere.ai.provider.GenerationProgress? = null,
+    processingStatus: String? = null,
     model: Model? = null,
     assistant: Assistant? = null,
     lastMessage: Boolean = false,
@@ -232,7 +234,7 @@ fun ChatMessage(
         )
 
         ProvideTextStyle(textStyle) {
-            ChatMessageNerdLine(message = message)
+            ChatMessageNerdLine(message = message, progress = generationProgress, processingStatus = processingStatus, active = loading)
         }
 
     }
@@ -290,6 +292,8 @@ private fun MessagePartsBlock(
     annotations: List<UIMessageAnnotation>,
     loading: Boolean,
     generationActive: Boolean = loading,
+    generationProgress: me.rerere.ai.provider.GenerationProgress? = null,
+    processingStatus: String? = null,
     onToolApproval: ((toolCallId: String, approved: Boolean, reason: String, scope: me.rerere.rikkahub.service.ChatService.ApprovalScope, toolName: String) -> Unit)? = null,
     onToolAnswer: ((toolCallId: String, answer: String) -> Unit)? = null,
     onRerunTool: (suspend (toolCallId: String) -> me.rerere.rikkahub.service.ChatService.RerunToolResult)? = null,
@@ -338,7 +342,8 @@ private fun MessagePartsBlock(
     // recomposition. During streaming the list grows one element at a time so size alone is
     // sufficient to detect a meaningful change; the lastOrNull() hash catches in-place edits
     // on the tail part (e.g. streaming text appended to the final Text part).
-    val partsKey = parts.size.toString() + (parts.lastOrNull()?.hashCode()?.toString() ?: "")
+    val partsKey = parts.size.toString() + (parts.lastOrNull()?.hashCode()?.toString() ?: "") +
+        parts.filter(me.rerere.rikkahub.data.ai.ContextCompactionPresentation::isDisplayTool).hashCode()
     val groupedParts = remember(partsKey) { parts.groupMessageParts() }
     groupedParts.fastForEach { block ->
         when (block) {

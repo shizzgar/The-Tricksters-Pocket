@@ -1,0 +1,8 @@
+{
+  "agents": [
+    "native_probe"
+  ],
+  "limits": {
+    "max_events": 100
+  }
+}

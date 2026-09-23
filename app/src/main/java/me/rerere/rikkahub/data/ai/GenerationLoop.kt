@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.retryWhen
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import me.rerere.rikkahub.service.AgentOverlay
 import me.rerere.rikkahub.service.RikkaAccessibilityService
@@ -27,6 +28,9 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import me.rerere.ai.core.MessageRole
 import me.rerere.ai.core.Tool
 import me.rerere.ai.provider.Model
@@ -56,6 +60,7 @@ import me.rerere.rikkahub.data.ai.transformers.visualTransforms
 import me.rerere.rikkahub.data.ai.limits.ToolRuntimeLimits
 import me.rerere.rikkahub.data.ai.tools.buildMemoryTools
 import me.rerere.rikkahub.data.datastore.Settings
+import me.rerere.rikkahub.data.datastore.compactionRuntimeLimits
 import me.rerere.rikkahub.data.datastore.findProvider
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.AssistantMemory
@@ -295,7 +300,9 @@ private fun List<UIMessage>.ageOldToolImages(): List<UIMessage> {
 @Serializable
 sealed interface GenerationChunk {
     data class Messages(
-        val messages: List<UIMessage>
+        val messages: List<UIMessage>,
+        @kotlinx.serialization.Transient
+        val persistenceReceipt: kotlinx.coroutines.CompletableDeferred<Unit>? = null,
     ) : GenerationChunk
 }
 
@@ -311,9 +318,9 @@ private const val TAG_GH_LOOP = "GenHandlerLoop"
  */
 private const val LOOP_GUARD_REPEAT_THRESHOLD = 3
 
-// The per-turn wall-clock budget was hardcoded here (most recently 10 min). It now lives in
+// The per-turn model/tool time budget was hardcoded here (most recently 10 min). It now lives in
 // ToolRuntimeLimits.turnBudgetMs (default 10 min), user-configurable via Settings -> Termux;
-// every read site below uses that holder directly.
+// automatic compaction is accounted for separately by GenerationTurnClock.
 
 /**
  * Max number of times the loop guard can trip in a single turn before we force-end the
@@ -347,6 +354,10 @@ private const val IMAGE_KEEP_LAST_N_TOOL_RESULTS = 2
  * identical args is a loop, not a refresh. Add new freshness-sensitive tools here.
  */
 private val FRESHNESS_TTL_MS_BY_TOOL: Map<String, Long> = mapOf(
+    "termux_job_wait" to 1_000L,
+    "termux_job_read" to 2_000L,
+    "termux_job_list" to 5_000L,
+    "termux_session_read" to 2_000L,
     "get_battery_status" to 30_000L,
     "get_audio_info" to 30_000L,
     "get_telephony_info" to 30_000L,
@@ -376,6 +387,28 @@ private val FRESHNESS_TTL_MS_BY_TOOL: Map<String, Long> = mapOf(
  * reader). Keep it to genuine read-only observers: wrongly adding an ACTION tool here would
  * stop it from resetting the counter and reintroduce the false-positive loop_detected.
  */
+/** Reconnect to an interrupted job using its recorded operation ID; never launch it again. */
+private suspend fun reconcileTermuxJob(part: UIMessagePart.Tool, owner: String, tools: List<Tool>): List<UIMessagePart>? {
+    val observer = tools.firstOrNull { it.name == "termux_job_wait" } ?: return null
+    val operation = runCatching { Json.parseToJsonElement(part.input).jsonObject["operation_id"]?.jsonPrimitive?.content }.getOrNull() ?: return null
+    val ownerKey = me.rerere.rikkahub.data.ai.tools.local.sessionOwner(owner)
+    val id = java.security.MessageDigest.getInstance("SHA-256").digest("$ownerKey:$operation".toByteArray())
+        .joinToString("") { "%02x".format(it) }.take(24)
+    return try {
+        val result = observer.execute(buildJsonObject { put("job_id", id); put("timeout_seconds", 1) })
+        val text = result.filterIsInstance<UIMessagePart.Text>().firstOrNull()?.text ?: return null
+        val observed = Json.parseToJsonElement(text).jsonObject
+        if (observed["state"] == null || observed["error"] != null) return null
+        listOf(UIMessagePart.Text(buildJsonObject {
+            observed.forEach { (key, value) -> put(key, value) }
+            put("reconciled_after_interruption", true)
+            put("operation_id", operation)
+            put("note", "Recovered status of the existing job; the command was not relaunched.")
+        }.toString()))
+    } catch (c: kotlinx.coroutines.CancellationException) { throw c }
+    catch (_: Exception) { null }
+}
+
 private val READ_ONLY_OBSERVATION_TOOLS: Set<String> =
     FRESHNESS_TTL_MS_BY_TOOL.keys + "find_node"
 
@@ -447,14 +480,23 @@ class GenerationLoop(
         assistant: Assistant,
         memories: List<AssistantMemory>? = null,
         tools: List<Tool> = emptyList(),
+        refreshTools: (suspend () -> List<Tool>)? = null,
         // Read live from the runtime holder, not captured once: the default expression is
         // evaluated per call, so a settings change takes effect on the next turn.
         maxSteps: Int = ToolRuntimeLimits.maxToolSteps,
+        autonomousCycle: Boolean = false,
+        manageUiLifecycle: Boolean = true,
+        cycleState: AgentTaskCycleState = AgentTaskCycleState(),
+        onStopped: suspend (GenerationSliceOutcome) -> Unit = {},
+        shouldYieldToQueuedMessage: () -> Boolean = { false },
+        generationProgress: me.rerere.ai.provider.GenerationProgressTracker? = null,
         processingStatus: MutableStateFlow<String?> = MutableStateFlow(null),
         // Called after a tool result has been emitted and persisted, before the next model
         // request is built. The callback may return a compacted request history; the returned
         // list is request-only and does not replace the conversation's original messages.
         onAfterToolExecution: suspend (List<UIMessage>) -> List<UIMessage>? = { null },
+        // ChatService acknowledges the completed result only after applying and saving it.
+        awaitToolResultPersistence: Boolean = false,
         // Called immediately before every model request, including the request after a tool
         // result. ChatService uses this to reassert the foreground service before a background
         // continuation opens a new socket.
@@ -486,32 +528,48 @@ class GenerationLoop(
         // re-overwrite a file. Flip them to Denied so the model sees a deterministic
         // envelope and decides whether to retry deliberately.
         var messages: List<UIMessage> = messages.map { msg ->
-            val newParts = msg.parts.map { part ->
+            val newParts = msg.parts.map parts@{ part ->
                 if (part is UIMessagePart.Tool && part.isInterruptedAttempt) {
                     Log.w(TAG, "replay: ${part.toolName} (${part.toolCallId}) had executionStartedAt set with empty output → Denied(interrupted_unknown_outcome)")
+                    if (part.toolName == "termux_job_start" && conversationId != null) {
+                        val recovered = reconcileTermuxJob(part, conversationId.toString(), tools)
+                        if (recovered != null) return@parts part.copy(output = recovered)
+                    }
                     part.copy(approvalState = ToolApprovalState.Denied(
                         "interrupted_unknown_outcome: a previous attempt to execute this tool started " +
                             "but did not complete (process killed mid-execute). The side effect MAY OR " +
                             "MAY NOT have happened. Verify the target state before retrying — do not " +
-                            "blindly re-run the same call."
+                            "blindly re-run the same call." +
+                            if (part.toolName.startsWith("termux_job_") || part.toolName == "termux_run_command")
+                                " For managed/background jobs, call termux_job_list, then read/wait the existing job. Reuse operation_id only for reconciling the same intended launch."
+                            else ""
                     ))
                 } else part
             }
             if (newParts == msg.parts) msg else msg.copy(parts = newParts)
         }
 
-        val turnStartMs = android.os.SystemClock.elapsedRealtime()
-        var loopGuardTripCount = 0
+        val turnClock = GenerationTurnClock(settings.compactionRuntimeLimits().totalTimeoutMs) {
+            android.os.SystemClock.elapsedRealtime()
+        }
+        var loopGuardTripCount = cycleState.loopGuardTrips
+        var stopReason = GenerationStopReason.STEP_LIMIT
+        var completedSteps = 0
 
         for (stepIndex in 0 until maxSteps) {
-            // Wall-clock cap: any single user turn that has been running longer than the
-            // budget is force-ended, regardless of whether the model wants more steps.
+            if (shouldYieldToQueuedMessage() && messages.none { msg -> msg.getTools().any { !it.isExecuted } }) {
+                stopReason = GenerationStopReason.USER_MESSAGE
+                break
+            }
+            // Model/tool time has its own cap; compaction has a separately bounded,
+            // cumulative allowance so a successful long compaction can resume this turn.
             // This is the second line of defence after maxSteps; without it a model that
             // discovers many distinct tool calls (each within the loop guard) can still
             // run for hours.
-            val elapsedMs = android.os.SystemClock.elapsedRealtime() - turnStartMs
+            val elapsedMs = turnClock.activeElapsedMs()
             if (elapsedMs > ToolRuntimeLimits.turnBudgetMs) {
-                Log.w(TAG, "generateText: wall-clock cap (${ToolRuntimeLimits.turnBudgetMs}ms) hit at step #$stepIndex; force-ending turn")
+                stopReason = GenerationStopReason.CYCLE_DEADLINE
+                Log.w(TAG, "generateText: model/tool time cap (${ToolRuntimeLimits.turnBudgetMs}ms) hit at step #$stepIndex; force-ending turn")
                 break
             }
             // Repeated loop-guard trips mean the model is flailing: it bumps into the
@@ -519,10 +577,12 @@ class GenerationLoop(
             // N trips we just stop — the model is not going to recover, and every extra
             // step is paid for in tokens.
             if (loopGuardTripCount >= MAX_LOOP_GUARD_TRIPS_PER_TURN) {
+                stopReason = GenerationStopReason.LOOP_DETECTED
                 Log.w(TAG, "generateText: loop-guard tripped $loopGuardTripCount times this turn; force-ending")
                 break
             }
 
+            completedSteps = stepIndex + 1
             Log.i(TAG, "streamText: start step #$stepIndex (${model.id})")
 
             val toolsInternal = buildList {
@@ -546,7 +606,7 @@ class GenerationLoop(
                         }
                     ).let(this::addAll)
                 }
-                addAll(tools)
+                addAll(refreshTools?.invoke() ?: tools)
             }
 
             // Check if we have tool calls ready to continue after user interaction.
@@ -564,56 +624,67 @@ class GenerationLoop(
                     p is UIMessagePart.Tool && p.isPending
                 } == true
                 if (lastHasPending) {
+                    stopReason = GenerationStopReason.WAITING_APPROVAL
                     Log.i(TAG, "generateText: last message has Pending tools; waiting for approval, not regenerating")
                     break
                 }
             }
 
             val toolsToProcess: List<UIMessagePart.Tool>
+            var modelFinishReason: String? = null
+            val textBeforeRequest = messages.lastOrNull()?.takeIf { it.role == MessageRole.ASSISTANT }?.toText().orEmpty()
 
             // Skip generation if we have approved/denied tool calls to handle
             if (pendingTools.isEmpty()) {
                 try {
                     onBeforeModelRequest()
-                    generateInternal(
-                        assistant = assistant,
-                        settings = settings,
-                        systemAddendum = systemAddendum,
-                        messages = messages,
-                        onUpdateMessages = {
-                            messages = it.transforms(
-                                transformers = outputTransformers,
-                                context = context,
-                                model = model,
-                                assistant = assistant,
-                                settings = settings
-                            )
-                            emit(
-                                GenerationChunk.Messages(
-                                    messages.visualTransforms(
-                                        transformers = outputTransformers,
-                                        context = context,
-                                        model = model,
-                                        assistant = assistant,
-                                        settings = settings
+                    kotlinx.coroutines.withTimeout(if (autonomousCycle)
+                        settings.networkSetting.generationRuntime.normalized().requestTimeoutMinutes * 60_000L
+                    else (ToolRuntimeLimits.turnBudgetMs - turnClock.activeElapsedMs()).coerceAtLeast(1L)) {
+                        generateInternal(
+                            assistant = assistant,
+                            settings = settings,
+                            systemAddendum = systemAddendum,
+                            messages = messages,
+                            onUpdateMessages = {
+                                messages = it.transforms(
+                                    transformers = outputTransformers,
+                                    context = context,
+                                    model = model,
+                                    assistant = assistant,
+                                    settings = settings
+                                )
+                                emit(
+                                    GenerationChunk.Messages(
+                                        messages.visualTransforms(
+                                            transformers = outputTransformers,
+                                            context = context,
+                                            model = model,
+                                            assistant = assistant,
+                                            settings = settings
+                                        )
                                     )
                                 )
-                            )
-                        },
-                        transformers = inputTransformers,
-                        model = model,
-                        providerImpl = providerImpl,
-                        provider = provider,
-                        tools = toolsInternal,
-                        memories = memories ?: emptyList(),
-                        stream = assistant.streamOutput,
-                        processingStatus = processingStatus,
-                        conversationSystemPrompt = conversationSystemPrompt,
-                        conversationId = conversationId,
-                        conversationModeInjectionIds = conversationModeInjectionIds,
-                        conversationLorebookIds = conversationLorebookIds,
-                        workspaceCwd = workspaceCwd,
-                    )
+                            },
+                            transformers = inputTransformers,
+                            model = model,
+                            providerImpl = providerImpl,
+                            provider = provider,
+                            tools = toolsInternal,
+                            memories = memories ?: emptyList(),
+                            stream = assistant.streamOutput,
+                            processingStatus = processingStatus,
+                            conversationSystemPrompt = conversationSystemPrompt,
+                            conversationId = conversationId,
+                            conversationModeInjectionIds = conversationModeInjectionIds,
+                            conversationLorebookIds = conversationLorebookIds,
+                            workspaceCwd = workspaceCwd,
+                            generationProgress = generationProgress,
+                            onModelFinish = { modelFinishReason = it },
+                            generationPriority = if (stepIndex > 0) me.rerere.ai.provider.GenerationPriority.CONTINUATION
+                                else me.rerere.ai.provider.GenerationPriority.INTERACTIVE,
+                        )
+                    }
                 } catch (t: Throwable) {
                     // CancellationException is honoured verbatim — stopGeneration has its
                     // own cancelToolByUser path that marks tools cancelled. We only need
@@ -664,7 +735,11 @@ class GenerationLoop(
 
                 val toolCalls = messages.last().getTools().filter { !it.isExecuted }
                 if (toolCalls.isEmpty()) {
-                    // no tool calls, break
+                    stopReason = when {
+                        messages.last().toText().isBlank() || messages.last().toText() == textBeforeRequest -> GenerationStopReason.NO_PROGRESS
+                        modelFinishReason?.lowercase() in setOf("length", "max_tokens", "max_output_tokens") -> GenerationStopReason.OUTPUT_LIMIT
+                        else -> GenerationStopReason.COMPLETED
+                    }
                     break
                 }
 
@@ -738,6 +813,7 @@ class GenerationLoop(
 
                 // If there are pending approvals, break and wait for user
                 if (hasPendingApproval) {
+                    stopReason = GenerationStopReason.WAITING_APPROVAL
                     Log.i(TAG, "generateText: waiting for tool approval")
                     break
                 }
@@ -963,9 +1039,13 @@ class GenerationLoop(
                             // kill between mark-and-output leaves a clear breadcrumb on disk:
                             // on replay we'll see Approved + executionStartedAt + empty output
                             // and refuse to silently re-run. The mark survives via the
-                            // existing emit-and-persist plumbing — see ChatService chunk
+                            // acknowledged persistence checkpoint — see ChatService chunk
                             // handler's needsImmediatePersist branch.
                             val markedTool = tool.copy(executionStartedAt = System.currentTimeMillis())
+                            me.rerere.ai.provider.GenerationTrace.record(conversationId?.toString(), "tool.started", buildJsonObject {
+                                put("tool_call_id", tool.toolCallId); put("tool", tool.toolName); put("input", tool.input)
+                                messages.lastOrNull()?.generationMetrics?.lastOrNull()?.requestId?.let { put("parent_request_id", it) }
+                            })
                             run {
                                 val lastMsg = messages.lastOrNull()
                                 if (lastMsg != null) {
@@ -973,17 +1053,17 @@ class GenerationLoop(
                                         if (p is UIMessagePart.Tool && p.toolCallId == tool.toolCallId) markedTool else p
                                     }
                                     messages = messages.dropLast(1) + lastMsg.copy(parts = markedParts)
-                                    emit(GenerationChunk.Messages(messages))
+                                    emitToolResultCheckpoint(messages, awaitToolResultPersistence)
                                 }
                             }
-                            // Hard-cap individual tool execution at the remaining wall-clock
+                            // Hard-cap individual tool execution at the remaining model/tool
                             // budget so a single tool with its OWN long timeout (camera 5min,
                             // ssh_exec timeout_seconds=300) can't carry the turn past the
                             // global ${ToolRuntimeLimits.turnBudgetMs}ms cap. If the budget is
                             // already blown when we start the tool, return a structured
                             // wall-clock envelope instead of even attempting.
-                            val remainingMs = ToolRuntimeLimits.turnBudgetMs -
-                                (android.os.SystemClock.elapsedRealtime() - turnStartMs)
+                            val remainingMs = if (autonomousCycle) 24 * 60 * 60_000L
+                                else ToolRuntimeLimits.turnBudgetMs - turnClock.activeElapsedMs()
                             val result = if (remainingMs <= 0L) {
                                 Log.w(TAG, "generateText: ${toolDef.name} skipped — wall-clock budget already exceeded")
                                 listOf(UIMessagePart.Text(json.encodeToString(buildJsonObject {
@@ -1003,6 +1083,11 @@ class GenerationLoop(
                                         })))
                                     }
                             }
+                            me.rerere.ai.provider.GenerationTrace.record(conversationId?.toString(), "tool.result", buildJsonObject {
+                                put("tool_call_id", tool.toolCallId); put("tool", tool.toolName)
+                                put("elapsed_ms", System.currentTimeMillis() - requireNotNull(markedTool.executionStartedAt))
+                                put("output", json.encodeToJsonElement(kotlinx.serialization.builtins.ListSerializer(UIMessagePart.serializer()), result))
+                            })
                             // Upstream tool-output truncation: when the workspace shell is
                             // available, oversized text output is spilled to /tool_outputs/
                             // and replaced with a preview + read/grep instructions so the
@@ -1013,6 +1098,14 @@ class GenerationLoop(
                                 output = maybeTruncateToolOutput(tool.toolCallId, result, hasShellAccess)
                             )
                         }.onFailure {
+                            val failure = it
+                            withContext(kotlinx.coroutines.NonCancellable) {
+                                me.rerere.ai.provider.GenerationTrace.record(conversationId?.toString(), "tool.result", buildJsonObject {
+                                    put("tool_call_id", tool.toolCallId); put("tool", tool.toolName)
+                                    put("error_type", failure.javaClass.simpleName); put("error", failure.message?.take(500))
+                                })
+                            }
+                            if (it is CancellationException) throw it
                             // Stack trace stays in logcat for debugging; the JSON envelope
                             // sent BACK to the LLM gets just the exception's message and a
                             // short class hint. Stuffing the full multi-frame R8-obfuscated
@@ -1053,10 +1146,13 @@ class GenerationLoop(
             }
 
             if (executedTools.isEmpty()) {
-                // No results to add (all tools were pending)
+                stopReason = GenerationStopReason.WAITING_APPROVAL
                 break
             }
 
+            me.rerere.ai.provider.GenerationTrace.record(conversationId?.toString(), "tool.checkpoint", buildJsonObject {
+                put("tools", json.encodeToJsonElement(kotlinx.serialization.builtins.ListSerializer(UIMessagePart.Tool.serializer()), executedTools))
+            })
             // Update last message with executed tools (NOT create TOOL message)
             val lastMessage = messages.last()
             val updatedParts = lastMessage.parts.map { part ->
@@ -1065,34 +1161,36 @@ class GenerationLoop(
                 } else part
             }
             messages = messages.dropLast(1) + lastMessage.copy(parts = updatedParts)
-            emit(
-                GenerationChunk.Messages(
-                    messages.transforms(
-                        transformers = outputTransformers,
-                        context = context,
-                        model = model,
-                        assistant = assistant,
-                        settings = settings
-                    )
-                )
+            emitToolResultCheckpoint(
+                messages = messages.transforms(
+                    transformers = outputTransformers,
+                    context = context,
+                    model = model,
+                    assistant = assistant,
+                    settings = settings,
+                ),
+                awaitPersistence = awaitToolResultPersistence,
             )
 
-            onAfterToolExecution(messages)?.let { compactedMessages ->
+            if (autonomousCycle && turnClock.compactionAllowanceExhausted()) {
+                stopReason = GenerationStopReason.COMPACTION_LIMIT
+                break
+            }
+            turnClock.duringCompaction { onAfterToolExecution(messages) }?.let { compactedMessages ->
                 Log.i(TAG, "generateText: replacing request history after tool execution")
                 messages = compactedMessages
             }
         }
-
+        cycleState.loopGuardTrips = loopGuardTripCount
+        onStopped(GenerationSliceOutcome(stopReason, completedSteps))
     }
         .onStart {
             // Reset per-turn navigation tracking and surface the overlay so the user
             // sees that automation is happening even when the agent runs from Telegram.
-            AgentTurnTracker.reset()
-            AgentOverlay.show(context)
+            if (manageUiLifecycle) beginTaskUi()
         }
         .onCompletion {
-            AgentOverlay.hide(context)
-            handleAutoReturnAfterTurn()
+            if (manageUiLifecycle) endTaskUi()
         }
         .flowOn(Dispatchers.IO)
 
@@ -1102,6 +1200,16 @@ class GenerationLoop(
      * user is not stranded inside Chrome / Termux / etc. If the user manually switched apps
      * mid-turn, we skip the auto-return and surface a Toast explaining the safety behavior.
      */
+    fun beginTaskUi() {
+        AgentTurnTracker.reset()
+        AgentOverlay.show(context)
+    }
+
+    fun endTaskUi() {
+        AgentOverlay.hide(context)
+        handleAutoReturnAfterTurn()
+    }
+
     private fun handleAutoReturnAfterTurn() {
         if (!AgentTurnTracker.didNavigateAway()) return
         // Only auto-return when the agent actually drove the destination app via screen
@@ -1143,6 +1251,8 @@ class GenerationLoop(
     }
 
     private suspend fun generateInternal(
+        onModelFinish: (String?) -> Unit = {},
+        generationPriority: me.rerere.ai.provider.GenerationPriority,
         assistant: Assistant,
         settings: Settings,
         systemAddendum: String? = null,
@@ -1155,6 +1265,7 @@ class GenerationLoop(
         tools: List<Tool>,
         memories: List<AssistantMemory>,
         stream: Boolean,
+        generationProgress: me.rerere.ai.provider.GenerationProgressTracker? = null,
         processingStatus: MutableStateFlow<String?> = MutableStateFlow(null),
         conversationSystemPrompt: String? = null,
         conversationId: Uuid? = null,
@@ -1162,6 +1273,8 @@ class GenerationLoop(
         conversationLorebookIds: Set<Uuid> = emptySet(),
         workspaceCwd: String? = null,
     ) {
+        val metricsBefore = generationProgress?.completedMetrics()?.map { it.requestId }?.toSet().orEmpty()
+        generationProgress?.prepare()
         val internalMessages = buildList {
             // Conversation-level system prompt override (upstream): when the assistant
             // allows it and the conversation supplies one, it replaces the assistant prompt.
@@ -1230,6 +1343,8 @@ class GenerationLoop(
                 addAll(model.customBodies)
             },
             sessionId = conversationId?.toString(),
+            priority = generationPriority,
+            progressTracker = generationProgress,
         )
         try {
             if (stream) {
@@ -1294,6 +1409,7 @@ class GenerationLoop(
                     }
                     shouldRetry
                 }.collect {
+                    if (it is StreamChunk.Finish) onModelFinish(it.finishReason)
                     receivedAnyChunk = true
                     if (isMeaningfulStreamChunk(it)) {
                         receivedMeaningfulOutput = true
@@ -1328,10 +1444,18 @@ class GenerationLoop(
                         params = params,
                     )
                 }
+                onModelFinish(result.finishReason)
                 messages = messages.handleTextGenerationResult(result = result, model = model)
                 onUpdateMessages(messages)
             }
         } finally {
+            val newMetrics = generationProgress?.completedMetrics()?.filter { it.requestId !in metricsBefore }.orEmpty()
+            val last = messages.lastOrNull()
+            if (last?.role == MessageRole.ASSISTANT && newMetrics.isNotEmpty()) {
+                messages = messages.dropLast(1) + last.copy(generationMetrics =
+                    (last.generationMetrics + newMetrics).distinctBy { it.requestId })
+                onUpdateMessages(messages)
+            }
             processingStatus.value = null
         }
     }

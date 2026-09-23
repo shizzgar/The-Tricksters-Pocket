@@ -204,6 +204,7 @@ val appModule = module {
             storageVolumeGrantStore = get(),
             okHttpClient = get(),
             keyboardApiClient = get(),
+            termuxSkillBridge = get(),
         )
     }
 
@@ -243,6 +244,8 @@ val appModule = module {
     single { me.rerere.locallm.litert.LiteRtRuntime(get()) }
     single { me.rerere.llamacpp.LlamaCppRuntime() }
 
+    single { me.rerere.rikkahub.skills.TermuxSkillBridge(get(), get()) }
+
     single {
         ChatToolFactory(
             json = get(),
@@ -252,6 +255,7 @@ val appModule = module {
             mcpManager = get(),
             skillManager = get(),
             workspaceRepository = get(),
+            termuxSkills = get(),
         )
     }
 

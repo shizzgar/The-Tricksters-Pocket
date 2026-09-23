@@ -1,9 +1,8 @@
 package me.rerere.rikkahub.data.ai
 
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.booleanOrNull
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.coroutines.Job
+import kotlinx.serialization.json.*
+import java.util.concurrent.ConcurrentHashMap
 import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessagePart
 import me.rerere.rikkahub.data.model.Conversation
@@ -11,7 +10,7 @@ import me.rerere.rikkahub.data.model.ConversationCompaction
 import kotlin.uuid.Uuid
 
 /**
- * Presentation-only representation of an automatic context compaction.
+ * Presentation-only representation of a manual or automatic context compaction.
  *
  * The summary remains in [ConversationCompaction] as the request-context replacement. This
  * synthetic tool is attached to the assistant message that triggered compaction only so the
@@ -21,13 +20,72 @@ import kotlin.uuid.Uuid
 internal object ContextCompactionPresentation {
     const val TOOL_NAME = "context_compaction"
     private const val DISPLAY_ONLY_METADATA_KEY = "rikkahub_display_only_context_compaction"
+    val runtimeId: String = Uuid.random().toString()
+    private val operations = ConcurrentHashMap<String, Job>()
+
+    fun register(id: String, job: Job) { operations[id] = job }
+    fun unregister(id: String) { operations.remove(id) }
+    fun canCancel(id: String): Boolean = operations[id]?.isActive == true
+    fun cancel(id: String) { operations[id]?.cancel() }
+
+    fun startTool(
+        isAuto: Boolean, startedAt: Long, startedElapsed: Long, sourceTokens: Int, targetTokens: Int,
+    ): UIMessagePart.Tool = UIMessagePart.Tool(
+        toolCallId = "context_compaction_${Uuid.random()}",
+        toolName = TOOL_NAME,
+        executionStartedAt = startedAt,
+        input = buildJsonObject {
+            put("mode", if (isAuto) "automatic" else "manual")
+            put("state", "running")
+            put("phase", "preparing")
+            put("runtime_id", runtimeId)
+            put("started_at_ms", startedAt)
+            put("started_elapsed_ms", startedElapsed)
+            put("source_token_estimate", sourceTokens)
+            put("target_tokens", targetTokens)
+        }.toString(),
+        metadata = buildJsonObject { put(DISPLAY_ONLY_METADATA_KEY, true) },
+    )
+
+    fun update(tool: UIMessagePart.Tool, fields: JsonObject, output: String? = null): UIMessagePart.Tool = tool.copy(
+        input = buildJsonObject {
+            (runCatching { Json.parseToJsonElement(tool.input) as? JsonObject }.getOrNull() ?: JsonObject(emptyMap()))
+                .forEach { (key, value) -> put(key, value) }
+            fields.forEach { (key, value) -> put(key, value) }
+        }.toString(),
+        output = output?.let { listOf(UIMessagePart.Text(it)) } ?: tool.output,
+    )
+
+    fun completeTool(tool: UIMessagePart.Tool, compaction: ConversationCompaction, elapsedMs: Long): UIMessagePart.Tool =
+        update(tool, buildJsonObject {
+            Json.parseToJsonElement(createTool(compaction).input).jsonObject.forEach { (key, value) -> put(key, value) }
+            put("state", "completed")
+            put("elapsed_ms", elapsedMs.coerceAtLeast(0))
+            put("finished_at_ms", compaction.createdAt.toEpochMilli())
+        }, compaction.summary)
+
+    fun isRunning(tool: UIMessagePart.Tool): Boolean = isDisplayTool(tool) &&
+        runCatching {
+            val input = Json.parseToJsonElement(tool.input).jsonObject
+            input["state"]?.jsonPrimitive?.contentOrNull == "running" &&
+                input["runtime_id"]?.jsonPrimitive?.contentOrNull == runtimeId
+        }.getOrDefault(false)
+
+    fun hasAutomaticDisplayTool(message: UIMessage): Boolean = message.parts.any { part ->
+        isDisplayTool(part) && runCatching {
+            Json.parseToJsonElement((part as UIMessagePart.Tool).input).jsonObject["mode"]?.jsonPrimitive?.contentOrNull != "manual"
+        }.getOrDefault(false)
+    }
 
     fun createTool(compaction: ConversationCompaction): UIMessagePart.Tool = UIMessagePart.Tool(
         toolCallId = "context_compaction_${compaction.createdAt.toEpochMilli()}_${compaction.sourceEndNodeId}",
         toolName = TOOL_NAME,
         input = buildJsonObject {
-            put("mode", JsonPrimitive("automatic"))
+            put("mode", JsonPrimitive(if (compaction.isAuto) "automatic" else "manual"))
+            put("state", JsonPrimitive("completed"))
             put("source_token_estimate", JsonPrimitive(compaction.sourceTokenEstimate))
+            put("summary_token_estimate", JsonPrimitive(ContextCompactionPlanner.estimateTokens(compaction.summary)))
+            put("original_history_available", JsonPrimitive(true))
             put("summary_model_id", JsonPrimitive(compaction.summaryModelId.toString()))
             put(
                 "retained_raw_tool_calls",
@@ -46,6 +104,37 @@ internal object ContextCompactionPresentation {
             part.metadata?.get(DISPLAY_ONLY_METADATA_KEY)?.jsonPrimitive?.booleanOrNull == true
 
     fun hasDisplayTool(message: UIMessage): Boolean = message.parts.any(::isDisplayTool)
+
+    /** Presentation and accounting updates are not edits to the selected source. */
+    fun sourcePrefixUnchanged(before: Conversation, after: Conversation, endExclusive: Int): Boolean =
+        sourcePrefixChangeReason(before, after, endExclusive) == null
+
+    /** Content-free diagnostics: never put command text, tool output or private messages in errors. */
+    fun sourcePrefixChangeReason(before: Conversation, after: Conversation, endExclusive: Int): String? {
+        if (before.id != after.id) return "conversation_replaced"
+        if (endExclusive !in 1..before.messageNodes.size) return "invalid_source_boundary"
+        if (endExclusive > after.messageNodes.size) return "source_nodes_removed"
+        for (index in 0 until endExclusive) {
+            val previous = before.messageNodes[index]
+            val current = after.messageNodes[index]
+            if (previous.id != current.id) return "source_node_replaced:$index"
+            val original = previous.messages.getOrNull(previous.selectIndex) ?: return "invalid_source_selection:$index"
+            val latest = current.messages.getOrNull(current.selectIndex) ?: return "invalid_current_selection:$index"
+            if (original.id != latest.id) return "source_branch_changed:$index"
+            if (sourceMessage(original) != sourceMessage(latest)) return "source_content_changed:$index"
+        }
+        return null
+    }
+
+    private fun sourceMessage(message: UIMessage): UIMessage = message.copy(
+        usage = null,
+        translation = null,
+        finishedAt = null,
+        parts = message.parts.filterNot(::isDisplayTool).map { part ->
+            // Finishing the reasoning stopwatch does not change its text or evidence.
+            if (part is UIMessagePart.Reasoning) part.copy(finishedAt = null) else part
+        },
+    )
 
     /** Removes UI-only compaction cards before messages become model input. */
     fun stripDisplayTools(messages: List<UIMessage>): List<UIMessage> = messages.map { message ->
@@ -66,11 +155,13 @@ internal object ContextCompactionPresentation {
         var changed = false
         val updatedNodes = conversation.messageNodes.map { node ->
             val updatedMessages = node.messages.map { message ->
-                if (message.id != messageId || message.parts.any { it is UIMessagePart.Tool && it.toolCallId == tool.toolCallId }) {
+                if (message.id != messageId) {
                     message
                 } else {
-                    changed = true
-                    message.copy(parts = message.parts + tool)
+                    val index = message.parts.indexOfFirst { it is UIMessagePart.Tool && it.toolCallId == tool.toolCallId }
+                    val parts = if (index < 0) message.parts + tool else message.parts.toMutableList().apply { this[index] = tool }
+                    if (parts != message.parts) changed = true
+                    message.copy(parts = parts)
                 }
             }
             if (updatedMessages == node.messages) node else node.copy(messages = updatedMessages)

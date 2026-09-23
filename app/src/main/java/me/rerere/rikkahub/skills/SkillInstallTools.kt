@@ -81,23 +81,21 @@ private suspend fun applyAutoEnable(
     settingsStore: SettingsStore,
     skillName: String,
     existedBeforeInstall: Boolean,
+    callerAssistantId: String?,
 ): AutoEnableOutcome {
     return try {
-        val settings = settingsStore.settingsFlow.first()
-        val assistant = settings.getCurrentAssistant()
-        val outcome = decideAutoEnable(assistant.enabledSkills, skillName, existedBeforeInstall)
-        val newSet = outcome.updatedEnabledSkills
-        if (newSet != null) {
-            settingsStore.update { current ->
-                current.copy(
-                    assistants = current.assistants.map { a ->
-                        if (a.id == assistant.id) a.copy(enabledSkills = newSet) else a
-                    }
-                )
-            }
+        var outcome = AutoEnableOutcome(false, "Skill installed; calling assistant is unavailable. Enable it in the assistant settings.", null)
+        settingsStore.update { current ->
+            current.copy(assistants = current.assistants.map { assistant ->
+                if (assistant.id.toString() != callerAssistantId) assistant else {
+                    outcome = decideAutoEnable(assistant.enabledSkills, skillName, existedBeforeInstall)
+                    outcome.updatedEnabledSkills?.let { assistant.copy(enabledSkills = it) } ?: assistant
+                }
+            })
         }
         outcome
     } catch (t: Throwable) {
+        if (t is kotlinx.coroutines.CancellationException) throw t
         Log.w(TAG, "applyAutoEnable: failed to auto-enable '$skillName'", t)
         AutoEnableOutcome(
             autoEnabled = false,
@@ -132,6 +130,7 @@ fun skillInstallFromUrlTool(
     importer: SkillUrlImporter,
     settingsStore: SettingsStore,
     skillManager: SkillManager,
+    callerAssistantId: String? = null,
 ): Tool = Tool(
     name = "skill_install_from_url",
     description = """
@@ -167,7 +166,7 @@ fun skillInstallFromUrlTool(
             is SkillUrlImporter.Result.Err -> err(r.code, r.detail)
             is SkillUrlImporter.Result.Ok -> {
                 val existedBefore = r.metadata.name in namesBeforeInstall
-                val outcome = applyAutoEnable(settingsStore, r.metadata.name, existedBefore)
+                val outcome = applyAutoEnable(settingsStore, r.metadata.name, existedBefore, callerAssistantId)
                 val payload = buildJsonObject {
                     put("ok", true)
                     put("name", r.metadata.name)
@@ -201,6 +200,7 @@ fun skillInstallFromTextTool(
     importer: SkillUrlImporter,
     settingsStore: SettingsStore,
     skillManager: SkillManager,
+    callerAssistantId: String? = null,
 ): Tool = Tool(
     name = "skill_install_from_text",
     description = """
@@ -242,7 +242,7 @@ fun skillInstallFromTextTool(
             is SkillUrlImporter.Result.Err -> err(r.code, r.detail)
             is SkillUrlImporter.Result.Ok -> {
                 val existedBefore = r.metadata.name in namesBeforeInstall
-                val outcome = applyAutoEnable(settingsStore, r.metadata.name, existedBefore)
+                val outcome = applyAutoEnable(settingsStore, r.metadata.name, existedBefore, callerAssistantId)
                 val payload = buildJsonObject {
                     put("ok", true)
                     put("name", r.metadata.name)

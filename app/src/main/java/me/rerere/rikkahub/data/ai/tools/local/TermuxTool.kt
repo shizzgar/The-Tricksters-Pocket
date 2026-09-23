@@ -8,6 +8,7 @@ import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonArray
@@ -124,9 +125,9 @@ internal object TermuxIntegration {
             timeoutMs = timeoutMs,
         )
         return when (result) {
-            is CaptureResult.Success -> if (result.stdout.contains("RIKKAHUB_OK"))
+            is CaptureResult.Success -> if (result.exitCode == 0 && result.stdout.contains("RIKKAHUB_OK"))
                 VerifyResult.Ok else VerifyResult.UnexpectedOutput(result.stdout)
-            is CaptureResult.Timeout -> VerifyResult.AllowExternalAppsMissing
+            is CaptureResult.Timeout -> VerifyResult.OtherError("Verification wait timed out; command outcome unknown. Check Termux integration and process state before retrying.")
             is CaptureResult.Denied -> VerifyResult.NoPermission
             is CaptureResult.OtherError -> VerifyResult.OtherError(result.message)
         }
@@ -349,6 +350,8 @@ internal suspend fun runCommandCapture(
         }
     } catch (t: SecurityException) {
         CaptureResult.Denied
+    } catch (c: CancellationException) {
+        throw c
     } catch (t: Throwable) {
         CaptureResult.OtherError(t.message ?: t::class.java.simpleName)
     } finally {
@@ -363,12 +366,14 @@ internal suspend fun runCommandCapture(
  * for the legacy "open visible Termux session" mode where the user sees output live but
  * the bot cannot read it.
  */
-fun termuxRunCommandTool(context: Context): Tool = Tool(
+fun termuxRunCommandTool(context: Context, owner: String? = null): Tool = Tool(
     name = "termux_run_command",
     description = """
         Execute a shell command in Termux. By default the command runs in the background and
         its stdout / stderr / exit_code are returned to you so you can reason on the output
-        (e.g. check if a package is installed, read a file, run a script). Pass
+        (e.g. check if a package is installed, read a file, run a script). Long batch work should
+        use termux_job_start/read/wait/cancel with durable IDs. background=true command mode also
+        uses this job supervisor when conversation identity is available. Pass
         interactive=true to instead open a visible Termux session - useful when the user
         explicitly wants to watch output live or when the command needs an interactive prompt;
         in that mode no output is returned. Termux must have allow-external-apps=true set in
@@ -402,7 +407,11 @@ fun termuxRunCommandTool(context: Context): Tool = Tool(
                 })
                 put("background", buildJsonObject {
                     put("type", "boolean")
-                    put("description", "Command mode only. If true, launch the command fully detached (nohup, streams redirected) and return immediately with its PID. Use for servers / long-running processes that would otherwise keep the capture pipe open and block until timeout. Default false.")
+                    put("description", "Command mode only. Start a managed background job, return job_id, and inspect with termux_job_read/wait. Default false. Python in Termux required for managed jobs.")
+                })
+                put("operation_id", buildJsonObject {
+                    put("type", "string")
+                    put("description", "Optional stable launch ID for background=true. Reuse on an uncertain retry to avoid duplicate execution.")
                 })
                 put("timeout_seconds", buildJsonObject {
                     put("type", "integer")
@@ -444,6 +453,10 @@ fun termuxRunCommandTool(context: Context): Tool = Tool(
                     buildJsonObject { put("error", "command and executable are mutually exclusive") }.toString()
                 )
             )
+        }
+
+        if (background && (interactive || rawCommand.isNullOrBlank())) {
+            return@Tool listOf(UIMessagePart.Text("{\"error\":\"background_requires_noninteractive_command\"}"))
         }
 
         // Pre-flight: Termux installed?
@@ -494,6 +507,15 @@ fun termuxRunCommandTool(context: Context): Tool = Tool(
             // background: detach so a long-running child doesn't keep the capture pipe open and
             // stall the result bundle until timeout. Same inherited-fd hazard as the SSH exec
             // channel; wrapDetachedCommand applies the identical nohup + redirect + echo-pid fix.
+            if (background && owner != null) {
+                val result = termuxJobRequest(context, owner, buildJsonObject {
+                    put("action", "start")
+                    put("operation_id", input.jsonObject["operation_id"]?.jsonPrimitive?.contentOrNull ?: UUID.randomUUID().toString())
+                    put("command", preamble + rawCommand)
+                    put("working_dir", workingDir)
+                })
+                return@Tool listOf(UIMessagePart.Text(result.toString()))
+            }
             val body = if (background) wrapDetachedCommand(rawCommand) else rawCommand
             "$TERMUX_BIN_DIR/bash" to arrayOf("-c", preamble + body)
         } else {
@@ -555,8 +577,14 @@ fun termuxRunCommandTool(context: Context): Tool = Tool(
             timeoutMs = timeoutMs,
         )) {
             is CaptureResult.Success -> buildJsonObject {
-                put("success", true)
+                put("success", res.exitCode == 0)
+                put("transport_success", true)
+                put("state", "completed")
                 put("mode", "capture")
+                if (owner != null) {
+                    val archive = TermuxOutputArchive.save(context, owner, res.stdout, res.stderr)
+                    archive.forEach { (key, value) -> put(key, value) }
+                }
                 put("exit_code", res.exitCode)
                 val maxOut = TermuxRuntime.maxStdoutBytes
                 val maxErr = TermuxRuntime.maxStderrBytes
@@ -584,11 +612,13 @@ fun termuxRunCommandTool(context: Context): Tool = Tool(
             }
             is CaptureResult.Timeout -> buildJsonObject {
                 put("error", "timeout")
-                put("recovery", "Command did not return within ${timeoutMs / 1000}s. Either bump timeout_seconds or, if Termux gave no result at all, the user likely has not set allow-external-apps=true in ~/.termux/termux.properties (or did not restart Termux after editing it).")
+                put("state", "unknown")
+                put("process_termination_confirmed", false)
+                put("recovery", "Stopped waiting after ${timeoutMs / 1000}s; the command may still run. Inspect processes/logs before retrying. Use termux_job_start for long work with durable status and cancellation.")
             }
             is CaptureResult.Denied -> buildJsonObject {
                 put("error", "termux_permission_denied")
-                put("recovery", "Open Termux, then run: mkdir -p ~/.termux && echo 'allow-external-apps=true' >> ~/.termux/termux.properties. Force-stop Termux from app info and reopen it. Then retry.")
+                put("recovery", "Check RUN_COMMAND permission and Termux allow-external-apps setting. Do not force-stop Termux or retry a mutation without inspecting execution state.")
             }
             is CaptureResult.OtherError -> buildJsonObject {
                 put("error", "termux_run_failed")

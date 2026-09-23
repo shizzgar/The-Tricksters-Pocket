@@ -1,0 +1,281 @@
+{
+  "schema": 1,
+  "kind": "device-inventory-profile",
+  "trust": "observed_only",
+  "captured_at": "2026-09-22T20:23:42.163946+00:00",
+  "source": {
+    "archive_name": "inventory-20260922-232336-bc9bd0.zip",
+    "archive_sha256": "9c386eebfacf317b231d6cd5e06870d318c3275de4b5d5b8c323d25e53ab1be9",
+    "report_sha256": "c98d49e2185cc68c3c8ecc413b433eaecc3a0440c1de41da36718192dc181865",
+    "collector_version": "2.1.0",
+    "internal_checksums_verified": true
+  },
+  "device": {
+    "ro.product.model": "SM-S928B",
+    "ro.product.device": "e3q",
+    "ro.product.cpu.abilist": "arm64-v8a",
+    "ro.soc.manufacturer": "QTI",
+    "ro.soc.model": "SM8650",
+    "ro.board.platform": "pineapple",
+    "ro.build.fingerprint": "samsung/e3qxxx/e3q:16/BP4A.251205.006/S928BXXS6DZE1:user/release-keys",
+    "ro.build.version.release": "16",
+    "ro.build.version.sdk": "36",
+    "ro.build.version.security_patch": "2026-05-05",
+    "kernel": "6.1.145-android14-11-33419968-abS928BXXS6DZE1",
+    "machine": "aarch64",
+    "page_size": 4096
+  },
+  "resources_observed": {
+    "mem_available_kib": 2905080,
+    "data_free_bytes": 27815034880,
+    "battery_percent": 41,
+    "ac_powered": false,
+    "usb_powered": false,
+    "wireless_powered": false,
+    "battery_temperature_c": 36.2,
+    "cgroup_freeze": "0"
+  },
+  "termux": {
+    "python": "/data/data/com.termux/files/usr/bin/python3",
+    "uid_at_collection": 10376,
+    "root": {
+      "status": "available",
+      "method": "su"
+    },
+    "allow_external_apps": true,
+    "tools": {
+      "java": {
+        "path": "/data/data/com.termux/files/usr/bin/java",
+        "available": true,
+        "resolved_path": "/data/data/com.termux/files/usr/lib/jvm/java-21-openjdk/bin/java"
+      },
+      "javac": {
+        "path": "/data/data/com.termux/files/usr/bin/javac",
+        "available": true,
+        "resolved_path": "/data/data/com.termux/files/usr/lib/jvm/java-21-openjdk/bin/javac"
+      },
+      "jadx": {
+        "path": "/data/data/com.termux/files/usr/bin/jadx",
+        "available": true,
+        "resolved_path": "/data/data/com.termux/files/usr/bin/jadx"
+      },
+      "apktool": {
+        "path": "/data/data/com.termux/files/usr/bin/apktool",
+        "available": true,
+        "resolved_path": "/data/data/com.termux/files/usr/bin/apktool"
+      },
+      "aapt2": {
+        "path": "/data/data/com.termux/files/usr/bin/aapt2",
+        "available": true,
+        "resolved_path": "/data/data/com.termux/files/usr/bin/aapt2"
+      },
+      "aapt": {
+        "path": "/data/data/com.termux/files/usr/bin/aapt",
+        "available": true,
+        "resolved_path": "/data/data/com.termux/files/usr/bin/aapt"
+      },
+      "apksigner": {
+        "path": "/data/data/com.termux/files/usr/bin/apksigner",
+        "available": true,
+        "resolved_path": "/data/data/com.termux/files/usr/bin/apksigner"
+      },
+      "zipalign": {
+        "path": "/data/data/com.termux/files/usr/bin/zipalign",
+        "available": true,
+        "resolved_path": "/data/data/com.termux/files/usr/bin/zipalign"
+      },
+      "clang": {
+        "path": "/data/data/com.termux/files/usr/bin/clang",
+        "available": true,
+        "resolved_path": "/data/data/com.termux/files/usr/bin/clang-21"
+      },
+      "llvm-readelf": {
+        "path": "/data/data/com.termux/files/usr/bin/llvm-readelf",
+        "available": true,
+        "resolved_path": "/data/data/com.termux/files/usr/bin/llvm-readobj"
+      },
+      "r2": {
+        "path": "/data/data/com.termux/files/usr/bin/r2",
+        "available": true,
+        "resolved_path": "/data/data/com.termux/files/usr/bin/radare2"
+      },
+      "rabin2": {
+        "path": "/data/data/com.termux/files/usr/bin/rabin2",
+        "available": true,
+        "resolved_path": "/data/data/com.termux/files/usr/bin/rabin2"
+      },
+      "python3": {
+        "path": "/data/data/com.termux/files/usr/bin/python3",
+        "available": true,
+        "resolved_path": "/data/data/com.termux/files/usr/bin/python3.14"
+      },
+      "node": {
+        "path": "/data/data/com.termux/files/usr/bin/node",
+        "available": true,
+        "resolved_path": "/data/data/com.termux/files/usr/bin/node"
+      },
+      "npm": {
+        "path": "/data/data/com.termux/files/usr/bin/npm",
+        "available": true,
+        "resolved_path": "/data/data/com.termux/files/usr/lib/node_modules/npm/bin/npm-cli.js"
+      },
+      "go": {
+        "path": "/data/data/com.termux/files/usr/bin/go",
+        "available": true,
+        "resolved_path": "/data/data/com.termux/files/usr/lib/go/bin/go"
+      },
+      "git": {
+        "path": "/data/data/com.termux/files/usr/bin/git",
+        "available": true,
+        "resolved_path": "/data/data/com.termux/files/usr/bin/git"
+      },
+      "curl": {
+        "path": "/data/data/com.termux/files/usr/bin/curl",
+        "available": true,
+        "resolved_path": "/data/data/com.termux/files/usr/bin/curl"
+      },
+      "rg": {
+        "path": "/data/data/com.termux/files/usr/bin/rg",
+        "available": true,
+        "resolved_path": "/data/data/com.termux/files/usr/bin/rg"
+      },
+      "jq": {
+        "path": "/data/data/com.termux/files/usr/bin/jq",
+        "available": true,
+        "resolved_path": "/data/data/com.termux/files/usr/bin/jq"
+      },
+      "sqlite3": {
+        "path": null,
+        "available": false,
+        "resolved_path": null
+      },
+      "tmux": {
+        "path": "/data/data/com.termux/files/usr/bin/tmux",
+        "available": true,
+        "resolved_path": "/data/data/com.termux/files/usr/bin/tmux"
+      },
+      "adb": {
+        "path": "/data/data/com.termux/files/usr/bin/adb",
+        "available": true,
+        "resolved_path": "/data/data/com.termux/files/usr/bin/adb"
+      },
+      "strace": {
+        "path": null,
+        "available": false,
+        "resolved_path": null
+      }
+    },
+    "selected_package_versions": {
+      "aapt": "16.0.0.4-2",
+      "aapt2": "16.0.0.4-2",
+      "apksigner": "37.0.0",
+      "frida": "17.2.14-4",
+      "frida-python": "17.2.14-4+rebro.compiler1",
+      "jq": "1.8.2",
+      "libsqlite": "3.53.4",
+      "openjdk-17": "17.0.20",
+      "openjdk-21": "21.0.12",
+      "ripgrep": "15.2.0"
+    }
+  },
+  "frida": {
+    "endpoint": "127.0.0.1:27044",
+    "binding_version": "17.2.14",
+    "binding_path": "/data/data/com.termux/files/usr/lib/python3.14/site-packages/frida/_frida.abi3.so",
+    "binding_sha256_observed": "d3550a89c0cdf32717417f3fdf116e1b462e7c1feb434fbd61ac7f7747eec61a",
+    "service_path_observed": "/data/data/com.termux/files/home/rebro/frida-controlservice-builds/build.17180-sepol3-20260922-004847/rebro-frida",
+    "service_sha256_observed": "c377c4bb2eb42bfc99a89bb68bc65d4581f1fd84057b23459887d1da3da3fd87",
+    "pid_at_collection": 17436,
+    "handshake_ms": 19.4,
+    "process_count_at_collection": 401,
+    "compiler_methods_observed": [
+      "build",
+      "watch"
+    ],
+    "bridge_path": null,
+    "bridge_sha256": null,
+    "java_loader_path": null,
+    "trusted_baseline_path": null
+  },
+  "android_users_observed": [
+    0,
+    150
+  ],
+  "install_user_selected": null,
+  "rikkahub_observed": {
+    "excp.rikkahub.debug": {
+      "status": "ok",
+      "metadata_lines": [
+        "versionCode=186 minSdk=26 targetSdk=37",
+        "versionName=2.5.1",
+        "lastUpdateTime=2026-09-22 23:13:02",
+        "pkgFlags=[ DEBUGGABLE HAS_CODE ALLOW_CLEAR_USER_DATA ALLOW_BACKUP KILL_AFTER_RESTORE LARGE_HEAP ]",
+        "firstInstallTime=2026-09-22 23:13:02",
+        "firstInstallTime=1970-01-01 03:00:00"
+      ]
+    },
+    "me.rerere.rikkahub": {
+      "status": "ok",
+      "metadata_lines": [
+        "versionCode=187 minSdk=26 targetSdk=37",
+        "versionName=2.5.2",
+        "lastUpdateTime=2026-09-15 22:55:04",
+        "pkgFlags=[ HAS_CODE ALLOW_CLEAR_USER_DATA ALLOW_BACKUP KILL_AFTER_RESTORE LARGE_HEAP ]",
+        "firstInstallTime=2026-09-15 22:55:04",
+        "firstInstallTime=1970-01-01 03:00:00"
+      ]
+    },
+    "excp.rikkahub": {
+      "status": "ok",
+      "metadata_lines": [
+        "versionCode=186 minSdk=26 targetSdk=37",
+        "versionName=2.5.1",
+        "lastUpdateTime=2026-09-17 00:41:29",
+        "pkgFlags=[ HAS_CODE ALLOW_CLEAR_USER_DATA ALLOW_BACKUP KILL_AFTER_RESTORE LARGE_HEAP ]",
+        "firstInstallTime=2026-09-17 00:41:29",
+        "firstInstallTime=1970-01-01 03:00:00"
+      ]
+    }
+  },
+  "recommended_defaults": {
+    "parallel_heavy_jvm_jobs": 1,
+    "jvm_heap_mib": 1536,
+    "jvm_reserve_mib": 1024,
+    "signing_heap_mib": 512,
+    "active_processor_count": 2,
+    "zipalign_library_page_kib": 16,
+    "refresh_resources_before_job": true
+  },
+  "validation_boundary": {
+    "inventory_received": true,
+    "frida_transport_observed": true,
+    "native_injection_tested": false,
+    "java_injection_tested": false,
+    "actual_apk_signing_tested": false,
+    "actual_apk_install_tested": false
+  },
+  "discovery_diagnosis": {
+    "visited_entries": 25000,
+    "limited": true,
+    "bridge_found": false,
+    "java_loader_evidence_found": false,
+    "reason": "Depth-first scan exhausted entries inside build trees; all three loader candidates have no relevant API markers."
+  },
+  "later_user_reference": {
+    "kind": "user-supplied-system-prompt",
+    "source_sha256": "fafcecdbc2e9079ccb047e8b91c8a7171f693bfe289af54181084aaf6029145f",
+    "pins_file": "pins.rebro-known-good-20260922.json",
+    "bridge_contract_known": true,
+    "bridge_export": "frida_java_bridge_default",
+    "note": "The original inventory observations above are preserved. This later reference supplies expected paths/hashes and a flat recipe; it is not a new device probe."
+  },
+  "later_agent_report": {
+    "evidence_type": "user-forwarded narrative; raw logs not attached",
+    "native_spawn_attach_load_rpc_cleanup": "reported_pass",
+    "compiler_ts_build": "reported_pass",
+    "compiler_reported_bundle_bytes": 199,
+    "fresh_java_hook": "not_tested",
+    "new_kit_adapter_on_device": "not_tested",
+    "interceptor_stalker_coverage": "not_established_by_this_smoke"
+  }
+}

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tool_access_title">Отдельные инструменты</string>
+    <string name="tool_access_description">Выберите доступные этому ассистенту инструменты из включённых групп. Изменения применяются к следующему запросу модели. Без подключённых навыков все skill-tools и автоматические инструкции навыков исключаются. Отключение use_skill скрывает и остальные skill-tools.</string>
+    <string name="tool_access_configure">Настроить tools · исключено: %1$d</string>
+    <string name="tool_access_count">Доступно: %1$d · всего: %2$d</string>
+    <string name="tool_access_search">Найти инструмент или возможность</string>
+    <string name="tool_access_empty">Включите группу инструментов или подключите навык, чтобы увидеть его tools.</string>
+    <string name="tool_access_load_failed">Не удалось загрузить инструменты. Закройте панель и попробуйте снова.</string>
+    <string name="tool_access_voice_title">Голос и аудио</string>
+    <string name="tool_access_whisper_title">Whisper · расшифровка аудиофайлов</string>
+    <string name="tool_access_whisper_description">whisper_status и transcribe_audio_file. Требует включённой группы Termux. По умолчанию выключено; отключение не затрагивает команды Termux.</string>
+    <string name="tool_access_skill_management_title">Создание и редактирование навыков</string>
+    <string name="tool_access_skill_management_description">Разрешает ассистенту создавать навыки и менять подключённые пакеты: файлы, скрипты, бинарные ресурсы и предыдущие версии. Изменения затрагивают всех ассистентов, использующих пакет. По умолчанию выключено. Нужен хотя бы один подключённый навык; запись использует действующие настройки подтверждения tools.</string>
+</resources>

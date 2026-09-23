@@ -29,6 +29,7 @@ object ContextCompactionView {
      */
     internal fun summaryMessage(compaction: ConversationCompaction): UIMessage =
         UIMessage.user(compaction.summary).copy(
+            isSynthetic = true,
             createdAt = compaction.createdAt.toKotlinInstant()
                 .toLocalDateTime(TimeZone.currentSystemDefault()),
             // sourceEndNodeId is a MessageNode id, never a message id, so reusing it as this

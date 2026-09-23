@@ -414,7 +414,12 @@ class SubAgentEngine(
         conversationRepo.insertConversation(conv)
         chatService.initializeConversation(conv.id)
         HeadlessConversations.mark(conv.id)
+        me.rerere.rikkahub.data.ai.AgentTaskPolicy.setStepLimit(conv.id.toString(), request.maxTrips)
         try {
+            me.rerere.ai.provider.GenerationTrace.record(parentChatId, "subagent.started", buildJsonObject {
+                put("run_id", runId); put("child_conversation", conv.id.toString()); put("task", effectiveTask)
+                put("max_steps", request.maxTrips); put("timeout_seconds", request.timeoutSeconds)
+            })
             // Prepend a wrap-up instruction. Some models naturally write a summary paragraph
             // after their tool-call sequence; others stop after the last tool result and emit
             // no closing text. Without explicit text the parent has nothing to harvest and
@@ -450,6 +455,13 @@ class SubAgentEngine(
             // text parts from the last assistant message. This mirrors how the
             // CronJobWorker treats LLM-mode jobs.
             val finalText = harvestFinalText(conv.id)
+            val taskState = chatService.agentTaskState(conv.id)
+            if (taskState != null && taskState.reason != me.rerere.rikkahub.data.ai.GenerationStopReason.COMPLETED) {
+                registry.update(runId) { it.copy(result = finalText, tripCount = taskState.steps.toInt()) }
+                markTerminal(runId, SubAgentStatus.FAILED, "generation_paused: ${taskState.reason}")
+                notifyParentIfBackground(parentChatId, registry.get(runId))
+                return
+            }
             registry.update(runId) {
                 it.copy(
                     status = SubAgentStatus.SUCCEEDED,
@@ -468,6 +480,7 @@ class SubAgentEngine(
             markTerminal(runId, terminal, "${t::class.simpleName}: ${t.message.orEmpty()}")
             notifyParentIfBackground(parentChatId, registry.get(runId))
         } finally {
+            me.rerere.rikkahub.data.ai.AgentTaskPolicy.clear(conv.id.toString())
             HeadlessConversations.unmark(conv.id)
             registry.clearJob(runId)
         }
@@ -513,7 +526,11 @@ class SubAgentEngine(
      * — better to interrupt than to silently lose the completion.
      */
     private suspend fun notifyParentIfBackground(parentChatId: String?, run: SubAgentRun?) {
-        if (parentChatId == null || run == null || !run.runInBackground) return
+        if (parentChatId == null || run == null) return
+        me.rerere.ai.provider.GenerationTrace.record(parentChatId, "subagent.result", buildJsonObject {
+            put("run_id", run.id); put("status", run.status.name); put("result", run.result); put("error", run.error)
+        })
+        if (!run.runInBackground) return
         val parentUuid = runCatching { Uuid.parse(parentChatId) }.getOrNull() ?: return
         if (HeadlessConversations.isHeadless(parentUuid)) return
 
@@ -578,3 +595,4 @@ class SubAgentEngine(
         }.getOrDefault("")
     }
 }
+
