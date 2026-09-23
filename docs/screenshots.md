@@ -76,8 +76,18 @@
 
 <a href="media/screenshots/tool-access-russian.png"><img src="media/screenshots/tool-access-russian.png" width="360" alt="Отдельные инструменты: TTS, Whisper и skill_write_file с независимыми переключателями" /></a>
 
+<a id="full-export"></a>
+
+## 08 · Вся трасса одним архивом
+
+**«Экспорт всей трассы»** доступен вверху экрана, в том числе из инспектора. ZIP содержит весь сохранённый диалог и связанные журналы подагентов: запросы, ответы, reasoning, tool calls/results, checkpoints и диагностику целостности.
+
+На снимке поиск скрывает все операции, но экспорт всё равно сохраняет **12 событий** тестового диалога. Полнота архива не зависит от того, что сейчас видно на экране. [Структура архива и чтение данных →](trace-export.md)
+
+<a href="media/screenshots/trajectory-full-export.png"><img src="media/screenshots/trajectory-full-export.png" width="360" alt="Экспорт завершён: 12 событий и одна сессия, хотя поиск не нашёл операций" /></a>
+
 ## Происхождение снимков
 
-Снимки получены в [успешном CI-прогоне](https://github.com/shizzgar/rikkahub-agent/actions/runs/35792969182) для ревизии `3bb42b0c2487923c5beddde826c0377899e4f207`, Android API 35. Они хранятся в репозитории и не зависят от срока жизни Actions artifacts. Размеры и SHA-256 каждого файла указаны в [provenance.json](media/screenshots/provenance.json).
+Снимки получены в [успешном CI-прогоне](https://github.com/shizzgar/rikkahub-agent/actions/runs/35861320725) для ревизии `a8c800b67ae1b2890682466af44d5b85c450ff55`, Android API 35. Они хранятся в репозитории и не зависят от срока жизни Actions artifacts. Размеры и SHA-256 каждого файла указаны в [provenance.json](media/screenshots/provenance.json).
 
 Сценарии: [Trajectory](../app/src/androidTest/java/me/rerere/rikkahub/ui/pages/chat/TrajectoryInstrumentedTest.kt), [payload](../app/src/androidTest/java/me/rerere/rikkahub/ui/pages/chat/TracePayloadInstrumentedTest.kt), [skill workspace](../app/src/androidTest/java/me/rerere/rikkahub/ui/pages/extensions/skills/SkillWorkbenchInstrumentedTest.kt), [tool access](../app/src/androidTest/java/me/rerere/rikkahub/ui/pages/assistant/detail/ToolAccessInstrumentedTest.kt).

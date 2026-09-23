@@ -32,7 +32,7 @@ Android-ассистент с управляемым агентским цикл
   </tr>
 </table>
 
-Реальные снимки интерфейса из Android-тестов с демонстрационными данными. Нажмите на изображение для полного размера. [Галерея из 11 экранов →](docs/screenshots.md)
+Реальные снимки интерфейса из Android-тестов с демонстрационными данными. Нажмите на изображение для полного размера. [Галерея из 12 экранов →](docs/screenshots.md)
 
 <a id="changes"></a>
 
@@ -129,7 +129,7 @@ Android-ассистент с управляемым агентским цикл
 
 ## Проверки и границы
 
-Для версии [`3bb42b0`](https://github.com/shizzgar/rikkahub-agent/commit/3bb42b0c2487923c5beddde826c0377899e4f207) [успешный CI](https://github.com/shizzgar/rikkahub-agent/actions/runs/35792969182) подтвердил **680 JVM-тестов, 21 Python-тест и 12 Android-тестов**. Проверены установка ReBro kit по манифестам, доступность tools, UI на телефоне и широком экране, а также подпись ARM64 APK. Это зафиксированный результат конкретной ревизии; текущие прогоны видны в [Actions](https://github.com/shizzgar/rikkahub-agent/actions/workflows/compaction-debug.yml).
+Для версии [`a8c800b`](https://github.com/shizzgar/rikkahub-agent/commit/a8c800b67ae1b2890682466af44d5b85c450ff55) [успешный CI](https://github.com/shizzgar/rikkahub-agent/actions/runs/35861320725) подтвердил **688 JVM-тестов, 21 Python-тест и 13 Android-тестов**. Проверены полный экспорт трассы, установка ReBro kit по манифестам, доступность tools, UI на эмуляторе в телефонном и широком форматах, а также подпись ARM64 APK. Это зафиксированный результат конкретной ревизии; текущие прогоны видны в [Actions](https://github.com/shizzgar/rikkahub-agent/actions/workflows/compaction-debug.yml).
 
 - Трасса хранится локально и содержит промпты, команды и результаты. Перед публикацией экспорта проверьте его содержимое.
 - Записывается reasoning, который вернул провайдер. Полного детерминированного replay и реконструкции старых незаписанных событий нет.
@@ -139,7 +139,7 @@ Android-ассистент с управляемым агентским цикл
 
 ## Документация и участие
 
-[Карта документации](docs/README.md) · [Сборка из исходников](docs/building.md) · [История изменений](CHANGELOG.md) · [Как помочь](CONTRIBUTING.md) · [Сообщить об ошибке](https://github.com/shizzgar/rikkahub-agent/issues/new/choose)
+[Карта документации](docs/README.md) · [Сборка из исходников](docs/building.md) · [История изменений](CHANGELOG.md) · [Как помочь](CONTRIBUTING.md) · [Подготовить баг-репорт](CONTRIBUTING.md#report-a-bug)
 
 ## Авторы и лицензии
 

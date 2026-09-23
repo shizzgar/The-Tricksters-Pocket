@@ -32,7 +32,7 @@ This is a development fork of [ExTV/RikkaHub Agent](https://github.com/ExTV/rikk
   </tr>
 </table>
 
-Actual Android UI captures using test fixtures. Click an image for full resolution. [Explore all 11 screens →](docs/screenshots.md)
+Actual Android UI captures using test fixtures. Click an image for full resolution. [Explore all 12 screens →](docs/screenshots.md)
 
 <a id="changes"></a>
 
@@ -119,7 +119,7 @@ RikkaHub and ExTV provide the multi-provider chat client, MCP, subagents, schedu
 
 ## Validation and current boundaries
 
-The [successful run for `3bb42b0`](https://github.com/shizzgar/rikkahub-agent/actions/runs/35792969182) passed **680 JVM, 21 Python and 12 Android tests**. It checked installed ReBro package manifests, tool availability, phone/wide UI and the ARM64 APK signature. These counts describe that revision; see [Actions](https://github.com/shizzgar/rikkahub-agent/actions/workflows/compaction-debug.yml) for current runs.
+The [successful run for `a8c800b`](https://github.com/shizzgar/rikkahub-agent/actions/runs/35861320725) passed **688 JVM, 21 Python and 13 Android tests**. It checked full-trace export, installed ReBro package manifests, tool availability, phone/wide emulator UI and the ARM64 APK signature. These counts describe that revision; see [Actions](https://github.com/shizzgar/rikkahub-agent/actions/workflows/compaction-debug.yml) for current runs.
 
 - Traces are local and may contain private prompts, commands and results. Inspect exports before sharing.
 - Only provider-returned reasoning can be recorded. Deterministic replay and reconstruction of previously unrecorded events are not implemented.
@@ -129,7 +129,7 @@ The [successful run for `3bb42b0`](https://github.com/shizzgar/rikkahub-agent/ac
 
 ## Documentation and contributing
 
-[Documentation map](docs/README.md) · [Build from source](docs/building.md) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md) · [Report an issue](https://github.com/shizzgar/rikkahub-agent/issues/new/choose)
+[Documentation map](docs/README.md) · [Build from source](docs/building.md) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md) · [Prepare a bug report](CONTRIBUTING.md#report-a-bug)
 
 ## Credits and licenses
 

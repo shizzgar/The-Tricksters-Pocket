@@ -8,7 +8,9 @@ This repository develops the runtime, Trajectory, Termux integration, skill work
 
 ## Report a bug
 
-Use [the issue forms](https://github.com/shizzgar/rikkahub-agent/issues/new/choose). Include the app version **and commit**, device/Android version, relevant model/provider, enabled tools and reproducible steps. For Termux issues, include whether RUN_COMMAND and skill transfer are configured. Distinguish an emulator result from a physical-device result.
+GitHub Issues is currently disabled for this repository. The [bug report](.github/ISSUE_TEMPLATE/bug-report.yml) and [feature request](.github/ISSUE_TEMPLATE/feature-request.yml) forms are ready; the repository owner can enable them with **Settings → General → Features → Issues**. Until then, use the checklist below when sharing a report with the maintainer; pull requests remain available.
+
+Include the app version **and commit**, device/Android version, relevant model/provider, enabled tools and reproducible steps. For Termux issues, include whether RUN_COMMAND and skill transfer are configured. Distinguish an emulator result from a physical-device result.
 
 Attach only the relevant log excerpt or screenshot. Trajectory exports can contain prompts, commands, file paths and tool results; remove credentials and private data before posting. Do not post private signing keys, API keys or unfiltered backups.
 

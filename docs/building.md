@@ -17,7 +17,7 @@ These instructions follow the checked-in [runtime workflow](../.github/workflows
 | Python | Python 3 for Termux runtime tests |
 | Device support | Minimum API 26; `arm64-v8a` and `x86_64` |
 
-Dependency versions are pinned in [libs.versions.toml](../gradle/libs.versions.toml) and the [Gradle wrapper](../gradle/wrapper/gradle-wrapper.properties). Gradle installs the web dependencies with Bun and builds the web bundle with pnpm. The `bun.lock` generated from the tracked pnpm lockfile is not committed.
+Dependency versions are pinned in [libs.versions.toml](../gradle/libs.versions.toml) and the [Gradle wrapper](../gradle/wrapper/gradle-wrapper.properties). Gradle installs the web dependencies with Bun and builds the web bundle with pnpm. The `web-ui/bun.lock` generated from the tracked `web-ui/pnpm-lock.yaml` is not committed.
 
 ## Clone and build
 
@@ -46,7 +46,7 @@ Release signing is configured separately through `local.properties` (`storeFile`
 
 ## Tests
 
-Run the tests relevant to your change. The full app test selection is maintained in the workflow; not every app test is included in the published 680-test baseline.
+Run the tests relevant to your change. The full app test selection is maintained in the workflow; CI runs all common/AI module unit tests and the explicitly selected app suites, rather than every app test.
 
 ```sh
 # HTTP and provider behavior
@@ -61,7 +61,7 @@ bash ./gradlew --no-daemon --max-workers=2 :app:testDebugUnitTest \
 python3 -m unittest discover -s tests -p 'test_termux_*runtime.py' -v
 ```
 
-UI checks use an Android API 35 x86_64 emulator. The workflow runs phone tests, changes the display to 1920×1200 at density 160 for the wide-layout test, captures 11 screens, then verifies the ARM64 APK signature. See the workflow for the exact instrumentation class list and emulator commands.
+UI checks use an Android API 35 x86_64 emulator. The workflow runs phone tests, changes the display to 1920×1200 at density 160 for the wide-layout test, captures 12 screens, then verifies the ARM64 APK signature. See the workflow for the exact instrumentation class list and emulator commands.
 
 ## CI artifacts
 
@@ -73,7 +73,7 @@ UI checks use an Android API 35 x86_64 emulator. The workflow runs phone tests, 
 
 Artifacts are retained for 14 days. Documentation screenshots are copied into the repository so they remain available after CI artifact expiry. Their [provenance manifest](media/screenshots/provenance.json) records the original build and file hashes.
 
-The workflow runs on `master` and the existing runtime feature branches, and supports manual dispatch. Changes limited to Markdown, documentation assets and issue templates do not rebuild the APK. Changes to the workflow itself still run the build.
+The workflow runs on `master` and the existing runtime feature branches, and supports manual dispatch. Changes limited to the root READMEs, changelog, contributing guide, `docs/` and issue/PR templates do not rebuild the APK. Bundled skill Markdown is runtime data and still triggers CI, as do workflow changes.
 
 ## What CI does not establish
 
