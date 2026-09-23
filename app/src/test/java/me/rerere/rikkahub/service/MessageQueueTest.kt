@@ -12,6 +12,81 @@ import org.junit.Test
 class MessageQueueTest {
     private fun text(value: String) = listOf(UIMessagePart.Text(value))
 
+    @Test fun `steering reserves a ready prefix until persistence acknowledges it`() {
+        val queue = MessageQueue()
+        queue.enqueue(text("first"), steerActiveTask = true)
+        queue.enqueue(text("second"), steerActiveTask = true)
+        val reserved = queue.claimSteering()
+        assertEquals(2, reserved.size)
+        assertTrue(queue.state.value.messages.all { it.isApplying })
+        assertNull(queue.takeNext())
+        assertTrue(queue.claimSteering().isEmpty())
+        assertNull(queue.remove(reserved.first().id))
+        assertNull(queue.beginEdit(reserved.first().id))
+        queue.enqueue(text("later"), steerActiveTask = true)
+        queue.finishSteering(reserved.map { it.id }.toSet(), accepted = true)
+        assertEquals(text("later"), queue.state.value.messages.single().parts)
+        assertFalse(queue.state.value.messages.single().isApplying)
+    }
+
+    @Test fun `failed or cancelled steering retains order attachments edits and paused state`() {
+        val queue = MessageQueue()
+        val parts = text("original") + UIMessagePart.Image("file:///keep.png")
+        queue.enqueue(parts, steerActiveTask = true)
+        val id = queue.state.value.messages.single().id
+        queue.beginEdit(id)
+        queue.finishEdit(id, parts + UIMessagePart.Text("edited"))
+        val reserved = queue.claimSteering()
+        queue.pause()
+        queue.enqueue(text("later"), steerActiveTask = true)
+        queue.finishSteering(reserved.map { it.id }.toSet(), accepted = false)
+        assertTrue(queue.state.value.paused)
+        assertTrue(queue.claimSteering().isEmpty())
+        queue.resume()
+        assertEquals(parts + UIMessagePart.Text("edited"), queue.claimSteering().first().parts)
+        assertEquals(id, queue.state.value.messages.first().id)
+    }
+
+    @Test fun `editing and ordinary turns are ordered barriers for steering`() {
+        val queue = MessageQueue()
+        queue.enqueue(text("first"), steerActiveTask = true)
+        queue.enqueue(text("editing"), steerActiveTask = true)
+        queue.enqueue(text("last"), steerActiveTask = true)
+        queue.beginEdit(queue.state.value.messages[1].id)
+        val first = queue.claimSteering()
+        assertEquals(listOf(text("first")), first.map { it.parts })
+        queue.finishSteering(first.map { it.id }.toSet(), true)
+        assertTrue(queue.claimSteering().isEmpty())
+        queue.finishEdit(queue.state.value.messages.first().id)
+        assertEquals(2, queue.claimSteering().size)
+    }
+
+    @Test fun `voice replies and send without answer never become steering implicitly`() {
+        val queue = MessageQueue()
+        val observer = CompletableDeferred<String?>()
+        queue.enqueue(text("voice"), reply = observer, steerActiveTask = true)
+        queue.enqueue(text("save only"), answer = false, steerActiveTask = true)
+        queue.enqueue(text("update"), steerActiveTask = true)
+        assertTrue(queue.claimSteering().isEmpty())
+        assertTrue(queue.takeNext()!!.reply === observer)
+        assertFalse(observer.isCompleted)
+        assertTrue(queue.claimSteering().isEmpty())
+        assertFalse(queue.takeNext()!!.answer)
+        assertEquals(text("update"), queue.claimSteering().single().parts)
+    }
+
+    @Test fun `withdrawing or editing before a boundary changes what is applied`() {
+        val queue = MessageQueue()
+        queue.enqueue(text("withdraw"), steerActiveTask = true)
+        queue.enqueue(text("old"), steerActiveTask = true)
+        queue.remove(queue.state.value.messages.first().id)
+        val id = queue.state.value.messages.single().id
+        queue.beginEdit(id)
+        assertTrue(queue.claimSteering().isEmpty())
+        queue.finishEdit(id, text("new"))
+        assertEquals(text("new"), queue.claimSteering().single().parts)
+    }
+
     @Test
     fun `editing a voice message preserves its reply observer and queue position`() {
         val queue = MessageQueue()

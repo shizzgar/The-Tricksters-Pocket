@@ -423,7 +423,11 @@ private fun SendButton(
         )
         Icon(
             imageVector = if (showStop) HugeIcons.Cancel01 else HugeIcons.ArrowUp02,
-            contentDescription = stringResource(if (showStop) R.string.stop else R.string.send),
+            contentDescription = stringResource(when {
+                showStop -> R.string.stop
+                loading -> R.string.chat_steering_send
+                else -> R.string.send
+            }),
             tint = contentColor,
             modifier = Modifier.size(18.dp)
         )

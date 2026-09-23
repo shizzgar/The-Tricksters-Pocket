@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="chat_steering_send">Добавить уточнение к текущей задаче</string>
+    <string name="chat_steering_waiting">Агент получит уточнение после текущей операции. Ответ модели, запущенный инструмент или сжатие контекста сначала завершатся.</string>
+    <string name="chat_steering_applying">Добавляем уточнение к текущей задаче…</string>
+    <string name="chat_steering_applying_short">Принимается…</string>
+</resources>

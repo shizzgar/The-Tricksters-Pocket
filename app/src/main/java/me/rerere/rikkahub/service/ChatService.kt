@@ -36,6 +36,8 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -836,7 +838,7 @@ class ChatService(
         val session = getOrCreateSession(conversationId)
         synchronized(session) {
             if (session.messageQueue.state.value.messages.isEmpty()) session.messageQueue.resume()
-            session.messageQueue.enqueue(content, answer)
+            session.messageQueue.enqueue(content, answer, steerActiveTask = session.getJob() != null)
             dispatchNextQueuedMessage(conversationId)
         }
     }
@@ -899,8 +901,9 @@ class ChatService(
                 val processedContent = preprocessUserInputParts(content, assistant)
 
                 // 添加消息到列表
-                val withUser = currentConversation.copy(
+                val withUser = if (currentConversation.currentMessages.any { it.id == queued.id }) currentConversation else currentConversation.copy(
                     messageNodes = currentConversation.messageNodes + UIMessage(
+                        id = queued.id,
                         role = MessageRole.USER,
                         parts = processedContent,
                     ).toMessageNode(),
@@ -1491,6 +1494,38 @@ class ChatService(
 
     // ---- 处理消息补全 ----
 
+    private suspend fun applySteeringInput(
+        session: ConversationSession,
+        input: List<QueuedMessage>,
+        runId: String,
+        boundary: String,
+    ) {
+        val settings = settingsStore.settingsFlow.first()
+        val assistant = settings.getAssistantById(session.state.value.assistantId) ?: settings.getCurrentAssistant()
+        val additions = input.map { queued ->
+            UIMessage(id = queued.id, role = MessageRole.USER, parts = preprocessUserInputParts(queued.parts, assistant))
+        }
+        currentCoroutineContext().ensureActive()
+        // Commit the accepted prefix as one operation. A Stop during preprocessing leaves
+        // the reserved messages in the queue; a Stop after commit retains them in history.
+        withContext(NonCancellable) {
+            val current = session.state.value
+            val knownIds = current.currentMessages.map { it.id }.toSet()
+            val added = additions.filter { it.id !in knownIds }
+            val updated = current.copy(messageNodes = current.messageNodes + added.map { it.toMessageNode() })
+            // Retain stable IDs in memory even if the durable write reports an error after
+            // committing; retrying the reserved input cannot duplicate a user message.
+            updateConversation(session.id, updated)
+            markStreamingPersistence(session.id)
+            persistStreamingStateNow(session.id, requireSuccess = true)
+            session.messageQueue.finishSteering(input.map { it.id }.toSet(), accepted = true)
+            journal.append(session.id.toString(), "input.applied", buildJsonObject {
+                put("run_id", runId); put("boundary", boundary)
+                put("messages", Json.encodeToJsonElement(kotlinx.serialization.builtins.ListSerializer(UIMessage.serializer()), additions))
+            })
+        }
+    }
+
     private suspend fun handleMessageComplete(
         conversationId: Uuid,
         messageRange: ClosedRange<Int>? = null,
@@ -1500,6 +1535,11 @@ class ChatService(
         val config = settingsStore.settingsFlow.first().networkSetting.generationRuntime.normalized()
         val headless = me.rerere.rikkahub.data.ai.tools.HeadlessConversations.isHeadless(conversationId)
         val autonomous = config.autonomousContinuation && messageRange == null && !headless
+        val steeringEnabled = messageRange == null && !headless
+        val taskOwnsUi = autonomous || steeringEnabled
+        val session = getOrCreateSession(conversationId)
+        var reservedInput = emptyList<QueuedMessage>()
+        var steeringBoundary = "before_model_request"
         val current = getConversationFlow(conversationId).value
         val task = (resumed ?: AgentTaskRecord(conversationId.toString())).copy(
             status = "running", reason = null, detail = null,
@@ -1513,7 +1553,7 @@ class ChatService(
         var networkFailures = 0
         val cycleState = AgentTaskCycleState(task.loopGuardTrips)
         try {
-            if (autonomous) generationLoop.beginTaskUi()
+            if (taskOwnsUi) generationLoop.beginTaskUi()
             journal.append(conversationId.toString(), if (resumed == null) "task.started" else "task.resumed", buildJsonObject {
                 put("run_id", task.runId); put("autonomous", autonomous); put("recovery_enabled", task.recoverAutomatically)
             })
@@ -1524,11 +1564,26 @@ class ChatService(
                     break
                 }
                 val before = conversationCheckpoint(getConversationFlow(conversationId).value.currentMessages)
-                val result = runGenerationSlice(conversationId, messageRange, allowContextRetry, autonomous, cycleState)
+                val result = runGenerationSlice(conversationId, messageRange, allowContextRetry, autonomous, cycleState,
+                    manageUiLifecycle = !taskOwnsUi,
+                    claimSteeringInput = { boundary ->
+                        if (!steeringEnabled) false else synchronized(session) {
+                            check(reservedInput.isEmpty())
+                            reservedInput = session.messageQueue.claimSteering()
+                            steeringBoundary = boundary
+                            reservedInput.isNotEmpty()
+                        }
+                    },
+                )
+                val steered = result.reason == GenerationStopReason.USER_MESSAGE && reservedInput.isNotEmpty()
+                if (steered) {
+                    applySteeringInput(session, reservedInput, task.runId, steeringBoundary)
+                    reservedInput = emptyList()
+                }
                 val after = conversationCheckpoint(getConversationFlow(conversationId).value.currentMessages)
                 val liveConfig = settingsStore.settingsFlow.first().networkSetting.generationRuntime.normalized()
                 val waitingForNetwork = autonomous && liveConfig.autonomousContinuation && liveConfig.waitForNetworkRecovery && result.reason == GenerationStopReason.NETWORK_WAIT
-                val continueTask = waitingForNetwork || shouldContinueTask(autonomous && liveConfig.autonomousContinuation, result, before != after)
+                val continueTask = steered || waitingForNetwork || shouldContinueTask(autonomous && liveConfig.autonomousContinuation, result, before != after)
                 val reason = if (autonomous && result.reason.canContinueAutomatically() && before == after)
                     GenerationStopReason.NO_PROGRESS else result.reason
                 updateAgentTask(conversationId, task.runId) { it.copy(
@@ -1544,7 +1599,15 @@ class ChatService(
                     networkFailures++
                     val delayMs = minOf(300_000L, 5_000L * (1L shl networkFailures.coerceAtMost(6)))
                     getOrCreateSession(conversationId).processingStatus.value = context.getString(R.string.agent_network_wait, delayMs / 1000)
-                    kotlinx.coroutines.delay(delayMs)
+                    // Network backoff is between operations; new input need not wait out
+                    // a five-minute retry timer before reaching the next boundary.
+                    withTimeoutOrNull(delayMs) {
+                        session.messageQueue.state.first { queue ->
+                            !queue.paused && queue.messages.firstOrNull()?.let {
+                                it.steerActiveTask && !it.isEditing && !it.isApplying
+                            } == true
+                        }
+                    }
                     updateAgentTask(conversationId, task.runId) { it.copy(status = "running") }
                 } else networkFailures = 0
                 // Yield fairly without adding synthetic user messages or discarding approval state.
@@ -1563,7 +1626,8 @@ class ChatService(
             journal.append(conversationId.toString(), "task.failed", buildJsonObject { put("run_id", task.runId); put("error", error.message?.take(500)) })
             throw error
         } finally {
-            if (autonomous && activeAgentTasks[conversationId]?.runId == task.runId) generationLoop.endTaskUi()
+            session.messageQueue.finishSteering(reservedInput.map { it.id }.toSet(), accepted = false)
+            if (taskOwnsUi && activeAgentTasks[conversationId]?.runId == task.runId) generationLoop.endTaskUi()
             if (activeAgentTasks[conversationId]?.runId == task.runId) sessions[conversationId]?.processingStatus?.value = null
             activeAgentTasks.computeIfPresent(conversationId) { _, record -> record.takeUnless { it.runId == task.runId } }
         }
@@ -1575,6 +1639,8 @@ class ChatService(
         allowContextRetry: Boolean = true,
         autonomousCycle: Boolean = false,
         cycleState: AgentTaskCycleState = AgentTaskCycleState(),
+        manageUiLifecycle: Boolean = !autonomousCycle,
+        claimSteeringInput: suspend (String) -> Boolean = { false },
     ): GenerationSliceOutcome {
         var outcome = GenerationSliceOutcome(GenerationStopReason.FAILED)
         val settings = settingsStore.settingsFlow.first()
@@ -1687,7 +1753,7 @@ class ChatService(
             generationLoop.generateText(
                 generationProgress = session.generationProgress,
                 autonomousCycle = autonomousCycle,
-                manageUiLifecycle = !autonomousCycle,
+                manageUiLifecycle = manageUiLifecycle,
                 maxSteps = me.rerere.rikkahub.data.ai.AgentTaskPolicy.stepLimit(conversationId.toString())
                     ?: me.rerere.rikkahub.data.ai.limits.ToolRuntimeLimits.maxToolSteps,
                 cycleState = cycleState,
@@ -1696,6 +1762,7 @@ class ChatService(
                     val queue = session.messageQueue.state.value
                     autonomousCycle && !queue.paused && queue.messages.firstOrNull()?.isEditing == false
                 },
+                claimSteeringInput = claimSteeringInput,
                 settings = settings,
                 model = model,
                 processingStatus = session.processingStatus,
@@ -2030,6 +2097,8 @@ class ChatService(
                     allowContextRetry = false,
                     autonomousCycle = autonomousCycle,
                     cycleState = cycleState,
+                    manageUiLifecycle = manageUiLifecycle,
+                    claimSteeringInput = claimSteeringInput,
                 )
             }
         }
@@ -2075,7 +2144,8 @@ class ChatService(
             Logging.log(TAG, "handleMessageComplete: $it")
             Logging.log(TAG, it.stackTraceToString())
         }.onSuccess {
-            if (autonomousCycle && (outcome.reason.canContinueAutomatically() || outcome.reason == GenerationStopReason.USER_MESSAGE)) return@onSuccess
+            if (outcome.reason == GenerationStopReason.USER_MESSAGE ||
+                autonomousCycle && outcome.reason.canContinueAutomatically()) return@onSuccess
             val finalConversation = getConversationFlow(conversationId).value
 
             if (isStalledTurn(succeeded = true, lastMessage = finalConversation.currentMessages.lastOrNull())) {

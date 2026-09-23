@@ -45,6 +45,7 @@ These are changes in our development line relative to the ExTV base we started f
 | **Dialogue trajectory** | Waterfall, flow, filters, search, inspector, operation JSON and full-trace ZIP export | Follow requests, tool calls and time spent |
 | **Readable payloads** | Tool names and descriptions, message roles and excerpts, field previews before expansion | Find an operation without opening numbered cards one by one |
 | **Agent runtime** | Checkpoints, continuation across loop limits, cancellable waits for transient network failures | Keep a long task moving without repeated “continue” prompts |
+| **Live steering** | Queued updates enter the same task after its current operation | Adjust work without Stop or waiting for the task’s final answer |
 | **Compaction** | Configurable deadlines and concurrency, retained evidence, source validation when saving | Compress long histories without committing stale summaries |
 | **Metrics** | Measured content-receiving TPS and expandable details below the message | Separate model response speed from command execution and waiting |
 | **Termux jobs** | Persistent background jobs, stdout/stderr pages, read cursors, cancellation and job manager | Inspect long commands directly from chat |
@@ -76,6 +77,8 @@ Agent editing is opt-in under the assistant's local tools. It exposes `skill_cre
 [Editor, binary view and wide layout →](docs/screenshots.md#skills) · [Full guide and limits, RU](docs/agent-runtime/trajectory-and-termux-skills.ru.md)
 
 ## Long tasks with visible state
+
+**Send an update while the agent is working.** It enters the same task after the current model response, tool call or compaction finishes. Ready updates preserve submission order; announced tools that have not started are marked as not executed so the model can reconsider them with the new input. [Queue, Stop and boundary behavior, RU →](docs/live-steering.md)
 
 The agent saves checkpoints and can continue after individual loop limits. The overall task deadline is disabled by default, while request/tool deadlines remain bounded. **Stop**, approvals and loop detection still apply. On app restart, active work resumes only when the saved conversation state matches. Android process termination and force-stop still apply.
 

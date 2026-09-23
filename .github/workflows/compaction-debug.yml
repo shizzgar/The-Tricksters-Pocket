@@ -3,7 +3,7 @@ name: Agent runtime debug APK
 on:
   workflow_dispatch:
   push:
-    branches: [master, fix/configurable-compaction-runtime, feat/trajectory-termux-skills]
+    branches: [master, fix/configurable-compaction-runtime, feat/trajectory-termux-skills, feat/live-steering]
     paths-ignore:
       - 'README*.md'
       - 'CHANGELOG.md'
@@ -53,6 +53,7 @@ jobs:
           --tests 'me.rerere.rikkahub.data.ai.AgentTaskRuntimeTest'
           --tests 'me.rerere.rikkahub.data.ai.SessionJournalTest'
           --tests 'me.rerere.rikkahub.data.ai.TraceArchiveTest'
+          --tests 'me.rerere.rikkahub.data.ai.LiveSteeringTest'
           --tests 'me.rerere.rikkahub.data.ai.TrajectoryTest'
           --tests 'me.rerere.rikkahub.skills.SkillPackageTest'
           --tests 'me.rerere.rikkahub.skills.SkillWorkspaceTest'
@@ -81,6 +82,8 @@ jobs:
           --tests 'me.rerere.rikkahub.data.ai.tools.local.WebFetch*Test'
           --tests 'me.rerere.rikkahub.data.ai.tools.local.WebExtractToolTest'
           --tests 'me.rerere.rikkahub.service.ChatServiceTest'
+          --tests 'me.rerere.rikkahub.service.MessageQueueTest'
+          --tests 'me.rerere.rikkahub.service.QueuedAttachmentCleanupTest'
           --tests 'me.rerere.rikkahub.service.ConversationSessionTest'
           --tests 'me.rerere.rikkahub.subagent.*Test'
       - name: Build debug APKs
@@ -110,8 +113,8 @@ jobs:
           adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
           mkdir -p build/trajectory-qa
           test_status=0
-          adb shell am instrument -w -r -e class me.rerere.rikkahub.ui.pages.chat.TrajectoryInstrumentedTest,me.rerere.rikkahub.ui.pages.extensions.skills.SkillWorkbenchInstrumentedTest,me.rerere.rikkahub.ui.pages.assistant.detail.ToolAccessInstrumentedTest,me.rerere.rikkahub.ui.pages.chat.TracePayloadInstrumentedTest,me.rerere.rikkahub.data.datastore.RebroAssistantInstrumentedTest excp.rikkahub.debug.test/androidx.test.runner.AndroidJUnitRunner | tee build/trajectory-qa/instrumentation.txt || test_status=$?
-          grep -Fq 'OK (12 tests)' build/trajectory-qa/instrumentation.txt || test_status=1
+          adb shell am instrument -w -r -e class me.rerere.rikkahub.ui.pages.chat.TrajectoryInstrumentedTest,me.rerere.rikkahub.ui.pages.extensions.skills.SkillWorkbenchInstrumentedTest,me.rerere.rikkahub.ui.pages.assistant.detail.ToolAccessInstrumentedTest,me.rerere.rikkahub.ui.pages.chat.TracePayloadInstrumentedTest,me.rerere.rikkahub.data.datastore.RebroAssistantInstrumentedTest,me.rerere.rikkahub.service.LiveSteeringInstrumentedTest excp.rikkahub.debug.test/androidx.test.runner.AndroidJUnitRunner | tee build/trajectory-qa/instrumentation.txt || test_status=$?
+          grep -Fq 'OK (19 tests)' build/trajectory-qa/instrumentation.txt || test_status=1
           adb shell wm size 1920x1200
           adb shell wm density 160
           adb shell am instrument -w -r -e class me.rerere.rikkahub.ui.pages.extensions.skills.SkillWorkbenchWideInstrumentedTest excp.rikkahub.debug.test/androidx.test.runner.AndroidJUnitRunner | tee build/trajectory-qa/wide-instrumentation.txt || test_status=$?

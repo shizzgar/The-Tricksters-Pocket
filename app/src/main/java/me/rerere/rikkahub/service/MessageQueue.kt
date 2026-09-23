@@ -14,6 +14,8 @@ data class QueuedMessage(
     val parts: List<UIMessagePart>,
     val answer: Boolean = true,
     val isEditing: Boolean = false,
+    val steerActiveTask: Boolean = false,
+    val isApplying: Boolean = false,
     // Optional in-memory observer; null result means the queued message was withdrawn.
     val reply: CompletableDeferred<String?>? = null,
 )
@@ -42,7 +44,7 @@ class MessageQueue {
     val state = mutableState.asStateFlow()
 
     @Synchronized
-    fun enqueue(parts: List<UIMessagePart>, answer: Boolean = true, reply: CompletableDeferred<String?>? = null) {
+    fun enqueue(parts: List<UIMessagePart>, answer: Boolean = true, reply: CompletableDeferred<String?>? = null, steerActiveTask: Boolean = false) {
         if (parts.isEmptyInputMessage()) {
             reply?.complete(null)
             return
@@ -52,6 +54,7 @@ class MessageQueue {
                 parts = parts.toList(),
                 answer = answer,
                 reply = reply,
+                steerActiveTask = steerActiveTask && answer && reply == null,
             ),
         )
     }
@@ -60,14 +63,35 @@ class MessageQueue {
     fun takeNext(): QueuedMessage? {
         val current = state.value
         if (current.paused) return null
-        val next = current.messages.firstOrNull()?.takeUnless { it.isEditing } ?: return null
+        val next = current.messages.firstOrNull()?.takeUnless { it.isEditing || it.isApplying } ?: return null
         mutableState.value = current.copy(messages = current.messages.drop(1))
         return next
     }
 
+    /** Reserve a ready prefix until its messages are saved. Edits and Stop cannot lose input. */
+    @Synchronized
+    fun claimSteering(): List<QueuedMessage> {
+        val current = state.value
+        if (current.paused) return emptyList()
+        val ready = current.messages.takeWhile { it.steerActiveTask && !it.isEditing && !it.isApplying }
+        val ids = ready.map { it.id }.toSet()
+        mutableState.value = current.copy(messages = current.messages.map {
+            if (it.id in ids) it.copy(isApplying = true) else it
+        })
+        return ready
+    }
+
+    @Synchronized
+    fun finishSteering(ids: Set<Uuid>, accepted: Boolean) {
+        mutableState.value = state.value.copy(messages = state.value.messages.mapNotNull {
+            if (it.id !in ids || !it.isApplying) it
+            else if (accepted) null else it.copy(isApplying = false)
+        })
+    }
+
     @Synchronized
     fun remove(id: Uuid): QueuedMessage? {
-        val removed = state.value.messages.find { it.id == id } ?: return null
+        val removed = state.value.messages.find { it.id == id && !it.isApplying } ?: return null
         mutableState.value =
             state.value.copy(messages = state.value.messages.filterNot { it.id == id })
         removed.reply?.complete(null)
@@ -76,7 +100,7 @@ class MessageQueue {
 
     @Synchronized
     fun beginEdit(id: Uuid): QueuedMessage? {
-        val message = state.value.messages.find { it.id == id && !it.isEditing } ?: return null
+        val message = state.value.messages.find { it.id == id && !it.isEditing && !it.isApplying } ?: return null
         mutableState.value = state.value.copy(
             messages = state.value.messages.map { if (it.id == id) it.copy(isEditing = true) else it },
         )
@@ -86,7 +110,7 @@ class MessageQueue {
     @Synchronized
     fun finishEdit(id: Uuid, parts: List<UIMessagePart>? = null): QueuedMessage? {
         if (parts != null && parts.isEmptyInputMessage()) return null
-        val previous = state.value.messages.find { it.id == id } ?: return null
+        val previous = state.value.messages.find { it.id == id && !it.isApplying } ?: return null
         mutableState.value = state.value.copy(
             messages = state.value.messages.map {
                 if (it.id == id) it.copy(

@@ -489,6 +489,9 @@ class GenerationLoop(
         cycleState: AgentTaskCycleState = AgentTaskCycleState(),
         onStopped: suspend (GenerationSliceOutcome) -> Unit = {},
         shouldYieldToQueuedMessage: () -> Boolean = { false },
+        // Reserves user input without consuming it. ChatService saves it in the same task
+        // after this slice's final persistence checkpoint; never interrupts an operation.
+        claimSteeringInput: suspend (boundary: String) -> Boolean = { false },
         generationProgress: me.rerere.ai.provider.GenerationProgressTracker? = null,
         processingStatus: MutableStateFlow<String?> = MutableStateFlow(null),
         // Called after a tool result has been emitted and persisted, before the next model
@@ -556,7 +559,25 @@ class GenerationLoop(
         var stopReason = GenerationStopReason.STEP_LIMIT
         var completedSteps = 0
 
+        suspend fun yieldToSteering(boundary: String): Boolean {
+            if (!canSteerAtBoundary(messages) || !claimSteeringInput(boundary)) return false
+            val unstarted = messages.flatMap { it.getTools() }.filter { !it.isExecuted }
+            messages = supersedeUnstartedTools(messages)
+            val settled = messages.flatMap { it.getTools() }.associateBy { it.toolCallId }
+            unstarted.forEach { tool ->
+                me.rerere.ai.provider.GenerationTrace.record(conversationId?.toString(), "tool.result", buildJsonObject {
+                    put("tool_call_id", tool.toolCallId); put("tool", tool.toolName)
+                    put("status", "not_executed"); put("reason", "superseded_by_user_input")
+                    put("output", json.encodeToJsonElement(kotlinx.serialization.builtins.ListSerializer(UIMessagePart.serializer()), settled.getValue(tool.toolCallId).output))
+                })
+            }
+            emitToolResultCheckpoint(messages, awaitToolResultPersistence)
+            stopReason = GenerationStopReason.USER_MESSAGE
+            return true
+        }
+
         for (stepIndex in 0 until maxSteps) {
+            if (yieldToSteering("before_model_request")) break
             if (shouldYieldToQueuedMessage() && messages.none { msg -> msg.getTools().any { !it.isExecuted } }) {
                 stopReason = GenerationStopReason.USER_MESSAGE
                 break
@@ -638,6 +659,7 @@ class GenerationLoop(
             if (pendingTools.isEmpty()) {
                 try {
                     onBeforeModelRequest()
+                    if (yieldToSteering("before_model_request")) break
                     kotlinx.coroutines.withTimeout(if (autonomousCycle)
                         settings.networkSetting.generationRuntime.normalized().requestTimeoutMinutes * 60_000L
                     else (ToolRuntimeLimits.turnBudgetMs - turnClock.activeElapsedMs()).coerceAtLeast(1L)) {
@@ -733,6 +755,8 @@ class GenerationLoop(
                 )
                 emit(GenerationChunk.Messages(messages))
 
+                if (yieldToSteering("after_model_response")) break
+
                 val toolCalls = messages.last().getTools().filter { !it.isExecuted }
                 if (toolCalls.isEmpty()) {
                     stopReason = when {
@@ -827,7 +851,16 @@ class GenerationLoop(
 
             // Handle tools (execute approved tools, handle denied tools)
             val executedTools = arrayListOf<UIMessagePart.Tool>()
+            var yieldedToInput = false
             toolsToProcess.forEach { tool ->
+                if (yieldedToInput) return@forEach
+                // Preserve each completed result before deciding whether another announced
+                // call may start. A clarification can supersede the remainder of a batch.
+                messages = applyCompletedTools(messages, executedTools)
+                if (yieldToSteering(if (executedTools.isEmpty()) "before_tool" else "after_tool")) {
+                    yieldedToInput = true
+                    return@forEach
+                }
                 when (tool.approvalState) {
                     is ToolApprovalState.Denied -> {
                         // Tool was denied by user
@@ -1145,6 +1178,7 @@ class GenerationLoop(
                 }
             }
 
+            if (yieldedToInput) break
             if (executedTools.isEmpty()) {
                 stopReason = GenerationStopReason.WAITING_APPROVAL
                 break
@@ -1171,6 +1205,8 @@ class GenerationLoop(
                 ),
                 awaitPersistence = awaitToolResultPersistence,
             )
+
+            if (yieldToSteering("after_tool")) break
 
             if (autonomousCycle && turnClock.compactionAllowanceExhausted()) {
                 stopReason = GenerationStopReason.COMPACTION_LIMIT

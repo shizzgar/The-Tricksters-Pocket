@@ -70,6 +70,15 @@ internal fun MessageQueuePanel(
                         TextButton(onClick = onResume) { Text(stringResource(R.string.chat_page_queue_resume)) }
                     }
                 }
+                if (!state.paused && state.messages.any { it.steerActiveTask }) {
+                    Text(
+                        text = stringResource(if (state.messages.any { it.isApplying })
+                            R.string.chat_steering_applying else R.string.chat_steering_waiting),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 8.dp).testTag("chat_steering_status"),
+                    )
+                }
                 LazyColumn(modifier = Modifier.heightIn(max = 180.dp)) {
                     itemsIndexed(
                         state.messages,
@@ -101,11 +110,15 @@ internal fun MessageQueuePanel(
                                 overflow = TextOverflow.Ellipsis,
                             )
                             TextButton(
-                                enabled = !message.isEditing,
+                                enabled = !message.isEditing && !message.isApplying,
                                 onClick = { editing = onBeginEdit(message.id) },
-                            ) { Text(if (message.isEditing) stringResource(R.string.chat_page_queue_editing) else stringResource(R.string.edit)) }
+                            ) { Text(when {
+                                message.isApplying -> stringResource(R.string.chat_steering_applying_short)
+                                message.isEditing -> stringResource(R.string.chat_page_queue_editing)
+                                else -> stringResource(R.string.edit)
+                            }) }
                             TextButton(
-                                enabled = !message.isEditing,
+                                enabled = !message.isEditing && !message.isApplying,
                                 onClick = { onRemove(message.id) },
                             ) { Text(stringResource(R.string.chat_page_queue_remove)) }
                         }
