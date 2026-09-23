@@ -17,6 +17,7 @@
 |---|---|
 | Waterfall, Flow, инспектор, поиск и экспорт | [Trajectory и skills](agent-runtime/trajectory-and-termux-skills.ru.md) |
 | Полный ZIP: запросы, reasoning, tools, подагенты и диагностика | [Экспорт всей трассы](trace-export.md) |
+| Уточнить задачу во время её выполнения | [Сообщения между операциями агента](live-steering.md) |
 | Файлы навыков, редактор, HEX, черновики и конфликты | [Мастерская навыка](agent-runtime/trajectory-and-termux-skills.ru.md#мастерская-навыка-и-инспектор-операций) |
 | Полные пакеты в Termux, версии и ограничения | [Передача навыков](agent-runtime/trajectory-and-termux-skills.ru.md#навыки) |
 | Редактирование навыков агентом, TTS/Whisper и доступ к tools | [Инструменты агента](agent-runtime/trajectory-and-termux-skills.ru.md#инструменты-агента-и-управление-навыками) |

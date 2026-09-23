@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="chat_steering_send">Add an update to the running task</string>
+    <string name="chat_steering_waiting">The agent will receive your update after the current operation. A running model response, tool or compaction finishes first.</string>
+    <string name="chat_steering_applying">Adding your update to the current task…</string>
+    <string name="chat_steering_applying_short">Applying…</string>
+</resources>
