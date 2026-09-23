@@ -132,7 +132,7 @@ Android-ассистент с управляемым агентским цикл
 
 ## Проверки и границы
 
-Для версии [`a8c800b`](https://github.com/shizzgar/rikkahub-agent/commit/a8c800b67ae1b2890682466af44d5b85c450ff55) [успешный CI](https://github.com/shizzgar/rikkahub-agent/actions/runs/35861320725) подтвердил **688 JVM-тестов, 21 Python-тест и 13 Android-тестов**. Проверены полный экспорт трассы, установка ReBro kit по манифестам, доступность tools, UI на эмуляторе в телефонном и широком форматах, а также подпись ARM64 APK. Это зафиксированный результат конкретной ревизии; текущие прогоны видны в [Actions](https://github.com/shizzgar/rikkahub-agent/actions/workflows/compaction-debug.yml).
+Для версии [`81fea68`](https://github.com/shizzgar/rikkahub-agent/commit/81fea68a154782d4ab6e8fbadee2278e51cbb565) [успешный CI](https://github.com/shizzgar/rikkahub-agent/actions/runs/35875085640) подтвердил **718 JVM-тестов, 21 Python-тест и 20 Android-тестов**. Проверены уточнения во время работы и Stop, полный экспорт трассы, установка ReBro kit по манифестам, доступность tools, UI на эмуляторе в телефонном и широком форматах, а также подпись ARM64 APK. Это зафиксированный результат конкретной ревизии; текущие прогоны видны в [Actions](https://github.com/shizzgar/rikkahub-agent/actions/workflows/compaction-debug.yml).
 
 - Трасса хранится локально и содержит промпты, команды и результаты. Перед публикацией экспорта проверьте его содержимое.
 - Записывается reasoning, который вернул провайдер. Полного детерминированного replay и реконструкции старых незаписанных событий нет.

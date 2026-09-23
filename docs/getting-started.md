@@ -13,7 +13,7 @@
 3. В **Artifacts** скачайте **rikkahub-compaction-arm64-debug**. Для скачивания артефактов GitHub может потребоваться вход в аккаунт.
 4. Распакуйте ZIP и установите `rikkahub-compaction-arm64-debug.apk`. Рядом находятся `COMMIT.txt` и `SHA256SUMS`.
 
-[Проверенная сборка `a8c800b` от 23.09.2026 →](https://github.com/shizzgar/rikkahub-agent/actions/runs/35861320725/artifacts/10750962773)
+[Проверенная сборка `81fea68` от 23.09.2026 →](https://github.com/shizzgar/rikkahub-agent/actions/runs/35875085640/artifacts/10759050850)
 
 Артефакты CI хранятся **14 дней**; у указанной сборки срок хранения до 07.10.2026. Если артефакт уже удалён, выберите новый успешный прогон или [соберите приложение](building.md). Доступный владельцу репозитория **Run workflow** позволяет повторить сборку. Это канал debug-сборок, а не стабильный release-канал.
 

@@ -122,7 +122,7 @@ RikkaHub and ExTV provide the multi-provider chat client, MCP, subagents, schedu
 
 ## Validation and current boundaries
 
-The [successful run for `a8c800b`](https://github.com/shizzgar/rikkahub-agent/actions/runs/35861320725) passed **688 JVM, 21 Python and 13 Android tests**. It checked full-trace export, installed ReBro package manifests, tool availability, phone/wide emulator UI and the ARM64 APK signature. These counts describe that revision; see [Actions](https://github.com/shizzgar/rikkahub-agent/actions/workflows/compaction-debug.yml) for current runs.
+The [successful run for `81fea68`](https://github.com/shizzgar/rikkahub-agent/actions/runs/35875085640) passed **718 JVM, 21 Python and 20 Android tests**. It checked live steering and Stop, full-trace export, installed ReBro package manifests, tool availability, phone/wide emulator UI and the ARM64 APK signature. These counts describe that revision; see [Actions](https://github.com/shizzgar/rikkahub-agent/actions/workflows/compaction-debug.yml) for current runs.
 
 - Traces are local and may contain private prompts, commands and results. Inspect exports before sharing.
 - Only provider-returned reasoning can be recorded. Deterministic replay and reconstruction of previously unrecorded events are not implemented.
