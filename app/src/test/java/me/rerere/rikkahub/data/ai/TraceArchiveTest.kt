@@ -191,7 +191,11 @@ class TraceArchiveTest {
             try {
                 journal.exportArchive(id, output, cache)
                 fail("Expected export failure")
-            } catch (e: Exception) { assertSame(failure, e) }
+            } catch (e: Exception) {
+                // Coroutine stack-trace recovery may copy the exception across dispatchers.
+                assertEquals(failure.javaClass, e.javaClass)
+                assertEquals(failure.message, e.message)
+            }
             assertTrue(cache.listFiles()!!.isEmpty())
             assertArrayEquals(index, File(root, "$id/events.jsonl").readBytes())
         }
