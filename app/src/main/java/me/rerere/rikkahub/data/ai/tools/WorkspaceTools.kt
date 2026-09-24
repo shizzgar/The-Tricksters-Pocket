@@ -188,14 +188,16 @@ private fun createEditFileTool(
         val replaceAll = params["replace_all"]?.jsonPrimitive?.contentOrNull?.toBooleanStrictOrNull() ?: false
         require(oldText.isNotEmpty()) { "old_text must not be empty" }
 
-        val original = workspaceRepository.readTextInRootfs(workspaceId, path)
+        val snapshot = if (workspaceRepository.getById(workspaceId)?.termuxPath != null)
+            workspaceRepository.readTextSnapshot(workspaceId, me.rerere.workspace.WorkspaceStorageArea.FILES, path) else null
+        val original = snapshot?.text ?: workspaceRepository.readTextInRootfs(workspaceId, path)
         // 逐级尝试 exact -> line_trimmed -> block_anchor 替换器, 见 TextReplacers.kt
         val result = try {
             replaceText(original, oldText, newText, replaceAll)
         } catch (e: IllegalArgumentException) {
             error("${e.message} (path: $path)")
         }
-        val entry = workspaceRepository.writeTextInRootfs(workspaceId, path, result.updated, overwrite = true)
+        val entry = workspaceRepository.writeTextInRootfs(workspaceId, path, result.updated, overwrite = true, expectedRevision = snapshot?.revision)
         val diff = generateUnifiedDiff(original, result.updated, entry.path)
         listOf(
             UIMessagePart.Text(
@@ -329,6 +331,7 @@ private fun createShellTool(
                     put("stdout", result.stdout)
                     put("stderr", result.stderr)
                     put("timedOut", result.timedOut)
+                    result.jobId?.let { put("job_id", it) }
                     if (result.truncated) put("truncated", true)
                 }.toString()
             )
@@ -528,7 +531,11 @@ private suspend fun WorkspaceRepository.writeTextInRootfs(
     path: String,
     text: String,
     overwrite: Boolean,
+    expectedRevision: String? = null,
 ): WorkspaceFileEntry {
+    if (getById(workspaceId)?.termuxPath != null) {
+        return writeText(workspaceId, path, text, overwrite, expectedRevision)
+    }
     val pathArg = path.shellQuote()
     val result = runRootfsCommand(
         workspaceId = workspaceId,
@@ -556,6 +563,7 @@ private suspend fun WorkspaceRepository.createFolderInRootfs(
     workspaceId: String,
     path: String,
 ): WorkspaceFileEntry {
+    if (getById(workspaceId)?.termuxPath != null) return createFolder(workspaceId, path)
     val pathArg = path.shellQuote()
     val result = runRootfsCommand(
         workspaceId = workspaceId,
@@ -667,9 +675,9 @@ private fun JsonObjectBuilder.putPathProperty(required: Boolean) {
         put(
             "description",
             if (required) {
-                "Absolute path inside Rootfs. Use /workspace for the workspace files area."
+                "Absolute path in the selected workspace. For Termux use its real linked directory; for built-in Linux use /workspace."
             } else {
-                "Optional absolute path inside Rootfs. Use /workspace for the workspace files area."
+                "Optional absolute path in the selected workspace. Termux uses its real linked directory; built-in Linux uses /workspace."
             }
         )
     })

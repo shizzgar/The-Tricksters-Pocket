@@ -145,6 +145,7 @@ fun SettingSubAgentsPage(vm: SettingVM = koinViewModel()) {
                     items(profiles, key = { it.id }) { profile ->
                         SubAgentProfileCard(
                             profile = profile,
+                            assistant = settings.assistants.firstOrNull { it.id == profile.assistantId },
                             onEdit = { editState.open(profile) },
                             onDelete = { vm.updateSettings(settings.copy(subAgents = profiles - profile)) },
                         )
@@ -180,6 +181,7 @@ fun SettingSubAgentsPage(vm: SettingVM = koinViewModel()) {
             SubAgentProfileEditSheet(
                 profile = state,
                 providers = settings.providers,
+                assistants = settings.assistants,
                 existingProfiles = profiles,
                 onDismiss = { editState.dismiss() },
                 onConfirm = { editState.confirm() },
@@ -192,6 +194,7 @@ fun SettingSubAgentsPage(vm: SettingVM = koinViewModel()) {
 @Composable
 private fun SubAgentProfileCard(
     profile: SubAgentProfile,
+    assistant: me.rerere.rikkahub.data.model.Assistant?,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -235,6 +238,9 @@ private fun SubAgentProfileCard(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                assistant?.let {
+                    me.rerere.rikkahub.ui.components.ui.UIAvatar(it.name, it.avatar, Modifier.size(40.dp))
+                }
                 Column(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -272,6 +278,7 @@ private fun SubAgentProfileCard(
 private fun SubAgentProfileEditSheet(
     profile: SubAgentProfile,
     providers: List<ProviderSetting>,
+    assistants: List<me.rerere.rikkahub.data.model.Assistant>,
     existingProfiles: List<SubAgentProfile>,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
@@ -334,6 +341,25 @@ private fun SubAgentProfileEditSheet(
                     } else null,
                     modifier = Modifier.fillMaxWidth(),
                 )
+
+                var assistantMenu by remember { mutableStateOf(false) }
+                Box {
+                    TextButton(onClick = { assistantMenu = true }) {
+                        Text(stringResource(R.string.subagent_linked_assistant) + ": " +
+                            (assistants.firstOrNull { it.id == profile.assistantId }?.name
+                                ?: stringResource(R.string.subagent_inherit_parent)))
+                    }
+                    androidx.compose.material3.DropdownMenu(expanded = assistantMenu, onDismissRequest = { assistantMenu = false }) {
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = { Text(stringResource(R.string.subagent_inherit_parent)) },
+                            onClick = { onEdit(profile.copy(assistantId = null)); assistantMenu = false })
+                        assistants.forEach { assistant ->
+                            androidx.compose.material3.DropdownMenuItem(text = { Text(assistant.name) },
+                                onClick = { onEdit(profile.copy(assistantId = assistant.id)); assistantMenu = false })
+                        }
+                    }
+                }
+                Text(stringResource(R.string.subagent_linked_hint), style = MaterialTheme.typography.bodySmall)
 
                 OutlinedTextField(
                     value = profile.description,

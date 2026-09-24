@@ -205,6 +205,7 @@ class SettingsStore(
 
         // 子代理
         val SUB_AGENTS = stringPreferencesKey("sub_agents")
+        val BRO_SUB_AGENTS_SEEDED = booleanPreferencesKey("bro_sub_agents_seeded")
 
         // WebDAV
         val WEBDAV_CONFIG = stringPreferencesKey("webdav_config")
@@ -319,6 +320,7 @@ class SettingsStore(
 
                 preferences[MCP_SERVERS] = JsonInstant.encodeToString(settings.mcpServers)
                 preferences[SUB_AGENTS] = JsonInstant.encodeToString(settings.subAgents)
+                preferences[BRO_SUB_AGENTS_SEEDED] = settings.broSubAgentsSeeded
                 preferences[WEBDAV_CONFIG] = JsonInstant.encodeToString(settings.webDavConfig)
                 preferences[S3_CONFIG] = JsonInstant.encodeToString(settings.s3Config)
                 preferences[TTS_PROVIDERS] = JsonInstant.encodeToString(settings.ttsProviders)
@@ -474,6 +476,7 @@ class SettingsStore(
                 } ?: emptyList(),
                 // #36: key absent -> emptyList(), exactly like mcpServers above - the
                 // whole migration for an existing install that predates this field.
+                broSubAgentsSeeded = preferences[BRO_SUB_AGENTS_SEEDED] ?: false,
                 subAgents = preferences[SUB_AGENTS]?.let { raw ->
                     runCatching { JsonInstant.decodeFromString<List<SubAgentProfile>>(raw) }.getOrElse {
                         Log.w(TAG, "Failed to decode subAgents, using default", it)
@@ -609,6 +612,8 @@ class SettingsStore(
                 providers = providers,
                 assistants = assistants,
                 autoEnabledDefaultSkills = newAutoEnabled,
+                subAgents = if (it.broSubAgentsSeeded) it.subAgents else me.rerere.rikkahub.subagent.seedBroSubAgents(it.subAgents),
+                broSubAgentsSeeded = true,
                 ttsProviders = ttsProviders,
             )
         }
@@ -904,6 +909,7 @@ data class Settings(
      * that predates this field decodes cleanly - see [SettingsStore.settingsFlowRaw].
      */
     val subAgents: List<SubAgentProfile> = emptyList(),
+    val broSubAgentsSeeded: Boolean = false,
     val webDavConfig: WebDavConfig = WebDavConfig(),
     val s3Config: S3Config = S3Config(),
     val ttsProviders: List<TTSProviderSetting> = DEFAULT_TTS_PROVIDERS,

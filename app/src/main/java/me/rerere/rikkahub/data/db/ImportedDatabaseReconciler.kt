@@ -61,7 +61,7 @@ object ImportedDatabaseReconciler {
      * newer *shared* conversation columns were added) or this reconciliation will silently stop
      * matching. `internal` so a JVM test can assert these stay in sync with the schema export.
      */
-    internal const val EXPECTED_VERSION = 31
+    internal const val EXPECTED_VERSION = 32
     internal const val EXPECTED_IDENTITY_HASH = "61a9c9769b0c9f68743007339a58e420"
 
     /**
@@ -177,6 +177,9 @@ object ImportedDatabaseReconciler {
                         // EXPECTED_VERSION here, so create/add them before installing the
                         // identity for EXPECTED_VERSION.
                         db.execSQL(CONTEXT_COMPACTION_DDL)
+                        if (tableExists(db, "workspaces") && !hasColumn(db, "workspaces", "termux_path")) {
+                            db.execSQL("ALTER TABLE `workspaces` ADD COLUMN `termux_path` TEXT DEFAULT NULL")
+                        }
                         if (!hasColumn(db, "ConversationEntity", "chat_model_id")) {
                             db.execSQL(
                                 "ALTER TABLE `ConversationEntity` ADD COLUMN `chat_model_id` TEXT NOT NULL DEFAULT ''"

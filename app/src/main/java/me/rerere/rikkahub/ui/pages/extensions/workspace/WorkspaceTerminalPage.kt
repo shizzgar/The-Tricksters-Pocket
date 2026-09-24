@@ -68,6 +68,11 @@ import org.koin.core.parameter.parametersOf
 fun WorkspaceTerminalPage(id: String) {
     val vm: WorkspaceDetailVM = koinViewModel(parameters = { parametersOf(id) })
     val state by vm.state.collectAsStateWithLifecycle()
+    if (state.workspace?.termuxPath != null) {
+        TermuxWorkspaceConsole(vm)
+        return
+    }
+    if (state.workspace == null) return
     val sessionManager: WorkspaceTerminalSessionManager = koinInject()
     val root = state.workspace?.root
     val terminalStateFlow = remember(root, sessionManager) {

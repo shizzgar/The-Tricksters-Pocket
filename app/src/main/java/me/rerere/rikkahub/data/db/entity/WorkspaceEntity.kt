@@ -35,6 +35,8 @@ data class WorkspaceEntity(
     val toolApprovals: String = "{}",
     @ColumnInfo("shell_compatibility_mode", defaultValue = "0")
     val shellCompatibilityMode: Boolean = false,
+    @ColumnInfo("termux_path", defaultValue = "NULL")
+    val termuxPath: String? = null,
 ) {
     fun toolApprovalOverrides(): Map<String, Boolean> = runCatching {
         JsonInstant.decodeFromString<Map<String, Boolean>>(toolApprovals)

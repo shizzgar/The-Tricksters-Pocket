@@ -170,6 +170,13 @@ fun WorkspaceDetailPage(id: String) {
         vm.dismissFolderExportResult()
     }
 
+    var folderDialog by remember { mutableStateOf(false) }
+    var moveDialog by remember { mutableStateOf(false) }
+    if (folderDialog) WorkspacePathDialog(stringResource(R.string.workspace_new_folder), false,
+        onDismiss = { folderDialog = false }, onConfirm = { name, _ -> vm.createTermuxFolder(name); folderDialog = false })
+    if (moveDialog) WorkspacePathDialog(stringResource(R.string.workspace_move_file), true,
+        onDismiss = { moveDialog = false }, onConfirm = { source, target -> vm.moveTermuxEntry(source, target); moveDialog = false })
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -182,6 +189,10 @@ fun WorkspaceDetailPage(id: String) {
                 },
                 navigationIcon = { BackButton() },
                 actions = {
+                    if (pagerState.currentPage == 1 && state.workspace?.termuxPath != null) {
+                        TextButton(onClick = { folderDialog = true }) { Text(stringResource(R.string.workspace_new_folder)) }
+                        TextButton(onClick = { moveDialog = true }) { Text(stringResource(R.string.workspace_move_file)) }
+                    }
                     if (pagerState.currentPage == 1) {
                         IconButton(onClick = { filePicker.launch(arrayOf("*/*")) }) {
                             Icon(
@@ -439,6 +450,10 @@ private fun WorkspaceBasicPage(
             }
         }
 
+        if (workspace?.termuxPath != null) {
+            item { Text(workspace.termuxPath) }
+            item { Text(stringResource(R.string.workspace_termux_link_hint)) }
+        } else {
         item {
             CardGroup(
                 title = { Text(stringResource(R.string.workspace_detail_enable_shell)) },
@@ -494,6 +509,8 @@ private fun WorkspaceBasicPage(
                     },
                 )
             }
+        }
+
         }
 
         item {
@@ -665,10 +682,12 @@ private fun WorkspaceFilesPage(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
+            if (state.workspace?.termuxPath == null) {
             WorkspaceAreaSelector(
                 selected = state.area,
                 onSelected = onSelectArea,
             )
+            }
         }
 
         item {

@@ -154,5 +154,7 @@ data class SubAgentProfile(
     val systemPrompt: String = "",
     val modelId: Uuid? = null,
     val enabled: Boolean = true,
+    // Null keeps legacy prompt/model-only profiles. A link uses the assistant's live settings.
+    val assistantId: Uuid? = null,
 )
 

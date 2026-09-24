@@ -2,6 +2,7 @@ name: Agent runtime debug APK
 
 on:
   workflow_dispatch:
+  workflow_call:
   push:
     branches: [master, fix/configurable-compaction-runtime, feat/trajectory-termux-skills, feat/live-steering, feat/rebro-blue-runtime, feat/netbro-assistant]
     paths-ignore:
@@ -97,6 +98,9 @@ jobs:
           --tests 'me.rerere.rikkahub.service.QueuedAttachmentCleanupTest'
           --tests 'me.rerere.rikkahub.service.ConversationSessionTest'
           --tests 'me.rerere.rikkahub.subagent.*Test'
+          --tests 'me.rerere.rikkahub.data.repository.TermuxWorkspacePathTest'
+          --tests 'me.rerere.rikkahub.data.ai.transformers.WorkspaceReminderTransformerTest'
+          --tests 'me.rerere.rikkahub.data.ai.tools.WorkspaceToolsTest'
       - name: Build debug APKs
         run: bash ./gradlew --no-daemon --max-workers=2 :app:assembleDebug
       - name: Exercise trajectory on an Android emulator and capture screens
@@ -104,7 +108,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sdkmanager 'system-images;android-35;google_apis;x86_64' 'emulator' 'platform-tools'
+          installed=false
+          for attempt in 1 2 3; do
+            if sdkmanager 'system-images;android-35;google_apis;x86_64' 'emulator' 'platform-tools'; then installed=true; break; fi
+            sleep 5
+          done
+          test "$installed" = true
           echo no | avdmanager create avd --name trajectory --package 'system-images;android-35;google_apis;x86_64' --device pixel_6 --force
           sudo chmod a+rw /dev/kvm
           "$ANDROID_HOME/emulator/emulator" -avd trajectory -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect > /tmp/trajectory-emulator.log 2>&1 &
@@ -124,8 +133,8 @@ jobs:
           adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
           mkdir -p build/trajectory-qa
           test_status=0
-          adb shell am instrument -w -r -e class me.rerere.rikkahub.ui.pages.chat.TrajectoryInstrumentedTest,me.rerere.rikkahub.ui.pages.extensions.skills.SkillWorkbenchInstrumentedTest,me.rerere.rikkahub.ui.pages.assistant.detail.ToolAccessInstrumentedTest,me.rerere.rikkahub.ui.pages.chat.TracePayloadInstrumentedTest,me.rerere.rikkahub.data.datastore.RebroAssistantInstrumentedTest,me.rerere.rikkahub.data.datastore.NetbroAssistantInstrumentedTest,me.rerere.rikkahub.service.LiveSteeringInstrumentedTest,me.rerere.rikkahub.data.db.ImportedDatabaseReconcilerTest,me.rerere.rikkahub.data.db.migrations.Migration_30_31_Test,me.rerere.rikkahub.ui.theme.RebroBrandInstrumentedTest,me.rerere.rikkahub.data.ai.tools.local.JavascriptInstrumentedTest excp.rikkahub.debug.test/androidx.test.runner.AndroidJUnitRunner | tee build/trajectory-qa/instrumentation.txt || test_status=$?
-          grep -Fq 'OK (31 tests)' build/trajectory-qa/instrumentation.txt || test_status=1
+          adb shell am instrument -w -r -e class me.rerere.rikkahub.ui.pages.chat.TrajectoryInstrumentedTest,me.rerere.rikkahub.ui.pages.extensions.skills.SkillWorkbenchInstrumentedTest,me.rerere.rikkahub.ui.pages.assistant.detail.ToolAccessInstrumentedTest,me.rerere.rikkahub.ui.pages.chat.TracePayloadInstrumentedTest,me.rerere.rikkahub.data.datastore.RebroAssistantInstrumentedTest,me.rerere.rikkahub.data.datastore.NetbroAssistantInstrumentedTest,me.rerere.rikkahub.service.LiveSteeringInstrumentedTest,me.rerere.rikkahub.data.db.ImportedDatabaseReconcilerTest,me.rerere.rikkahub.data.db.migrations.Migration_30_31_Test,me.rerere.rikkahub.data.db.migrations.Migration_31_32_Test,me.rerere.rikkahub.ui.theme.RebroBrandInstrumentedTest,me.rerere.rikkahub.data.ai.tools.local.JavascriptInstrumentedTest excp.rikkahub.debug.test/androidx.test.runner.AndroidJUnitRunner | tee build/trajectory-qa/instrumentation.txt || test_status=$?
+          grep -Fq 'OK (33 tests)' build/trajectory-qa/instrumentation.txt || test_status=1
           adb shell wm size 1920x1200
           adb shell wm density 160
           adb shell am instrument -w -r -e class me.rerere.rikkahub.ui.pages.extensions.skills.SkillWorkbenchWideInstrumentedTest excp.rikkahub.debug.test/androidx.test.runner.AndroidJUnitRunner | tee build/trajectory-qa/wide-instrumentation.txt || test_status=$?
@@ -173,5 +182,7 @@ jobs:
             ai/build/test-results/
             search/build/test-results/
             app/build/test-results/
+            app/schemas/
+            app/build/generated/ksp/
           if-no-files-found: warn
           retention-days: 14

@@ -41,7 +41,7 @@ class WorkspaceReminderTransformer(
 
         // 与 ChatToolFactory.createWorkspaceToolsIfReady 保持一致: 仅在 shell 就绪时才读取 AGENTS.md 作为工作区指令
         if (workspace != null && workspace.shellStatus == WorkspaceShellStatus.READY.name) {
-            prompt += buildAgentsPrompt(workspace.id, ctx.workspaceCwd)
+            prompt += buildAgentsPrompt(workspace.id, ctx.workspaceCwd, workspace.termuxPath)
         }
 
         // 追加到第一条 system 消息; 若不存在则插入一条
@@ -57,14 +57,14 @@ class WorkspaceReminderTransformer(
         }
     }
 
-    private suspend fun buildAgentsPrompt(workspaceId: String, cwd: String?): String {
+    private suspend fun buildAgentsPrompt(workspaceId: String, cwd: String?, termuxRoot: String? = null): String {
         // ProotShellRunner 将 HOME 固定为 /root；相对 PWD 按 /workspace 解析。
-        val workingDirectory = Paths.get("/workspace")
+        val workingDirectory = Paths.get(termuxRoot ?: "/workspace")
             .resolve(cwd?.takeIf { it.isNotBlank() } ?: ".")
             .normalize()
         val paths = linkedSetOf(
-            "/root/.agents/AGENTS.md",
-            "/workspace/AGENTS.md",
+            if (termuxRoot == null) "/root/.agents/AGENTS.md" else "$termuxRoot/.agents/AGENTS.md",
+            "${termuxRoot ?: "/workspace"}/AGENTS.md",
             workingDirectory.resolve("AGENTS.md").toString(),
         )
         val instructions = paths.mapNotNull { path ->
@@ -117,6 +117,16 @@ internal fun buildWorkspaceReminder(
     hasAnyWorkspace: Boolean,
     cwd: String? = null,
 ): String? = when {
+    workspace?.termuxPath != null -> buildString {
+        appendLine("<workspace>")
+        appendLine("Workspace ${workspace.name} is linked to the real Termux directory `${workspace.termuxPath}`. This is Termux's Android environment, not a proot rootfs.")
+        appendLine("Use real absolute paths under this directory for workspace file tools and commands. File tools do not follow symbolic links or allow paths outside the linked root. Shell commands run as Termux UID and are not confined to that root.")
+        appendLine("The workspace tools can read, write, edit, create folders, list trees, run commands and manage background jobs. Long commands should use workspace_run_background; preserve its job ID and inspect status instead of relaunching.")
+        appendLine("Your connected skills remain available through skills tools. Use termux_skill_sync/read_skill and their returned skill_root paths for Termux scripts. There is no /skills or /upload mount here. External tools and dependencies must already be installed in Termux.")
+        appendLine("Current directory: ${cwd ?: workspace.termuxPath}. A console command uses a fresh shell; cd and environment changes do not persist to the next command. Deleting the workspace unlinks it and keeps the real directory.")
+        appendLine("If RUN_COMMAND or Python is unavailable, report the observed error and direct the user to Settings > Termux. Do not claim a successful operation without its result.")
+        append("</workspace>")
+    }
     workspace != null && workspace.shellStatus == WorkspaceShellStatus.READY.name ->
         buildWorkspacePrompt(workspace, cwd)
 

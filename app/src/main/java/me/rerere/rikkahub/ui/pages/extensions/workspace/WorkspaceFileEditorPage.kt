@@ -64,14 +64,16 @@ fun WorkspaceFileEditorPage(
     var loading by remember { mutableStateOf(true) }
     var loadError by remember { mutableStateOf<String?>(null) }
     var saving by remember { mutableStateOf(false) }
+    var revision by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(id, area, path) {
         loading = true
         loadError = null
         runCatching {
-            repository.readTextForPreview(id, area, path)
+            repository.readTextSnapshot(id, area, path)
         }.onSuccess { content ->
-            textState.setTextAndPlaceCursorAtEnd(content)
+            textState.setTextAndPlaceCursorAtEnd(content.text)
+            revision = content.revision
             loading = false
         }.onFailure {
             loadError = it.message ?: "读取文件失败"
@@ -103,12 +105,14 @@ fun WorkspaceFileEditorPage(
                                 saving = true
                                 scope.launch {
                                     runCatching {
-                                        repository.writeText(
+                                        val saved = repository.writeText(
                                             id = id,
                                             path = path,
                                             text = textState.text.toString(),
                                             overwrite = true,
+                                            expectedRevision = revision,
                                         )
+                                        revision = saved.revision
                                     }.onSuccess {
                                         toaster.show("已保存", type = ToastType.Success)
                                     }.onFailure {

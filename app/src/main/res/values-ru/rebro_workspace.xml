@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="subagent_linked_assistant">Ассистент</string>
+    <string name="subagent_inherit_parent">Использовать родительского ассистента</string>
+    <string name="subagent_linked_hint">Связанный профиль использует промпт, skills, инструменты, поиск и workspace выбранного ассистента. Ниже можно задать другую модель и дополнительные инструкции к задаче.</string>
+    <string name="workspace_local_linux">Встроенный Linux</string>
+    <string name="workspace_termux_link_hint">Файлы остаются в выбранной папке Termux. Изменения здесь редактируют оригиналы. В Termux должен быть установлен Python.</string>
+    <string name="workspace_termux_connect">Настройте Termux и выдайте разрешение RUN_COMMAND в Настройки → Termux.</string>
+    <string name="workspace_termux_directory">Каталог Termux</string>
+    <string name="workspace_browse">Обзор</string>
+    <string name="workspace_parent_folder">На уровень выше</string>
+    <string name="workspace_termux_unlink_hint">Будет удалена только привязка. Каталог Termux, его файлы и запущенные задачи сохранятся.</string>
+    <string name="workspace_termux_console_hint">Команды запускаются в выбранной папке, каждая в новой оболочке. Полные логи и остановка доступны в списке задач.</string>
+    <string name="workspace_output_more">Показана часть вывода. Все сохранённые страницы доступны в списке задач.</string>
+    <string name="workspace_command">Команда</string>
+    <string name="workspace_run_command">Выполнить</string>
+    <string name="workspace_run_background">Фоновая задача</string>
+    <string name="workspace_new_folder">Новая папка</string>
+    <string name="workspace_move_file">Переместить</string>
+    <string name="workspace_source_path">Исходный путь внутри workspace</string>
+    <string name="workspace_target_path">Новый путь внутри workspace</string>
+    <string name="workspace_folder_name">Имя папки</string>
+</resources>

@@ -48,6 +48,9 @@ internal fun mergeDefaultAssistants(
     val present = saved.map { it.id }.toSet()
     return (saved + DEFAULT_ASSISTANTS.filter { it.id !in present }).map { assistant ->
         val additions = skillsToSeed intersect defaults[assistant.id]?.enabledSkills.orEmpty()
-        seedDefaultAssistantSkills(migrateBundledBroPrompt(assistant, defaults[assistant.id]), additions)
+        val branded = if (assistant.id == NETBRO_ASSISTANT_ID && assistant.avatar == Avatar.Emoji("🛰️")) {
+            assistant.copy(avatar = createNetbroAssistant().avatar)
+        } else assistant
+        seedDefaultAssistantSkills(migrateBundledBroPrompt(branded, defaults[assistant.id]), additions)
     }
 }
