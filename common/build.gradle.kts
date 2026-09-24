@@ -14,6 +14,14 @@ android {
     }
 }
 
+// Unit tests execute the desktop native binary rather than an Android AAR.
+configurations.matching { it.name.endsWith("UnitTestRuntimeClasspath") }.configureEach {
+    resolutionStrategy.dependencySubstitution {
+        substitute(module("io.github.dokar3:quickjs-kt-android"))
+            .using(module("io.github.dokar3:quickjs-kt-jvm:${libs.versions.quickjs.get()}"))
+    }
+}
+
 dependencies {
     // okhttp
     api(libs.okhttp)

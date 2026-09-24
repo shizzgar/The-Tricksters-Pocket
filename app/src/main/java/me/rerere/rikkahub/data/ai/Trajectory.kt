@@ -43,15 +43,19 @@ internal fun traceSummary(source: String, data: JsonObject): TraceSummary {
         source == "compaction.event" -> if (compaction?.text("state") in setOf("completed", "failed", "cancelled")) "end" else "update"
         else -> "update"
     }
-    val outputError = (data["output"] as? JsonArray)?.any { part ->
-        val obj = parseObject((part as? JsonObject)?.text("text"))
+    val outputObjects = (data["output"] as? JsonArray)?.mapNotNull { part ->
+        parseObject((part as? JsonObject)?.text("text"))
+    }.orEmpty()
+    val outputCancelled = source == "tool.result" && outputObjects.isNotEmpty() &&
+        outputObjects.all { it.text("state") == "cancelled" && it.text("error").isNullOrBlank() }
+    val outputError = outputObjects.any { obj ->
         obj?.get("error")?.let { it != JsonNull && it != JsonPrimitive(false) && it != JsonPrimitive("") } == true ||
             obj?.flag("success") == false || (obj?.number("exit_code") ?: 0) != 0L
-    } == true
+    }
     val reason = data.text("reason").orEmpty()
     val status = data.text("status")?.lowercase()
     val state = when {
-        source == "task.cancelled" || (data.text("error_type")?.endsWith("CancellationException") == true && data.text("error_type")?.contains("Timeout") != true) || status == "cancelled" || compaction?.text("state") == "cancelled" -> "cancelled"
+        outputCancelled || source == "task.cancelled" || (data.text("error_type")?.endsWith("CancellationException") == true && data.text("error_type")?.contains("Timeout") != true) || status == "cancelled" || compaction?.text("state") == "cancelled" -> "cancelled"
         data.text("error_type") != null || data.text("error")?.isNotBlank() == true || outputError || status in setOf("failed", "timed_out") || compaction?.text("state") == "failed" || source in setOf("task.failed", "task.deadline") -> "error"
         source == "model.response" && data.flag("stream_finished") == false -> "incomplete"
         source == "task.checkpoint" && phase == "end" && reason != "COMPLETED" -> "paused"

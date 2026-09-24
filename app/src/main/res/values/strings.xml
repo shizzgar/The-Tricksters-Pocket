@@ -2550,4 +2550,6 @@
   <string name="compaction_total_timeout_description">Up to 240 minutes; at least the per-request timeout. Covers all map/reduce passes. Also caps cumulative automatic compaction time within one agent turn.</string>
   <string name="compaction_parallel_requests">Parallel requests</string>
   <string name="compaction_parallel_requests_description">1–4 requests per batch. Use 1 or 2 if concurrent requests overload your inference server.</string>
+    <string name="rebro_theme_description">Midnight navy, clear blue and cool steel. Includes matching light and dark palettes.</string>
+    <string name="rebro_theme_apply">Apply</string>
 </resources>

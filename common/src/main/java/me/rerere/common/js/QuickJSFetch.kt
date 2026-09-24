@@ -1,27 +1,24 @@
 package me.rerere.common.js
 
-import com.whl.quickjs.wrapper.JSCallFunction
-import com.whl.quickjs.wrapper.QuickJSContext
+import com.dokar.quickjs.QuickJs
+import com.dokar.quickjs.binding.function
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.job
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.TimeUnit
+import okhttp3.RequestBody.Companion.toRequestBody
 
 private val json = Json { ignoreUnknownKeys = true }
-
-// A custom search/scrape script's fetch() can hit any endpoint the user configures (including
-// a self-hosted one), so this bounds only the failure modes that are never a legitimate
-// response shape: a call that never finishes, and a body that never ends.
-private const val FETCH_CALL_TIMEOUT_SECONDS = 30L
-private const val FETCH_BODY_CAP_BYTES = 256 * 1024
 
 @Serializable
 private data class HttpResponseDto(
@@ -31,8 +28,8 @@ private data class HttpResponseDto(
     val body: String,
 )
 
-// fetch() returns a Response object synchronously (not a Promise)
-// because this QuickJS wrapper doesn't support microtask scheduling.
+// Keep fetch() synchronous for compatibility with existing custom search scripts.
+// Both direct use and `await fetch(...)` work with this Response object.
 private const val FETCH_POLYFILL = """
 globalThis.fetch = function(url, options) {
     options = options || {};
@@ -59,16 +56,10 @@ globalThis.fetch = function(url, options) {
 };
 """
 
-fun QuickJSContext.injectFetch(httpClient: OkHttpClient) {
-    // The shared httpClient this is usually handed has a long readTimeout and no callTimeout
-    // (it only needs to bound a stalled read, not the whole call). A blocking execute() here
-    // has no suspension point for a caller-side coroutine timeout to interrupt either, so this
-    // is the only place that can bound the call's total duration.
-    val boundedClient = httpClient.newBuilder()
-        .callTimeout(FETCH_CALL_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        .build()
-
-    globalObject.setProperty("__httpRequest", JSCallFunction { args ->
+suspend fun QuickJs.injectFetch(httpClient: OkHttpClient) {
+    val boundedClient = httpClient.newBuilder().callTimeout(30, TimeUnit.SECONDS).build()
+    val parentJob = currentCoroutineContext().job
+    function("__httpRequest") { args ->
         val url = args[0] as? String ?: error("url is required")
         val method = (args[1] as? String ?: "GET").uppercase()
         val headersJson = args[2] as? String
@@ -105,23 +96,30 @@ fun QuickJSContext.injectFetch(httpClient: OkHttpClient) {
             }
         }
 
-        val response = boundedClient.newCall(requestBuilder.build()).execute()
-        val responseBody = readBoundedBody(response, FETCH_BODY_CAP_BYTES)
-        val code = response.code
-        val message = response.message
-        response.close()
+        val call = boundedClient.newCall(requestBuilder.build())
+        // Native JS interruption cannot interrupt a blocking HTTP callback. A child job
+        // observes cancellation immediately, even while evaluate() is still running.
+        val cancellation = Job(parentJob)
+        cancellation.invokeOnCompletion { cause ->
+            if (cause is CancellationException) call.cancel()
+        }
+        try {
+            call.execute().use { response ->
+                json.encodeToString(
+                    HttpResponseDto(
+                        status = response.code,
+                        ok = response.isSuccessful,
+                        statusText = response.message,
+                        body = readBoundedBody(response, 256 * 1024),
+                    )
+                )
+            }
+        } finally {
+            cancellation.complete()
+        }
+    }
 
-        json.encodeToString(
-            HttpResponseDto(
-                status = code,
-                ok = code in 200..299,
-                statusText = message,
-                body = responseBody,
-            )
-        )
-    })
-
-    evaluate(FETCH_POLYFILL)
+    evaluate<Unit>(FETCH_POLYFILL + "\nvoid 0;")
 }
 
 /**

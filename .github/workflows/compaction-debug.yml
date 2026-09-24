@@ -3,7 +3,7 @@ name: Agent runtime debug APK
 on:
   workflow_dispatch:
   push:
-    branches: [master, fix/configurable-compaction-runtime, feat/trajectory-termux-skills, feat/live-steering]
+    branches: [master, fix/configurable-compaction-runtime, feat/trajectory-termux-skills, feat/live-steering, feat/rebro-blue-runtime]
     paths-ignore:
       - 'README*.md'
       - 'CHANGELOG.md'
@@ -45,10 +45,14 @@ jobs:
       - name: Test durable Termux supervisor
         run: python3 -m unittest discover -s tests -p 'test_termux_*runtime.py' -v
       - name: Run HTTP and provider tests
-        run: bash ./gradlew --no-daemon --max-workers=2 :common:testDebugUnitTest :ai:testDebugUnitTest
+        run: bash ./gradlew --no-daemon --max-workers=2 :common:testDebugUnitTest :ai:testDebugUnitTest :search:testDebugUnitTest
       - name: Run runtime, Termux presentation and settings tests
         run: >-
           bash ./gradlew --no-daemon --max-workers=2 :app:testDebugUnitTest
+          --tests 'me.rerere.rikkahub.data.ai.GenerationLoopResumeToolSelectionTest'
+          --tests 'me.rerere.rikkahub.data.db.ImportedDatabaseReconcilerTest'
+          --tests 'me.rerere.rikkahub.data.ai.tools.local.JavascriptToolTest'
+          --tests 'me.rerere.rikkahub.ui.theme.RebroThemeTest'
           --tests 'me.rerere.rikkahub.data.ai.CompactionRuntimeTest'
           --tests 'me.rerere.rikkahub.data.ai.AgentTaskRuntimeTest'
           --tests 'me.rerere.rikkahub.data.ai.SessionJournalTest'
@@ -113,13 +117,13 @@ jobs:
           adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
           mkdir -p build/trajectory-qa
           test_status=0
-          adb shell am instrument -w -r -e class me.rerere.rikkahub.ui.pages.chat.TrajectoryInstrumentedTest,me.rerere.rikkahub.ui.pages.extensions.skills.SkillWorkbenchInstrumentedTest,me.rerere.rikkahub.ui.pages.assistant.detail.ToolAccessInstrumentedTest,me.rerere.rikkahub.ui.pages.chat.TracePayloadInstrumentedTest,me.rerere.rikkahub.data.datastore.RebroAssistantInstrumentedTest,me.rerere.rikkahub.service.LiveSteeringInstrumentedTest excp.rikkahub.debug.test/androidx.test.runner.AndroidJUnitRunner | tee build/trajectory-qa/instrumentation.txt || test_status=$?
-          grep -Fq 'OK (19 tests)' build/trajectory-qa/instrumentation.txt || test_status=1
+          adb shell am instrument -w -r -e class me.rerere.rikkahub.ui.pages.chat.TrajectoryInstrumentedTest,me.rerere.rikkahub.ui.pages.extensions.skills.SkillWorkbenchInstrumentedTest,me.rerere.rikkahub.ui.pages.assistant.detail.ToolAccessInstrumentedTest,me.rerere.rikkahub.ui.pages.chat.TracePayloadInstrumentedTest,me.rerere.rikkahub.data.datastore.RebroAssistantInstrumentedTest,me.rerere.rikkahub.service.LiveSteeringInstrumentedTest,me.rerere.rikkahub.data.db.ImportedDatabaseReconcilerTest,me.rerere.rikkahub.data.db.migrations.Migration_30_31_Test,me.rerere.rikkahub.ui.theme.RebroBrandInstrumentedTest,me.rerere.rikkahub.data.ai.tools.local.JavascriptInstrumentedTest excp.rikkahub.debug.test/androidx.test.runner.AndroidJUnitRunner | tee build/trajectory-qa/instrumentation.txt || test_status=$?
+          grep -Fq 'OK (29 tests)' build/trajectory-qa/instrumentation.txt || test_status=1
           adb shell wm size 1920x1200
           adb shell wm density 160
           adb shell am instrument -w -r -e class me.rerere.rikkahub.ui.pages.extensions.skills.SkillWorkbenchWideInstrumentedTest excp.rikkahub.debug.test/androidx.test.runner.AndroidJUnitRunner | tee build/trajectory-qa/wide-instrumentation.txt || test_status=$?
           grep -Fq 'OK (1 test)' build/trajectory-qa/wide-instrumentation.txt || test_status=1
-          for name in trajectory-waterfall trajectory-flow trajectory-inspector trajectory-russian-dark skill-workbench-files skill-workbench-editor skill-workbench-binary-ru skill-workbench-wide tool-access-russian trajectory-tools-compact trajectory-messages-compact trajectory-full-export; do
+          for name in trajectory-waterfall trajectory-flow trajectory-inspector trajectory-russian-dark skill-workbench-files skill-workbench-editor skill-workbench-binary-ru skill-workbench-wide tool-access-russian trajectory-tools-compact trajectory-messages-compact trajectory-full-export rebro-theme-dark rebro-theme-light; do
             adb exec-out run-as excp.rikkahub.debug cat "files/trajectory-qa/$name.png" > "build/trajectory-qa/$name.png" || test_status=1
           done
           cp /tmp/trajectory-emulator.log build/trajectory-qa/emulator.log
@@ -160,6 +164,7 @@ jobs:
           path: |
             common/build/test-results/
             ai/build/test-results/
+            search/build/test-results/
             app/build/test-results/
           if-no-files-found: warn
           retention-days: 14

@@ -431,7 +431,7 @@ class SettingsStore(
                     Log.w(TAG, "Failed to decode assistants, using default", it)
                     emptyList()
                 },
-                dynamicColor = preferences[DYNAMIC_COLOR] != false,
+                dynamicColor = preferences[DYNAMIC_COLOR] ?: false,
                 themeId = preferences[THEME_ID] ?: PresetThemes[0].id,
                 customThemes = preferences[CUSTOM_THEMES]?.let { raw ->
                     runCatching { JsonInstant.decodeFromString<List<CustomTheme>>(raw) }.getOrElse {
@@ -829,7 +829,7 @@ class SettingsStore(
 data class Settings(
     @Transient
     val init: Boolean = false,
-    val dynamicColor: Boolean = true,
+    val dynamicColor: Boolean = false,
     val themeId: String = PresetThemes[0].id,
     val customThemes: List<CustomTheme> = emptyList(),
     val developerMode: Boolean = false,

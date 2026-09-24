@@ -1,10 +1,6 @@
 package me.rerere.rikkahub.data.ai.tools
 
 import android.content.Context
-import com.whl.quickjs.wrapper.QuickJSContext
-import com.whl.quickjs.wrapper.QuickJSObject
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -324,11 +320,6 @@ private fun humanizeToolError(jsonObject: JsonObject): String {
 
 private val STANDARD_ERROR_KEYS = setOf("error", "detail", "reason", "recovery", "human_error")
 
-// Wall-clock cap for eval_javascript. QuickJS has no internal interrupt hook we can use here,
-// so this is enforced from the coroutine side: past this the turn returns a structured timeout
-// error and the isolated worker thread is left to wind down on its own.
-private const val EVAL_JS_TIMEOUT_MS = 5_000L
-
 class LocalTools(
     private val context: Context,
     private val eventBus: AppEventBus,
@@ -379,123 +370,7 @@ class LocalTools(
     private val keyboardApiClient: me.rerere.rikkahub.data.keyboard.KeyboardApiClient,
     private val termuxSkillBridge: me.rerere.rikkahub.skills.TermuxSkillBridge? = null,
 ) {
-    val javascriptTool by lazy {
-        Tool(
-            name = "eval_javascript",
-            description = """
-                Execute JavaScript code using QuickJS engine (ES2020).
-                The result is the value of the last expression in the code.
-                For calculations with decimals, use toFixed() to control precision.
-                Console output (log/info/warn/error) is captured and returned in 'logs' field.
-                No DOM or Node.js APIs available.
-                Example: '1 + 2' returns 3; 'const x = 5; x * 2' returns 10.
-            """.trimIndent().replace("\n", " "),
-            parameters = {
-                InputSchema.Obj(
-                    properties = buildJsonObject {
-                        put("code", buildJsonObject {
-                            put("type", "string")
-                            put("description", "The JavaScript code to execute")
-                        })
-                    },
-                    required = listOf("code")
-                )
-            },
-            execute = {
-                val code = it.jsonObject["code"]?.jsonPrimitive?.contentOrNull
-
-                // QuickJSContext is thread-affine: the native context must be created, used,
-                // and destroyed on the same thread, and evaluate() blocks in native code that
-                // a coroutine cancellation cannot interrupt. So we run the whole lifecycle on a
-                // dedicated single-use daemon thread (NOT a shared dispatcher — an infinite loop
-                // there would starve every other coroutine), build the entire result payload on
-                // that thread (stringify() is also a native, thread-affine call), and hand back a
-                // finished String. The suspend body then awaits that String under a wall-clock
-                // timeout: if the script spins forever the turn still returns instead of hanging.
-                val done = CompletableDeferred<String>()
-                Thread {
-                    val logs = arrayListOf<String>()
-                    var context: QuickJSContext? = null
-                    try {
-                        context = QuickJSContext.create()
-                        // Sane bounds so a runaway script can't OOM or blow the native stack
-                        // before the wall-clock timeout fires. 64 MiB heap / 512 KiB stack.
-                        context.setMemoryLimit(64 * 1024 * 1024)
-                        context.setMaxStackSize(512 * 1024)
-                        context.setConsole(object : QuickJSContext.Console {
-                            override fun log(info: String?) {
-                                logs.add("[LOG] $info")
-                            }
-
-                            override fun info(info: String?) {
-                                logs.add("[INFO] $info")
-                            }
-
-                            override fun warn(info: String?) {
-                                logs.add("[WARN] $info")
-                            }
-
-                            override fun error(info: String?) {
-                                logs.add("[ERROR] $info")
-                            }
-                        })
-                        val result = context.evaluate(code)
-                        val payload = buildJsonObject {
-                            if (logs.isNotEmpty()) {
-                                put("logs", JsonPrimitive(logs.joinToString("\n")))
-                            }
-                            put(
-                                key = "result",
-                                element = when (result) {
-                                    null -> JsonNull
-                                    is QuickJSObject -> JsonPrimitive(result.stringify())
-                                    else -> JsonPrimitive(result.toString())
-                                }
-                            )
-                        }
-                        done.complete(payload.toString())
-                    } catch (e: Throwable) {
-                        // Surface the JS/engine error as a structured payload rather than
-                        // crashing the worker thread silently.
-                        val payload = buildJsonObject {
-                            if (logs.isNotEmpty()) {
-                                put("logs", JsonPrimitive(logs.joinToString("\n")))
-                            }
-                            put("error", JsonPrimitive(e.message ?: e.toString()))
-                        }
-                        done.complete(payload.toString())
-                    } finally {
-                        // Always tear down the native context, on every path, on the same
-                        // thread that created it. destroy() is idempotent (guards on a
-                        // `destroyed` flag), so calling it after a failed create() is safe.
-                        try {
-                            context?.destroy()
-                        } catch (_: Throwable) {
-                            // Best-effort cleanup; nothing actionable if teardown itself fails.
-                        }
-                    }
-                }.apply {
-                    name = "eval-js-${System.nanoTime()}"
-                    isDaemon = true
-                    start()
-                }
-
-                val payload = withTimeoutOrNull(EVAL_JS_TIMEOUT_MS) { done.await() }
-                    ?: buildJsonObject {
-                        put(
-                            "error",
-                            JsonPrimitive(
-                                "JavaScript execution exceeded ${EVAL_JS_TIMEOUT_MS}ms and was abandoned. " +
-                                    "Avoid infinite loops or long-running computations."
-                            )
-                        )
-                    }.toString()
-                // On timeout the daemon thread is left running until the script finishes; it is
-                // isolated (its own thread, bounded heap/stack) and cannot block the dispatcher.
-                listOf(UIMessagePart.Text(payload))
-            }
-        )
-    }
+    val javascriptTool by lazy { me.rerere.rikkahub.data.ai.tools.local.buildJavascriptTool() }
 
     val timeTool by lazy {
         Tool(

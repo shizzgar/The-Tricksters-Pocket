@@ -1,6 +1,7 @@
 package me.rerere.rikkahub.ui.theme
 
 import androidx.compose.material3.ColorScheme
+import me.rerere.rikkahub.ui.theme.presets.RebroThemePreset
 import androidx.compose.runtime.Composable
 import me.rerere.rikkahub.ui.theme.presets.AutumnThemePreset
 import me.rerere.rikkahub.ui.theme.presets.BlackThemePreset
@@ -23,6 +24,7 @@ data class PresetTheme(
 
 val PresetThemes by lazy {
     listOf(
+        RebroThemePreset,
         SakuraThemePreset,
         OceanThemePreset,
         SpringThemePreset,
@@ -34,7 +36,7 @@ val PresetThemes by lazy {
 }
 
 fun findPresetTheme(id: String): PresetTheme {
-    return PresetThemes.find { it.id == id } ?: SakuraThemePreset
+    return PresetThemes.find { it.id == id } ?: RebroThemePreset
 }
 
 fun findThemeById(id: String, customThemes: List<CustomTheme>): PresetTheme? {

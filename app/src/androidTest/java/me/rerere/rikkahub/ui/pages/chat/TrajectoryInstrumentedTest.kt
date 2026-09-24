@@ -80,7 +80,7 @@ class TrajectoryInstrumentedTest {
                 LocalConfiguration provides localized.resources.configuration,
                 LocalResources provides localized.resources,
             ) {
-                MaterialTheme(colorScheme = if (russian) darkColorScheme() else lightColorScheme()) {
+                MaterialTheme(colorScheme = me.rerere.rikkahub.ui.theme.presets.RebroThemePreset.getColorScheme(russian)) {
                     ConversationTrajectoryScreen(conversation, false, {}, {}, journalOverride = journal)
                 }
             }
@@ -128,6 +128,8 @@ class TrajectoryInstrumentedTest {
             assertEquals(12L, manifest.getValue("event_count").jsonPrimitive.long)
             assertTrue(manifest.getValue("complete").jsonPrimitive.boolean)
             assertEquals(id.toString(), manifest.getValue("conversation_id").jsonPrimitive.content)
+            assertEquals(me.rerere.rikkahub.BuildConfig.BUILD_REVISION,
+                manifest.getValue("metadata").jsonObject.getValue("build_revision").jsonPrimitive.content)
             val index = zip.getInputStream(zip.getEntry("sessions/$id/events.jsonl")).bufferedReader().use { it.readLines() }
             assertEquals(12, index.size)
             assertTrue(index.any { "tool.result" in it })

@@ -45,7 +45,7 @@ abstract class WorkbenchFixture {
         compose.setContent {
             val registryOwner = requireNotNull(LocalActivityResultRegistryOwner.current)
             CompositionLocalProvider(LocalActivityResultRegistryOwner provides registryOwner, LocalContext provides localized, LocalConfiguration provides localized.resources.configuration, LocalResources provides localized.resources) {
-                MaterialTheme(colorScheme = if (russian) darkColorScheme() else lightColorScheme()) { SkillWorkbenchScreen(vm, {}, {}) }
+                MaterialTheme(colorScheme = me.rerere.rikkahub.ui.theme.presets.RebroThemePreset.getColorScheme(russian)) { SkillWorkbenchScreen(vm, {}, {}) }
             }
         }
         compose.runOnUiThread { vm.init(name) }

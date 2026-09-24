@@ -1,66 +1,80 @@
 {
   "schema_version": 1,
-  "source_commit": "a8c800b67ae1b2890682466af44d5b85c450ff55",
-  "workflow_run": "https://github.com/shizzgar/rikkahub-agent/actions/runs/35861320725",
-  "artifact_id": 10750887722,
+  "source_commit": "8ded6be9b14f34b6bae92c5fc161a1aa36b18189",
+  "workflow_run": "https://github.com/shizzgar/rikkahub-agent/actions/runs/36005633948",
+  "artifact_id": 10811087669,
   "android_api": 35,
   "content": "Unmodified Android instrumentation screenshots. Model data and file contents are test fixtures, not device benchmarks.",
   "files": [
     {
+      "file": "rebro-theme-dark.png",
+      "width": 1080,
+      "height": 2400,
+      "bytes": 141721,
+      "sha256": "cc3b9655430ca7a43010a1fea13d9f973eb81f881a65d21498ca07b3d5f182b3"
+    },
+    {
+      "file": "rebro-theme-light.png",
+      "width": 1080,
+      "height": 2400,
+      "bytes": 143306,
+      "sha256": "d94105f43f236c02c2e98dd265d81f6d968de8fc801c8855cffd21dd5f488754"
+    },
+    {
       "file": "skill-workbench-binary-ru.png",
       "width": 1080,
       "height": 2400,
-      "bytes": 171947,
-      "sha256": "ec0ffd468a4a1a71143a59ffbdcbfc5d48dabfd2954544ce12172739b6d17d89"
+      "bytes": 173278,
+      "sha256": "f11bd64433c7f4d20155f0a51105cf5033a0dffc2ce35e3e5e094b1f06b0c380"
     },
     {
       "file": "skill-workbench-editor.png",
       "width": 1080,
       "height": 2400,
-      "bytes": 122976,
-      "sha256": "d9e7a133753d5024ff50bd6b4fe58885596101d037cbc863ba4ee2f55ca3b2f0"
+      "bytes": 123921,
+      "sha256": "e8615034bbad4b54bd818d1fdc7020270965ef14e38d3fe7287f2d6445c7119d"
     },
     {
       "file": "skill-workbench-files.png",
       "width": 1080,
       "height": 2400,
-      "bytes": 124455,
-      "sha256": "66955edbda42cd474ee1a09d700f13716bf14894021081455f75f3fad9c587e0"
+      "bytes": 126112,
+      "sha256": "6c02031f1cb192aa2b3a250569b1da8081caf4322a7e8349267dc9fbac7a6653"
     },
     {
       "file": "skill-workbench-wide.png",
       "width": 1920,
       "height": 1200,
-      "bytes": 74590,
-      "sha256": "08507ee06e8d86a68c28ce71648768eadea5d115f841076c24513b4677bf8a3c"
+      "bytes": 75469,
+      "sha256": "a5491aa4a5b1be6c2177a6a681340665d66ec3ed513e2204dd315567c550d447"
     },
     {
       "file": "tool-access-russian.png",
       "width": 1080,
       "height": 2040,
-      "bytes": 134812,
-      "sha256": "dfdcec05396309731d19a2a9c6f635ca86db6ca89c0a206c1f2bf6a6ba29ea54"
+      "bytes": 135120,
+      "sha256": "4fdde9580a56a96e9f5317e54f150717f775f9af8db40afb2033b1b39d9c51e3"
     },
     {
       "file": "trajectory-flow.png",
       "width": 1080,
       "height": 2400,
-      "bytes": 202605,
-      "sha256": "d389aab0e9b14d4da860a6863caded4b1acfaf80a8ca89d71891400817fbd63f"
+      "bytes": 202009,
+      "sha256": "f10e7a25ae653c2ad720ee482aadedd56ae75dc817dee3e38ecf6d62be96394c"
     },
     {
       "file": "trajectory-full-export.png",
       "width": 1080,
       "height": 2400,
-      "bytes": 203836,
-      "sha256": "b6469cc270e2f3df0ca529cbcfe5a91b7352d195841974b5d372e1f0bb348540"
+      "bytes": 203446,
+      "sha256": "04f05a13eadf17596c68e2c0f3e0c8122ff78f077cc2a641b65e67a4589269e4"
     },
     {
       "file": "trajectory-inspector.png",
       "width": 1080,
       "height": 2400,
-      "bytes": 142008,
-      "sha256": "6997782d13418c57f0006c499113d83258057f606d09892b6628cba27872068e"
+      "bytes": 142305,
+      "sha256": "5c550bb80d12984f4a5c666e344c0c2bbf01ed430eb424bd2a7dbb066e6a21b2"
     },
     {
       "file": "trajectory-messages-compact.png",
@@ -73,22 +87,22 @@
       "file": "trajectory-russian-dark.png",
       "width": 1080,
       "height": 2400,
-      "bytes": 204068,
-      "sha256": "c4b690625c83c3729e5c4bd0b67b81dcf3f14d7535bafa645747b0ba97559157"
+      "bytes": 205115,
+      "sha256": "8ecdc9671d75675a1ba016f86b2fa6b1ff74c41ace8e3dedd4010fbc3fe852b1"
     },
     {
       "file": "trajectory-tools-compact.png",
       "width": 1080,
       "height": 2400,
-      "bytes": 183707,
-      "sha256": "91d4fc96c955388fbf1ff85fcc2aff7863828fe069721950ec00fb193ee1e854"
+      "bytes": 184236,
+      "sha256": "a878f260054d03a1d115cc189d8c8a109485cb8f9f265a1efc2b89816b707044"
     },
     {
       "file": "trajectory-waterfall.png",
       "width": 1080,
       "height": 2400,
-      "bytes": 196764,
-      "sha256": "aa77bd5e25ec96607613c852bafd3594639441f5d2a7115d0e08403e897f11d0"
+      "bytes": 196077,
+      "sha256": "088d9f20baf724867e0b39db28d1b6d800ff7fcc1bf571be5e1754a6fece901c"
     }
   ]
 }

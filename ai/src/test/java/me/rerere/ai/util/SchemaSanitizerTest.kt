@@ -24,6 +24,21 @@ class SchemaSanitizerTest {
     private fun sanitize(json: String) = Json.parseToJsonElement(json).sanitizeForGeminiSchema()
 
     @Test
+    fun `drops propertyNames keyword recursively but keeps a property with that name`() {
+        val result = sanitize("""{
+            "type":"object", "propertyNames":{"pattern":"^[a-z]+$"},
+            "properties":{
+                "propertyNames":{"type":"string"},
+                "nested":{"type":"object","propertyNames":{"maxLength":12},"properties":{}}
+            }
+        }""").jsonObject
+        assertNull(result["propertyNames"])
+        val properties = result.getValue("properties").jsonObject
+        assertEquals("string", properties.getValue("propertyNames").jsonObject["type"]?.jsonPrimitive?.content)
+        assertNull(properties.getValue("nested").jsonObject["propertyNames"])
+    }
+
+    @Test
     fun `unknown vendor and json-schema-only keys are stripped`() {
         val result = sanitize(
             """
