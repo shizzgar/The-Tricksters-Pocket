@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "release": "1.0.0",
+  "origin": "Authored for https://github.com/shizzgar/rikkahub-agent",
+  "profile": "NetBro",
+  "skills": [
+    "netbro-workflow",
+    "netbro-environment",
+    "netbro-bbot",
+    "netbro-nmap",
+    "netbro-nuclei",
+    "netbro-legba"
+  ],
+  "contents": "Original instructions, references, a case template and three Python standard-library helpers. No upstream executables, templates, wordlists, API keys or credentials are bundled.",
+  "sources": [
+    {
+      "project": "BBOT",
+      "revision": "a6fb827bb144cdb85b52e142a4d6e14ed5f94b69",
+      "url": "https://github.com/blacklanternsecurity/bbot"
+    },
+    {
+      "project": "Legba",
+      "revision": "dab974b910d52babc4767d06e093b7b86e259604",
+      "url": "https://github.com/evilsocket/legba"
+    },
+    {
+      "project": "Nmap",
+      "url": "https://nmap.org/book/man.html"
+    },
+    {
+      "project": "Nuclei",
+      "url": "https://docs.projectdiscovery.io/opensource/nuclei/running"
+    },
+    {
+      "project": "Termux Nmap package",
+      "url": "https://github.com/termux/termux-packages/blob/master/packages/nmap/build.sh"
+    }
+  ],
+  "validation": "Offline helper fixtures and Android package/tool-surface checks. Availability and full external scanner behavior on a particular phone must be checked in its selected execution environment."
+}

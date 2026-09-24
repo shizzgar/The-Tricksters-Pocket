@@ -594,8 +594,8 @@ class SettingsStore(
                 } else provider
             }.toMutableList()
             // One-shot additive enable for newly-bundled default-on skills. Each name is added
-            // only to profiles that include it by default. In particular, the ReBro preset
-            // keeps its own kit and does not inherit the general assistants' persona skills.
+            // only to profiles that include it by default. ReBro and NetBro keep their
+            // own kits and do not inherit the general assistants' persona skills.
             val skillsToSeed = DEFAULT_AUTO_ENABLED_SKILLS - it.autoEnabledDefaultSkills
             val assistants = mergeDefaultAssistants(it.assistants, skillsToSeed)
             val newAutoEnabled = it.autoEnabledDefaultSkills + DEFAULT_AUTO_ENABLED_SKILLS
@@ -1176,6 +1176,7 @@ internal val DEFAULT_ASSISTANTS = listOf(
         enabledSkills = setOf("agent-core") + DEFAULT_AUTO_ENABLED_SKILLS,
     ),
     createRebroAssistant(),
+    createNetbroAssistant(),
 )
 
 val DEFAULT_SYSTEM_TTS_ID = Uuid.parse("026a01a2-c3a0-4fd5-8075-80e03bdef200")

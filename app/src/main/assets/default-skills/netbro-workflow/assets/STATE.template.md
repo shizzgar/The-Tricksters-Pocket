@@ -1,0 +1,13 @@
+# NetBro case
+- Objective / acceptance:
+- Targets and exclusions:
+- Permitted operations / account constraints:
+- Environment and binary paths:
+- Tool / template / preset versions:
+- Overall deadline / traffic budget:
+- Input files and hashes:
+- Current run / operation_id / job_id:
+- Completed evidence and producer exit:
+- Findings / uncertainties / refuted hypotheses:
+- Private outputs and credential file paths (no secret values):
+- Next action / stop condition / owned cleanup:

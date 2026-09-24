@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "release": "1.0.0",
+  "packages": [
+    {
+      "name": "netbro-workflow",
+      "title": "Сетевое исследование и evidence",
+      "files": 6,
+      "bytes": 23464,
+      "manifest_sha256": "3075d44b563cb531073f7332e1750fe43b529f3b14904b7b7db3e8ce917d29aa"
+    },
+    {
+      "name": "netbro-environment",
+      "title": "Среда и установка инструментов",
+      "files": 4,
+      "bytes": 9830,
+      "manifest_sha256": "4f3a882c7596fc42d9b8b3b191599d2b598f8d8d926f1b3023444d63d76094f8"
+    },
+    {
+      "name": "netbro-bbot",
+      "title": "BBOT: разведка и события",
+      "files": 3,
+      "bytes": 4959,
+      "manifest_sha256": "c183d608b5ae65aab9c1312f6100e6f28b83077da6a5fc4c84521726b9de30d5"
+    },
+    {
+      "name": "netbro-nmap",
+      "title": "Nmap: хосты, порты и сервисы",
+      "files": 3,
+      "bytes": 4771,
+      "manifest_sha256": "3ad665a9d883b796f42b2db2912d9217c6b9fb0c99f1f9f31e9c4675ac630858"
+    },
+    {
+      "name": "netbro-nuclei",
+      "title": "Nuclei: шаблоны и находки",
+      "files": 3,
+      "bytes": 4828,
+      "manifest_sha256": "11e66592988567d98151c260f6d5e22a826cd1723465b2c02f15980eceaef85d"
+    },
+    {
+      "name": "netbro-legba",
+      "title": "Legba: протоколы и аутентификация",
+      "files": 3,
+      "bytes": 6460,
+      "manifest_sha256": "b7a7f839692876b56ebaf9f7e4e74b48630ae80067d02f78b6dada714ff3020f"
+    }
+  ]
+}

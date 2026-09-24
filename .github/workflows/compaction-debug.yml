@@ -3,7 +3,7 @@ name: Agent runtime debug APK
 on:
   workflow_dispatch:
   push:
-    branches: [master, fix/configurable-compaction-runtime, feat/trajectory-termux-skills, feat/live-steering, feat/rebro-blue-runtime]
+    branches: [master, fix/configurable-compaction-runtime, feat/trajectory-termux-skills, feat/live-steering, feat/rebro-blue-runtime, feat/netbro-assistant]
     paths-ignore:
       - 'README*.md'
       - 'CHANGELOG.md'
@@ -44,6 +44,8 @@ jobs:
           cache-read-only: false
       - name: Test durable Termux supervisor
         run: python3 -m unittest discover -s tests -p 'test_termux_*runtime.py' -v
+      - name: Test NetBro skill packages and local helpers
+        run: python3 -B -m unittest discover -s tests -p 'test_netbro_skills.py' -v
       - name: Run HTTP and provider tests
         run: bash ./gradlew --no-daemon --max-workers=2 :common:testDebugUnitTest :ai:testDebugUnitTest :search:testDebugUnitTest
       - name: Run runtime, Termux presentation and settings tests
@@ -80,6 +82,7 @@ jobs:
           --tests 'me.rerere.rikkahub.data.ai.GenerationHandlerTurnBudgetTest'
           --tests 'me.rerere.rikkahub.data.datastore.PreferencesStoreTest'
           --tests 'me.rerere.rikkahub.data.datastore.RebroAssistantTest'
+          --tests 'me.rerere.rikkahub.data.datastore.NetbroAssistantTest'
           --tests 'me.rerere.rikkahub.data.preferences.TermuxDefaultsTest'
           --tests 'me.rerere.rikkahub.ui.components.message.tools.TermuxPresentationTest'
           --tests 'me.rerere.rikkahub.ui.components.message.tools.WebFetchPresentationTest'
@@ -117,7 +120,7 @@ jobs:
           adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
           mkdir -p build/trajectory-qa
           test_status=0
-          adb shell am instrument -w -r -e class me.rerere.rikkahub.ui.pages.chat.TrajectoryInstrumentedTest,me.rerere.rikkahub.ui.pages.extensions.skills.SkillWorkbenchInstrumentedTest,me.rerere.rikkahub.ui.pages.assistant.detail.ToolAccessInstrumentedTest,me.rerere.rikkahub.ui.pages.chat.TracePayloadInstrumentedTest,me.rerere.rikkahub.data.datastore.RebroAssistantInstrumentedTest,me.rerere.rikkahub.service.LiveSteeringInstrumentedTest,me.rerere.rikkahub.data.db.ImportedDatabaseReconcilerTest,me.rerere.rikkahub.data.db.migrations.Migration_30_31_Test,me.rerere.rikkahub.ui.theme.RebroBrandInstrumentedTest,me.rerere.rikkahub.data.ai.tools.local.JavascriptInstrumentedTest excp.rikkahub.debug.test/androidx.test.runner.AndroidJUnitRunner | tee build/trajectory-qa/instrumentation.txt || test_status=$?
+          adb shell am instrument -w -r -e class me.rerere.rikkahub.ui.pages.chat.TrajectoryInstrumentedTest,me.rerere.rikkahub.ui.pages.extensions.skills.SkillWorkbenchInstrumentedTest,me.rerere.rikkahub.ui.pages.assistant.detail.ToolAccessInstrumentedTest,me.rerere.rikkahub.ui.pages.chat.TracePayloadInstrumentedTest,me.rerere.rikkahub.data.datastore.RebroAssistantInstrumentedTest,me.rerere.rikkahub.data.datastore.NetbroAssistantInstrumentedTest,me.rerere.rikkahub.service.LiveSteeringInstrumentedTest,me.rerere.rikkahub.data.db.ImportedDatabaseReconcilerTest,me.rerere.rikkahub.data.db.migrations.Migration_30_31_Test,me.rerere.rikkahub.ui.theme.RebroBrandInstrumentedTest,me.rerere.rikkahub.data.ai.tools.local.JavascriptInstrumentedTest excp.rikkahub.debug.test/androidx.test.runner.AndroidJUnitRunner | tee build/trajectory-qa/instrumentation.txt || test_status=$?
           grep -Fq 'OK (29 tests)' build/trajectory-qa/instrumentation.txt || test_status=1
           adb shell wm size 1920x1200
           adb shell wm density 160
