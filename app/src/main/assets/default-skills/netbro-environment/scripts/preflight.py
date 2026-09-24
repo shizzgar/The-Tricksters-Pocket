@@ -20,6 +20,13 @@ VERSION_ARGS = {
 OUTPUT_LIMIT = 4096
 
 
+def handle_stop(signum, _frame):
+    # A managed job normally stops with SIGTERM. Unwind probe's finally block
+    # so its isolated version-command process group cannot outlive this helper.
+    signal.signal(signum, signal.SIG_IGN)
+    raise SystemExit(128 + signum)
+
+
 def stop_group(process):
     try:
         os.killpg(process.pid, signal.SIGKILL)
@@ -75,6 +82,8 @@ def probe(name, timeout):
 
 
 def main(argv=None):
+    signal.signal(signal.SIGTERM, handle_stop)
+    signal.signal(signal.SIGHUP, handle_stop)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--tool", action="append", choices=VERSION_ARGS)
     parser.add_argument("--timeout", type=float, default=5.0, help="Seconds per version command (0.1-30)")

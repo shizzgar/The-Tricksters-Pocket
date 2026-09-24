@@ -238,5 +238,31 @@ class NetbroHelpersTest(unittest.TestCase):
             self.assertIn("usage:", result.stdout)
 
 
+    def test_stopping_preflight_also_stops_its_owned_version_process(self):
+        pid_file = self.directory / "version.pid"
+        binary = self.file("bbot", "#!" + sys.executable + "\nimport os,time\nfrom pathlib import Path\nPath(" + repr(str(pid_file)) + ").write_text(str(os.getpid()))\ntime.sleep(30)\n")
+        binary.chmod(0o700)
+        environment = dict(os.environ, PATH=str(self.directory) + os.pathsep + os.environ.get("PATH", ""))
+        process = subprocess.Popen([sys.executable, "-B", str(PREFLIGHT), "--tool", "bbot", "--timeout", "30"],
+                                   env=environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        try:
+            deadline = time.monotonic() + 3
+            while not pid_file.exists() and time.monotonic() < deadline:
+                time.sleep(0.01)
+            self.assertTrue(pid_file.exists(), "Version process did not start")
+            pid = int(pid_file.read_text())
+            process.terminate()
+            stdout, stderr = process.communicate(timeout=3)
+            self.assertEqual(143, process.returncode, (stdout, stderr))
+            with self.assertRaises(ProcessLookupError):
+                os.kill(pid, 0)
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.wait(timeout=3)
+            process.stdout.close()
+            process.stderr.close()
+
+
 if __name__ == "__main__":
     unittest.main()

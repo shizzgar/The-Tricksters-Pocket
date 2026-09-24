@@ -13,8 +13,8 @@
       "name": "netbro-environment",
       "title": "Среда и установка инструментов",
       "files": 4,
-      "bytes": 9830,
-      "manifest_sha256": "4f3a882c7596fc42d9b8b3b191599d2b598f8d8d926f1b3023444d63d76094f8"
+      "bytes": 10193,
+      "manifest_sha256": "a4d5a2415d975864e9f5be1d2c7c177004d842a5711649e49c71d8026cc6dd98"
     },
     {
       "name": "netbro-bbot",
