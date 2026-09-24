@@ -190,6 +190,12 @@ class WorkspaceRuntimeTest(unittest.TestCase):
         result = runtime.handle(str(alias), dict(action='attach'), self.state)
         self.assertEqual(str(self.root), result['root'])
 
+    def test_save_preserves_executable_permissions(self):
+        self.write('script', b'old')
+        (self.root / 'script').chmod(0o755)
+        self.write('script', b'new', overwrite=True)
+        self.assertEqual(0o755, (self.root / 'script').stat().st_mode & 0o777)
+
 
 if __name__ == '__main__':
     unittest.main()

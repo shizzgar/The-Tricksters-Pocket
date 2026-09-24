@@ -117,8 +117,8 @@ class WorkspaceRepository(
     }
 
     suspend fun termuxJobs(id: String, request: JsonObject): JsonObject {
-        check(dao.getById(id)?.termuxPath != null) { "This is not a Termux workspace" }
-        return termux.jobs(id, request)
+        val root = dao.getById(id)?.termuxPath ?: error("This is not a Termux workspace")
+        return termux.jobs(root, request)
     }
 
     suspend fun rename(id: String, name: String): Boolean {
@@ -371,7 +371,7 @@ class WorkspaceRepository(
         val workspace = dao.getById(id) ?: error("Workspace not found: $id")
         workspace.termuxPath?.let {
             require(stdin == null) { "Use workspace_write_file for file content in Termux workspaces" }
-            return termux.execute(id, it, command, cwd, timeoutMillis)
+            return termux.execute(it, it, command, cwd, timeoutMillis)
         }
         // runInterruptible 让协程取消转化为线程中断，从而打断阻塞的 Process.waitFor 并杀掉进程
         return runInterruptible(Dispatchers.IO) {
@@ -390,8 +390,8 @@ class WorkspaceRepository(
     ): BackgroundStatus {
         val workspace = dao.getById(id) ?: error("Workspace not found: $id")
         workspace.termuxPath?.let {
-            val started = termux.start(id, it, command, cwd)
-            return termux.background(id, started.getValue("job_id").jsonPrimitive.content)
+            val started = termux.start(it, it, command, cwd)
+            return termux.background(it, started.getValue("job_id").jsonPrimitive.content)
         }
         // 与 executeCommand 用 runInterruptible 相反: 那里取消即意味着杀掉前台进程, 这里
         // 进程是要在工具调用结束后继续跑的后台任务, 取消(例如外层 withTimeoutOrNull 的共享
@@ -406,7 +406,7 @@ class WorkspaceRepository(
 
     suspend fun backgroundStatus(id: String, taskId: String): BackgroundStatus? {
         val workspace = dao.getById(id) ?: error("Workspace not found: $id")
-        if (workspace.termuxPath != null) return termux.background(id, taskId)
+        if (workspace.termuxPath != null) return termux.background(workspace.termuxPath, taskId)
         return withContext(Dispatchers.IO) {
             manager.backgroundStatus(workspace.root, taskId)
         }
@@ -414,7 +414,7 @@ class WorkspaceRepository(
 
     suspend fun listBackground(id: String): List<BackgroundStatus> {
         val workspace = dao.getById(id) ?: error("Workspace not found: $id")
-        if (workspace.termuxPath != null) return termux.listBackground(id)
+        if (workspace.termuxPath != null) return termux.listBackground(workspace.termuxPath)
         return withContext(Dispatchers.IO) {
             manager.listBackground(workspace.root)
         }
@@ -422,7 +422,7 @@ class WorkspaceRepository(
 
     suspend fun killBackground(id: String, taskId: String): Boolean {
         val workspace = dao.getById(id) ?: error("Workspace not found: $id")
-        if (workspace.termuxPath != null) return termux.cancel(id, taskId)
+        if (workspace.termuxPath != null) return termux.cancel(workspace.termuxPath, taskId)
         return withContext(Dispatchers.IO) {
             manager.killBackground(workspace.root, taskId)
         }

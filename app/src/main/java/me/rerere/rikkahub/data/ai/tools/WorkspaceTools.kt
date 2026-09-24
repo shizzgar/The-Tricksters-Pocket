@@ -47,7 +47,8 @@ suspend fun createWorkspaceTools(
     cwd: String? = null,
 ): List<Tool> {
     if (workspaceId.isNullOrBlank()) return emptyList()
-    val approvalOverrides = workspaceRepository.getById(workspaceId)?.toolApprovalOverrides().orEmpty()
+    val workspace = workspaceRepository.getById(workspaceId)
+    val approvalOverrides = workspace?.toolApprovalOverrides().orEmpty()
     fun needsApproval(name: String) = resolveWorkspaceToolApproval(name, approvalOverrides)
 
     val shellCwd = cwd?.removePrefix("/workspace/")?.removePrefix("/workspace")
@@ -62,7 +63,22 @@ suspend fun createWorkspaceTools(
         createRunBackgroundTool(workspaceId, ::needsApproval, workspaceRepository, shellCwd),
         createBackgroundStatusTool(workspaceId, ::needsApproval, workspaceRepository),
         createBackgroundKillTool(workspaceId, ::needsApproval, workspaceRepository),
-    )
+    ).map { tool ->
+        val root = workspace?.termuxPath ?: return@map tool
+        tool.copy(
+            description = tool.description
+                .replace("workspace Rootfs", "Termux workspace")
+                .replace("Paths must be absolute inside Rootfs", "Paths must be absolute under $root")
+                .replace("Use /workspace for the workspace files area", "Use $root for workspace files")
+                .replace("The workspace files area is mounted at /workspace", "The linked Termux directory is $root")
+                .replace("Requires Rootfs to be installed and ready.", "Requires Termux RUN_COMMAND and Python. Commands use the Termux UID and are not confined to the linked root."),
+            needsApproval = if (tool.name in setOf("workspace_write_file", "workspace_edit_file", "workspace_create_folder")) {
+                { input -> needsApproval(tool.name) || runCatching {
+                    me.rerere.rikkahub.data.repository.TermuxWorkspaceBridge.relativePath(root, input.jsonObject.absolutePath("path"))
+                }.isFailure }
+            } else tool.needsApproval,
+        )
+    }
 }
 
 private val IMAGE_EXTENSIONS = setOf(

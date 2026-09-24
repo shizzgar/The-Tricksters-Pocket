@@ -189,10 +189,6 @@ fun WorkspaceDetailPage(id: String) {
                 },
                 navigationIcon = { BackButton() },
                 actions = {
-                    if (pagerState.currentPage == 1 && state.workspace?.termuxPath != null) {
-                        TextButton(onClick = { folderDialog = true }) { Text(stringResource(R.string.workspace_new_folder)) }
-                        TextButton(onClick = { moveDialog = true }) { Text(stringResource(R.string.workspace_move_file)) }
-                    }
                     if (pagerState.currentPage == 1) {
                         IconButton(onClick = { filePicker.launch(arrayOf("*/*")) }) {
                             Icon(
@@ -250,6 +246,8 @@ fun WorkspaceDetailPage(id: String) {
                     state = state,
                     contentPadding = PaddingValues(),
                     onSelectArea = vm::selectArea,
+                    onCreateFolder = { folderDialog = true },
+                    onMove = { moveDialog = true },
                     onGoUp = vm::goUp,
                     onToggleExpand = vm::toggleExpand,
                     onResolveImage = { entry, area -> vm.resolveImageFile(entry, area) },
@@ -664,6 +662,8 @@ private fun WorkspaceFilesPage(
     state: WorkspaceDetailState,
     contentPadding: PaddingValues,
     onSelectArea: (WorkspaceStorageArea) -> Unit,
+    onCreateFolder: () -> Unit,
+    onMove: () -> Unit,
     onGoUp: () -> Unit,
     onToggleExpand: (WorkspaceFileEntry) -> Unit,
     onResolveImage: suspend (WorkspaceFileEntry, WorkspaceStorageArea) -> File?,
@@ -683,10 +683,12 @@ private fun WorkspaceFilesPage(
     ) {
         item {
             if (state.workspace?.termuxPath == null) {
-            WorkspaceAreaSelector(
-                selected = state.area,
-                onSelected = onSelectArea,
-            )
+                WorkspaceAreaSelector(selected = state.area, onSelected = onSelectArea)
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = onCreateFolder) { Text(stringResource(R.string.workspace_new_folder)) }
+                    TextButton(onClick = onMove) { Text(stringResource(R.string.workspace_move_file)) }
+                }
             }
         }
 

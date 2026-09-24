@@ -34,6 +34,24 @@ def relative(root, value):
     return parts
 
 
+def open_root(root):
+    """Open every component without following links, including ancestors of the root."""
+    parts = [part for part in root.split('/') if part]
+    # Android /data ancestors allow traversal but not listing to an app UID.
+    # O_PATH needs traversal only; use a readable descriptor for the selected leaf.
+    path_flags = os.O_PATH | os.O_DIRECTORY | os.O_NOFOLLOW
+    fd = os.open('/', path_flags if parts else DIR_FLAGS)
+    try:
+        for index, part in enumerate(parts):
+            child = os.open(part, DIR_FLAGS if index == len(parts) - 1 else path_flags, dir_fd=fd)
+            os.close(fd)
+            fd = child
+        return fd
+    except BaseException:
+        os.close(fd)
+        raise
+
+
 @contextlib.contextmanager
 def directory(root_fd, parts, create=False):
     fd = os.dup(root_fd)
@@ -104,7 +122,7 @@ def handle(root, request, state_dir):
     state_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     action = request['action']
     parts = relative(root, request.get('path', ''))
-    fd = os.open(root, DIR_FLAGS)
+    fd = open_root(root)
     try:
         with (state_dir / 'lock').open('a') as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
@@ -213,7 +231,7 @@ def handle(root, request, state_dir):
                         raise ValueError('Destination already exists')
                     require_revision(info, request.get('revision'))
                     meta = dict(root=root, path='/'.join(parts), revision=revision(info) if info else '',
-                                mode=stat.S_IMODE(info.st_mode) if info else 0o600)
+                                mode=stat.S_IMODE(info.st_mode) & 0o777 if info else 0o600)
                 data_file.touch(mode=0o600, exist_ok=False)
                 meta_file.write_text(json.dumps(meta))
                 return dict(success=True)
@@ -257,9 +275,14 @@ def handle(root, request, state_dir):
                                 break
                             output.write(block)
                         output.flush()
+                        os.fchmod(output.fileno(), meta['mode'])
                         os.fsync(output.fileno())
                     require_revision(regular_info(parent, parts[-1]), meta['revision'])
-                    os.replace(temp, parts[-1], src_dir_fd=parent, dst_dir_fd=parent)
+                    if meta['revision'] == '':
+                        # Atomic no-replace for new files, including external writers.
+                        os.link(temp, parts[-1], src_dir_fd=parent, dst_dir_fd=parent, follow_symlinks=False)
+                    else:
+                        os.replace(temp, parts[-1], src_dir_fd=parent, dst_dir_fd=parent)
                     os.fsync(parent)
                     result = entry(meta['path'], os.stat(parts[-1], dir_fd=parent, follow_symlinks=False))
                 finally:

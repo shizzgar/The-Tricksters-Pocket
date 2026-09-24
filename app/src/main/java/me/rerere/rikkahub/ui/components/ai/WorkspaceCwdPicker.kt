@@ -54,11 +54,20 @@ fun WorkspaceCwdPickerSheet(
 ) {
     val workspaceRepository: WorkspaceRepository = koinInject()
 
-    var browsePath by remember { mutableStateOf(fromAbsolutePath(currentCwd)) }
+    var rootPath by remember(workspaceId) { mutableStateOf("/workspace") }
+    var browsePath by remember(workspaceId) { mutableStateOf("") }
+    var initialized by remember(workspaceId) { mutableStateOf(false) }
+    LaunchedEffect(workspaceId) {
+        rootPath = workspaceRepository.getById(workspaceId)?.termuxPath ?: "/workspace"
+        browsePath = currentCwd?.removePrefix(rootPath)?.trimStart('/').orEmpty()
+        initialized = true
+    }
+    fun absolutePath(path: String) = if (path.isBlank()) rootPath else "$rootPath/$path"
     var entries by remember { mutableStateOf<List<WorkspaceFileEntry>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
 
-    LaunchedEffect(browsePath) {
+    LaunchedEffect(browsePath, initialized) {
+        if (!initialized) return@LaunchedEffect
         loading = true
         try {
             val result = withContext(Dispatchers.IO) {
@@ -106,7 +115,7 @@ fun WorkspaceCwdPickerSheet(
                     Icon(HugeIcons.ArrowTurnBackward, contentDescription = stringResource(R.string.accessibility_navigate_up_directory))
                 }
                 Text(
-                    text = toAbsolutePath(browsePath),
+                    text = absolutePath(browsePath),
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -175,7 +184,7 @@ fun WorkspaceCwdPickerSheet(
                     }
                 }
                 FilledTonalButton(onClick = {
-                    onSelectCwd(toAbsolutePath(browsePath))
+                    onSelectCwd(absolutePath(browsePath))
                     onDismiss()
                 }) {
                     Text(stringResource(R.string.workspace_cwd_set))

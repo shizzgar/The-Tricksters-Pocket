@@ -38,7 +38,7 @@ class WorkspaceDocumentsProvider : DocumentsProvider() {
 
     private fun dao(): WorkspaceDAO = GlobalContext.get().get()
 
-    private fun allWorkspaces(): List<WorkspaceEntity> = runBlocking { dao().getAll() }
+    private fun allWorkspaces(): List<WorkspaceEntity> = runBlocking { dao().getAll().filter { it.termuxPath == null } }
 
     private fun workspaceName(root: String): String =
         allWorkspaces().firstOrNull { it.root == root }?.name ?: root

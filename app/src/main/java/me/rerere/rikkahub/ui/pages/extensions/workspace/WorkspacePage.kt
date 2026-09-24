@@ -132,7 +132,7 @@ fun WorkspacePage(vm: WorkspaceVM = koinViewModel()) {
         onDismiss = { deleteTarget = null },
     ) {
         if (deleteTarget?.termuxPath != null) Text(stringResource(R.string.workspace_termux_unlink_hint))
-        Text(stringResource(R.string.workspace_page_delete_confirm))
+        else Text(stringResource(R.string.workspace_page_delete_confirm))
     }
 }
 
