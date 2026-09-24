@@ -384,6 +384,15 @@ class SubAgentEngine(
                 return
             }
         }
+        val executionAssistant = try {
+            resolveSubAgentAssistant(parentAsstUuid, profile, settings.assistants)
+        } catch (e: IllegalStateException) {
+            markTerminal(runId, SubAgentStatus.FAILED, e.message)
+            return
+        }
+        val parentConversation = parentChatId?.let { runCatching { Uuid.parse(it) }.getOrNull() }
+            ?.let { conversationRepo.getConversationById(it) }
+        val parentAssistant = settings.assistants.firstOrNull { it.id == parentAsstUuid }
         val modelResolution = resolveSubAgentModel(
             SubAgentModelResolver.resolve(request.modelId, settings.providers),
             profile,
@@ -405,11 +414,14 @@ class SubAgentEngine(
             ?: request.task
         val conv = Conversation.ofId(
             id = Uuid.random(),
-            assistantId = parentAsstUuid,
+            assistantId = executionAssistant.id,
             newConversation = true,
         ).copy(
             title = "[Sub-agent] ${request.label?.take(40) ?: request.task.take(40)}",
             chatModelId = resolvedChatModelId,
+            workspaceCwd = parentConversation?.workspaceCwd?.takeIf {
+                executionAssistant.workspaceId == parentAssistant?.workspaceId
+            },
         )
         conversationRepo.insertConversation(conv)
         chatService.initializeConversation(conv.id)

@@ -170,6 +170,13 @@ fun WorkspaceDetailPage(id: String) {
         vm.dismissFolderExportResult()
     }
 
+    var folderDialog by remember { mutableStateOf(false) }
+    var moveDialog by remember { mutableStateOf(false) }
+    if (folderDialog) WorkspacePathDialog(stringResource(R.string.workspace_new_folder), false,
+        onDismiss = { folderDialog = false }, onConfirm = { name, _ -> vm.createTermuxFolder(name); folderDialog = false })
+    if (moveDialog) WorkspacePathDialog(stringResource(R.string.workspace_move_file), true,
+        onDismiss = { moveDialog = false }, onConfirm = { source, target -> vm.moveTermuxEntry(source, target); moveDialog = false })
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -239,6 +246,8 @@ fun WorkspaceDetailPage(id: String) {
                     state = state,
                     contentPadding = PaddingValues(),
                     onSelectArea = vm::selectArea,
+                    onCreateFolder = { folderDialog = true },
+                    onMove = { moveDialog = true },
                     onGoUp = vm::goUp,
                     onToggleExpand = vm::toggleExpand,
                     onResolveImage = { entry, area -> vm.resolveImageFile(entry, area) },
@@ -439,6 +448,10 @@ private fun WorkspaceBasicPage(
             }
         }
 
+        if (workspace?.termuxPath != null) {
+            item { Text(workspace.termuxPath) }
+            item { Text(stringResource(R.string.workspace_termux_link_hint)) }
+        } else {
         item {
             CardGroup(
                 title = { Text(stringResource(R.string.workspace_detail_enable_shell)) },
@@ -494,6 +507,8 @@ private fun WorkspaceBasicPage(
                     },
                 )
             }
+        }
+
         }
 
         item {
@@ -647,6 +662,8 @@ private fun WorkspaceFilesPage(
     state: WorkspaceDetailState,
     contentPadding: PaddingValues,
     onSelectArea: (WorkspaceStorageArea) -> Unit,
+    onCreateFolder: () -> Unit,
+    onMove: () -> Unit,
     onGoUp: () -> Unit,
     onToggleExpand: (WorkspaceFileEntry) -> Unit,
     onResolveImage: suspend (WorkspaceFileEntry, WorkspaceStorageArea) -> File?,
@@ -665,10 +682,14 @@ private fun WorkspaceFilesPage(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            WorkspaceAreaSelector(
-                selected = state.area,
-                onSelected = onSelectArea,
-            )
+            if (state.workspace?.termuxPath == null) {
+                WorkspaceAreaSelector(selected = state.area, onSelected = onSelectArea)
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = onCreateFolder) { Text(stringResource(R.string.workspace_new_folder)) }
+                    TextButton(onClick = onMove) { Text(stringResource(R.string.workspace_move_file)) }
+                }
+            }
         }
 
         item {

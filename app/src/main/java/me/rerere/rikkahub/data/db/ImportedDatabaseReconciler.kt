@@ -54,15 +54,15 @@ object ImportedDatabaseReconciler {
 
     /**
      * Room's schema version and identity hash for [AppDatabase]. Both are copied verbatim
-     * from app/schemas/me.rerere.rikkahub.data.db.AppDatabase/31.json (the identity hash also
+     * from app/schemas/me.rerere.rikkahub.data.db.AppDatabase/32.json (the identity hash also
      * appears in the generated AppDatabase_Impl RoomOpenDelegate). When the schema version is
      * bumped, update BOTH constants (and the table DDL below if the fork-only tables changed,
      * BACKFILL_INDEX_DDL if any entity gained/lost an index, and MODERN_COLUMN_SENTINELS if
      * newer *shared* conversation columns were added) or this reconciliation will silently stop
      * matching. `internal` so a JVM test can assert these stay in sync with the schema export.
      */
-    internal const val EXPECTED_VERSION = 31
-    internal const val EXPECTED_IDENTITY_HASH = "61a9c9769b0c9f68743007339a58e420"
+    internal const val EXPECTED_VERSION = 32
+    internal const val EXPECTED_IDENTITY_HASH = "6edfc9e2b3f5c8e3d5e4f578c2c16faa"
 
     /**
      * Columns that a restored file must already have for its shared schema to be considered
@@ -177,6 +177,9 @@ object ImportedDatabaseReconciler {
                         // EXPECTED_VERSION here, so create/add them before installing the
                         // identity for EXPECTED_VERSION.
                         db.execSQL(CONTEXT_COMPACTION_DDL)
+                        if (tableExists(db, "workspaces") && !hasColumn(db, "workspaces", "termux_path")) {
+                            db.execSQL("ALTER TABLE `workspaces` ADD COLUMN `termux_path` TEXT DEFAULT NULL")
+                        }
                         if (!hasColumn(db, "ConversationEntity", "chat_model_id")) {
                             db.execSQL(
                                 "ALTER TABLE `ConversationEntity` ADD COLUMN `chat_model_id` TEXT NOT NULL DEFAULT ''"

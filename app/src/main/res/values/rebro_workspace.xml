@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="subagent_linked_assistant">Assistant</string>
+    <string name="subagent_inherit_parent">Use parent assistant</string>
+    <string name="subagent_linked_hint">A linked profile uses that assistant’s prompt, skills, tools, search settings and workspace. Model and extra task instructions below are optional overrides.</string>
+    <string name="workspace_local_linux">Built-in Linux</string>
+    <string name="workspace_termux_link_hint">Files stay in the selected Termux directory. Changes here edit the originals. Python is required in Termux.</string>
+    <string name="workspace_termux_connect">Set up Termux and grant RUN_COMMAND in Settings → Termux.</string>
+    <string name="workspace_termux_directory">Termux directory</string>
+    <string name="workspace_browse">Browse</string>
+    <string name="workspace_parent_folder">Parent folder</string>
+    <string name="workspace_termux_unlink_hint">This removes the workspace link. Its Termux directory, files and running jobs are kept.</string>
+    <string name="workspace_termux_console_hint">Commands start in the linked directory. Each uses a fresh shell. Use Jobs to view full logs or stop a task.</string>
+    <string name="workspace_output_more">Output preview shortened. Open Jobs for all captured pages.</string>
+    <string name="workspace_command">Command</string>
+    <string name="workspace_run_command">Run</string>
+    <string name="workspace_run_background">Background job</string>
+    <string name="workspace_new_folder">New folder</string>
+    <string name="workspace_move_file">Move</string>
+    <string name="workspace_source_path">Source path relative to workspace</string>
+    <string name="workspace_target_path">Destination path relative to workspace</string>
+    <string name="workspace_folder_name">Folder name</string>
+</resources>

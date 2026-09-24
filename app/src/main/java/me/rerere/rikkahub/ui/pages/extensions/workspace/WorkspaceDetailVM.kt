@@ -31,6 +31,9 @@ class WorkspaceDetailVM(
 ) : ViewModel() {
     private val _state = MutableStateFlow(WorkspaceDetailState())
     val state = _state.asStateFlow()
+    internal val termuxJobs = me.rerere.rikkahub.ui.pages.chat.TermuxJobsController(viewModelScope, request = {
+        repository.termuxJobs(id, it)
+    })
 
     private val _terminalState = MutableStateFlow(WorkspaceTerminalState())
     val terminalState = _terminalState.asStateFlow()
@@ -397,6 +400,40 @@ class WorkspaceDetailVM(
                     )
                 }
             }
+        }
+    }
+
+    fun startTerminalBackground(command: String) {
+        if (command.isBlank() || _terminalState.value.running) return
+        _terminalState.update { it.copy(running = true, input = "", history = it.history + WorkspaceTerminalEntry.Command(command)) }
+        viewModelScope.launch {
+            try {
+                val job = repository.startBackground(id, command)
+                _terminalState.update { it.copy(history = it.history + WorkspaceTerminalEntry.Result(
+                    WorkspaceCommandResult(0, "Started job ${job.id}", "", jobId = job.id))) }
+                termuxJobs.refresh()
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { _terminalState.update { it.copy(history = it.history + WorkspaceTerminalEntry.Error(e.message.orEmpty())) } }
+            finally { _terminalState.update { it.copy(running = false) } }
+        }
+    }
+
+    fun createTermuxFolder(name: String) {
+        viewModelScope.launch {
+            try {
+                require(name.isNotBlank() && '/' !in name && name != "." && name != "..") { "Enter a folder name" }
+                repository.createFolder(id, listOf(state.value.path, name).filter { it.isNotBlank() }.joinToString("/"))
+                refresh()
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { _state.update { it.copy(error = e.message) } }
+        }
+    }
+
+    fun moveTermuxEntry(source: String, target: String) {
+        viewModelScope.launch {
+            try { repository.moveFile(id, source, target, false); refresh() }
+            catch (e: CancellationException) { throw e }
+            catch (e: Exception) { _state.update { it.copy(error = e.message) } }
         }
     }
 

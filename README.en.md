@@ -2,7 +2,7 @@
 
 <img src="docs/icon.png" width="104" height="104" alt="ReBro ninja anteater" />
 
-# RikkaHub Agent · ReBro
+# ReBro Agent
 
 **Long tasks. Visible traces. Complete skills in Termux.**
 
@@ -18,6 +18,8 @@ a skill workspace, and the bundled ReBro and NetBro assistants.
 [Install](docs/getting-started.md#install) · [What's different](#changes) · [Screenshots](docs/screenshots.md) · [Documentation](docs/README.md) · [Build](docs/building.md)
 
 </div>
+
+**2.5.1-rebro.4:** workspaces linked to real Termux directories, ReBro/NetBro assistant-backed subagent profiles, the green NetBro avatar and a separate ReBro Agent release build. [Setup, data migration and APK signing](docs/termux-workspaces-and-release.md).
 
 This is a development fork of [ExTV/RikkaHub Agent](https://github.com/ExTV/rikkahub-agent), built on [RikkaHub](https://github.com/rikkahub/rikkahub). It brings together our work on long agent tasks, inspection of model/tool activity, and skills that include executable scripts and resources. The native chat client, model providers, and device integrations remain its foundation.
 
@@ -52,6 +54,8 @@ These are changes in our development line relative to the ExTV base we started f
 | **Compaction** | Configurable deadlines and concurrency, retained evidence, source validation when saving | Compress long histories without committing stale summaries |
 | **Metrics** | Measured content-receiving TPS and expandable details below the message | Separate model response speed from command execution and waiting |
 | **Termux diagnostics** | Specific failure hints, per-call preview limits and archived full output | Repair the failing step and keep repeated requests smaller |
+| **Termux workspace** | A linked real directory, editor, import/export and command console | Work with original project files and durable jobs from the app |
+| **Bro subagents** | ReBro and NetBro profiles link to their saved assistants | Dispatch with their own skills, tools, search and workspace |
 | **Termux jobs** | Persistent background jobs, stdout/stderr pages, read cursors, cancellation and job manager | Inspect long commands directly from chat |
 | **Skill workspace** | File operations, code editor, Markdown/image preview, HEX, imports/exports and drafts | Manage skill instructions, scripts and resources inside the app |
 | **Skills → Termux** | Versioned full-package transfer with hashes and a returned `skill_root` | Run scripts alongside their assets and references |
@@ -113,7 +117,7 @@ The environment profile is a **September 22, 2026 snapshot of an SM-S928B runnin
 
 ## Meet NetBro
 
-**NetBro 🛰️** ships as a separate assistant with Termux, Local search and six skills: **BBOT, Nmap, Nuclei, Legba**, environment checks and investigation workflow. Its packages include references, a case template and Python helpers for bounded version checks, host/CIDR scope filtering and XML/JSONL summaries. Long operations use the existing Termux jobs and Trajectory.
+**NetBro** ships as a separate assistant with Termux, Local search and six skills: **BBOT, Nmap, Nuclei, Legba**, environment checks and investigation workflow. Its packages include references, a case template and Python helpers for bounded version checks, host/CIDR scope filtering and XML/JSONL summaries. Long operations use the existing Termux jobs and Trajectory.
 
 The APK bundles skills; external scanner binaries are installed separately in the selected environment. The profile accounts for native Termux/Linux differences, uses live device context and preserves saved profile settings across upgrades.
 
@@ -123,7 +127,7 @@ The APK bundles skills; external scanner binaries are installed separately in th
 
 ## Get started
 
-1. **Install this repository's build.** [ARM64 APK and installation guide](docs/getting-started.md#install). Distribution currently uses CI debug artifacts.
+1. **Install this repository's build.** [ARM64 APK and installation guide](docs/getting-started.md#install). ReBro Agent also provides an optimized release variant; the debug CI channel remains available. [Migration and signing](docs/termux-workspaces-and-release.md#release-identity-and-signing).
 2. **Configure a provider and model.**
 3. **Choose an assistant and its local tool groups.** ReBro and NetBro already have their respective skills and Termux enabled.
 4. **Set up Termux** for commands/scripts: RUN_COMMAND, `allow-external-apps=true`, Python and skill transfer.
@@ -137,7 +141,7 @@ RikkaHub and ExTV provide the multi-provider chat client, MCP, subagents, schedu
 
 ## Validation and current boundaries
 
-The [successful run for `92451a6`](https://github.com/shizzgar/rikkahub-agent/actions/runs/36023590276) passed **808 JVM, 46 Python and 32 Android tests**. It checked factory-prompt migration while preserving custom edits, English instructions and both Bro package manifests, NetBro helpers, restored-database migration, native QuickJS interruption, ReBro Blue, live steering and Stop, full-trace export, tool availability, phone/wide emulator UI and the ARM64 APK signature. These counts describe that revision; see [Actions](https://github.com/shizzgar/rikkahub-agent/actions/workflows/compaction-debug.yml) for current runs.
+The [successful CI run for `3bf0436`](https://github.com/shizzgar/rikkahub-agent/actions/runs/36057905938) passed **828 JVM, 65 Python and 36 Android tests** and built an optimized release with R8. It covers database migration, saved settings, linked Bro profiles, Termux file RPC boundaries, branding and Android UI. The emulator suite runs the debug variant; release is built separately. The real phone’s Termux connection still needs a device check after installation. [Validation boundary](docs/termux-workspaces-and-release.md#validation-boundary).
 
 - Traces are local and may contain private prompts, commands and results. Inspect exports before sharing.
 - Only provider-returned reasoning can be recorded. Deterministic replay and reconstruction of previously unrecorded events are not implemented.

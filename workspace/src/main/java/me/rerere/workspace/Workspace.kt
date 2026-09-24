@@ -50,6 +50,7 @@ data class WorkspaceFileEntry(
     val isDirectory: Boolean,
     val sizeBytes: Long,
     val updatedAt: Long,
+    val revision: String? = null,
 )
 
 data class WorkspaceSearchMatch(
@@ -78,4 +79,5 @@ data class WorkspaceCommandResult(
     val stderr: String,
     val timedOut: Boolean = false,
     val truncated: Boolean = false,
+    val jobId: String? = null,
 )

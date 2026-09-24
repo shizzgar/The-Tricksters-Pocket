@@ -1,0 +1,38 @@
+{
+  "version": "2.5.1-rebro.4",
+  "version_code": 189,
+  "package_id": "excp.rikkahub.rebro",
+  "architecture": "arm64-v8a",
+  "source_commit": "3bf0436a13b36438a277a8d920cdcc5dc71a4d66",
+  "workflow_run": "https://github.com/shizzgar/rikkahub-agent/actions/runs/36057905938",
+  "apk_file": "ReBro-Agent-2.5.1-rebro.4-arm64-release.apk",
+  "apk_bytes": 56921625,
+  "apk_sha256": "557f7252dcf57e4652a57e22e744637db46816c5c9e6e84f5b7e60a9f44f8eb2",
+  "signer_certificate_sha256": "0FAC079E040D97CCE1786CEB21DC0855C0D09B2DF3222A43E71C46DD2C517805",
+  "signature_schemes": [
+    "v2",
+    "v3"
+  ],
+  "debuggable": false,
+  "application_labels": [
+    "ReBro Agent"
+  ],
+  "bundled_assets_verified": [
+    "termux/workspace_runtime.py",
+    "branding/netbro-avatar.webp"
+  ],
+  "tests": {
+    "jvm": 828,
+    "python": 65,
+    "android": 36,
+    "failures": 0
+  },
+  "emulator": {
+    "api": 35,
+    "variant": "debug"
+  },
+  "physical_device_termux_verified": false,
+  "build_reports_file": "ReBro-2.5.1-rebro.4-build-reports.zip",
+  "build_reports_bytes": 43837630,
+  "build_reports_sha256": "00733b5d1cb038ae2f2edb13a57b5eef8c000c239748bf1954a75e03bd569dd1"
+}

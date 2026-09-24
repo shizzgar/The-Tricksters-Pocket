@@ -19,8 +19,8 @@ android {
         applicationId = "excp.rikkahub"
         minSdk = 26
         targetSdk = 37
-        versionCode = 188
-        versionName = "2.5.1-rebro.3"
+        versionCode = 189
+        versionName = "2.5.1-rebro.4"
         val buildRevision = providers.environmentVariable("GITHUB_SHA").orNull
             ?.takeIf { it.matches(Regex("[0-9a-fA-F]{40}")) } ?: "local"
         buildConfigField("String", "BUILD_REVISION", "\"$buildRevision\"")
@@ -47,41 +47,28 @@ android {
     signingConfigs {
         create("release") {
             val localProperties = Properties()
-            val localPropertiesFile = rootProject.file("local.properties")
-
-            if (localPropertiesFile.exists()) {
-                localProperties.load(FileInputStream(localPropertiesFile))
-
-                val storeFilePath = localProperties.getProperty("storeFile")
-                val storePasswordValue = localProperties.getProperty("storePassword")
-                val keyAliasValue = localProperties.getProperty("keyAlias")
-                val keyPasswordValue = localProperties.getProperty("keyPassword")
-
-                if (storeFilePath != null && storePasswordValue != null &&
-                    keyAliasValue != null && keyPasswordValue != null
-                ) {
-                    storeFile = file(storeFilePath)
-                    storePassword = storePasswordValue
-                    keyAlias = keyAliasValue
-                    keyPassword = keyPasswordValue
-                } else {
-                    val missing = buildList {
-                        if (storeFilePath == null) add("storeFile")
-                        if (storePasswordValue == null) add("storePassword")
-                        if (keyAliasValue == null) add("keyAlias")
-                        if (keyPasswordValue == null) add("keyPassword")
-                    }
-                    logger.warn("Signing config: local.properties is missing $missing, release build will be unsigned")
-                }
+            rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { localProperties.load(it) }
+            val storePath = providers.environmentVariable("REBRO_KEYSTORE").orNull ?: localProperties.getProperty("storeFile")
+            val storePass = providers.environmentVariable("REBRO_STORE_PASSWORD").orNull ?: localProperties.getProperty("storePassword")
+            val alias = providers.environmentVariable("REBRO_KEY_ALIAS").orNull ?: localProperties.getProperty("keyAlias")
+            val keyPass = providers.environmentVariable("REBRO_KEY_PASSWORD").orNull ?: localProperties.getProperty("keyPassword")
+            val supplied = listOf(storePath, storePass, alias, keyPass)
+            require(supplied.all { it == null } || supplied.all { !it.isNullOrBlank() }) { "Release signing configuration is incomplete" }
+            if (storePath != null) {
+                storeFile = rootProject.file(storePath)
+                storePassword = storePass
+                keyAlias = alias
+                keyPassword = keyPass
             } else {
-                logger.warn("Signing config: local.properties not found, release build will be unsigned")
+                logger.lifecycle("Release APK will be unsigned; sign it with the permanent ReBro key before installation")
             }
         }
     }
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            applicationIdSuffix = ".rebro"
+            signingConfig = signingConfigs.getByName("release").takeIf { it.storeFile != null }
             optimization {
                 enable = true
             }

@@ -1,4 +1,4 @@
-# Документация RikkaHub Agent
+# Документация ReBro Agent
 
 [Обзор проекта](../README.md) · [English overview](../README.en.md)
 
@@ -7,6 +7,7 @@
 | Задача | Документ |
 |---|---|
 | Установить приложение, настроить модель и Termux | [Начало работы](getting-started.md) |
+| Привязать каталог Termux, настроить профили Bro и перейти на release | [Termux workspaces и release](termux-workspaces-and-release.md) |
 | Посмотреть новые экраны | [Галерея с пояснениями](screenshots.md) |
 | Понять отличия форка | [Обзор изменений](../README.md#changes) и [CHANGELOG](../CHANGELOG.md) |
 | Начать с комплектом ReBro | [Встроенный ассистент ReBro](agent-runtime/rebro-assistant.ru.md) |

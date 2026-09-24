@@ -1,6 +1,8 @@
 package me.rerere.rikkahub.data.repository
 
 import android.util.Log
+import kotlinx.serialization.json.*
+import me.rerere.rikkahub.data.repository.TermuxWorkspaceBridge.Companion.toEntry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -30,12 +32,14 @@ class WorkspaceRepository(
     private val manager: WorkspaceManager,
     private val rootfsInstaller: RootfsInstaller,
     private val settingsStore: SettingsStore,
+    private val termux: TermuxWorkspaceBridge,
 ) {
     fun listFlow(): Flow<List<WorkspaceEntity>> = dao.listFlow()
 
     suspend fun checkIntegrity() = withContext(Dispatchers.IO) {
         val workspaces = dao.getAll()
         for (workspace in workspaces) {
+            if (workspace.termuxPath != null) continue
             val dir = manager.workspaceDir(workspace.root)
             if (!dir.exists()) {
                 // 目录缺失时不删除记录(例如恢复备份后工作区文件未随数据库一起恢复),
@@ -78,6 +82,43 @@ class WorkspaceRepository(
         manager.ensureWorkspace(workspace.root)
         dao.upsert(workspace)
         return workspace
+    }
+
+    suspend fun createTermux(name: String, path: String): WorkspaceEntity {
+        val input = path.trim().trimEnd('/')
+        require(input.startsWith("/") && input.isNotBlank()) { "Enter an absolute Termux directory" }
+        val directory = termux.request(input, "attach").getValue("root").jsonPrimitive.content
+        require(dao.getAll().none { it.termuxPath == directory }) { "This Termux directory is already linked" }
+        val finalName = name.trim().ifBlank { "Termux" }
+        require(!isNameTaken(finalName, null)) { "Workspace name already exists: $finalName" }
+        val id = Uuid.random().toString()
+        val now = System.currentTimeMillis()
+        val workspace = WorkspaceEntity(id = id, name = finalName, root = id,
+            shellStatus = WorkspaceShellStatus.READY.name, createdAt = now, updatedAt = now, termuxPath = directory)
+        dao.upsert(workspace)
+        return workspace
+    }
+
+    suspend fun browseTermux(path: String): List<WorkspaceFileEntry> {
+        val directory = termux.request(path, "attach").getValue("root").jsonPrimitive.content
+        return termux.list(directory, "", Int.MAX_VALUE).filter { it.isDirectory }
+    }
+
+    suspend fun readTextSnapshot(id: String, area: WorkspaceStorageArea, path: String): WorkspaceTextSnapshot {
+        val workspace = dao.getById(id) ?: error("Workspace not found: $id")
+        return workspace.termuxPath?.let { termux.readText(it, path) }
+            ?: WorkspaceTextSnapshot(readTextForPreview(id, area, path), null)
+    }
+
+    suspend fun createFolder(id: String, path: String): WorkspaceFileEntry {
+        val workspace = dao.getById(id) ?: error("Workspace not found: $id")
+        workspace.termuxPath?.let { return termux.request(it, "mkdir", path).getValue("entry").jsonObject.toEntry() }
+        error("Use the Linux workspace folder tool")
+    }
+
+    suspend fun termuxJobs(id: String, request: JsonObject): JsonObject {
+        val root = dao.getById(id)?.termuxPath ?: error("This is not a Termux workspace")
+        return termux.jobs(root, request)
     }
 
     suspend fun rename(id: String, name: String): Boolean {
@@ -123,6 +164,7 @@ class WorkspaceRepository(
         onProgress: (RootfsInstallProgress) -> Unit = {},
     ): Boolean {
         val workspace = dao.getById(id) ?: return false
+        require(workspace.termuxPath == null) { "Termux workspaces use the installed Termux environment" }
         updateShellState(workspace, WorkspaceShellStatus.INSTALLING.name)
         try {
             // runInterruptible 让协程取消转成线程中断, 打断 install 内阻塞的下载/解压循环
@@ -155,6 +197,7 @@ class WorkspaceRepository(
         limit: Int? = null,
     ): List<WorkspaceFileEntry> = withContext(Dispatchers.IO) {
         val workspace = dao.getById(id) ?: return@withContext emptyList()
+        workspace.termuxPath?.let { return@withContext termux.list(it, path, limit ?: 500) }
         manager.ensureWorkspace(workspace.root)
         manager.listFiles(workspace.root, path, area, limit)
     }
@@ -164,6 +207,7 @@ class WorkspaceRepository(
         path: String,
     ): String = withContext(Dispatchers.IO) {
         val workspace = dao.getById(id) ?: error("Workspace not found: $id")
+        workspace.termuxPath?.let { return@withContext termux.readText(it, path).text }
         manager.ensureWorkspace(workspace.root)
         manager.readText(workspace.root, path)
     }
@@ -173,8 +217,10 @@ class WorkspaceRepository(
         path: String,
         text: String,
         overwrite: Boolean,
+        expectedRevision: String? = null,
     ): WorkspaceFileEntry = withContext(Dispatchers.IO) {
         val workspace = dao.getById(id) ?: error("Workspace not found: $id")
+        workspace.termuxPath?.let { return@withContext termux.write(it, path, text.byteInputStream(), overwrite, expectedRevision, parents = true) }
         manager.ensureWorkspace(workspace.root)
         manager.writeText(workspace.root, path, text, overwrite)
     }
@@ -190,6 +236,7 @@ class WorkspaceRepository(
         path: String,
     ): String = withContext(Dispatchers.IO) {
         val workspace = dao.getById(id) ?: error("Workspace not found: $id")
+        workspace.termuxPath?.let { return@withContext termux.readText(it, path).text }
         manager.ensureWorkspace(workspace.root)
         when (area) {
             WorkspaceStorageArea.FILES -> manager.readText(workspace.root, path)
@@ -214,6 +261,10 @@ class WorkspaceRepository(
         inputStream: InputStream,
     ): WorkspaceFileEntry = withContext(Dispatchers.IO) {
         val workspace = dao.getById(id) ?: error("Workspace not found: $id")
+        workspace.termuxPath?.let {
+            require(fileName.isNotBlank() && fileName.none { c -> c == '/' || c == '\\' }) { "Invalid file name" }
+            return@withContext termux.write(it, listOf(destinationPath, fileName).filter { p -> p.isNotBlank() }.joinToString("/"), inputStream, false)
+        }
         manager.ensureWorkspace(workspace.root)
         manager.importFile(workspace.root, destinationPath, area, fileName, inputStream)
     }
@@ -224,6 +275,7 @@ class WorkspaceRepository(
         path: String,
     ): Long = withContext(Dispatchers.IO) {
         val workspace = dao.getById(id) ?: error("Workspace not found: $id")
+        workspace.termuxPath?.let { return@withContext termux.stat(it, path).getValue("sizeBytes").jsonPrimitive.long }
         manager.fileSize(workspace.root, path, area)
     }
 
@@ -233,6 +285,7 @@ class WorkspaceRepository(
         path: String,
     ) = withContext(Dispatchers.IO) {
         val workspace = dao.getById(id) ?: error("Workspace not found: $id")
+        workspace.termuxPath?.let { return@withContext termux.cacheFile(it, path) }
         manager.ensureWorkspace(workspace.root)
         manager.resolveFile(workspace.root, path, area)
     }
@@ -244,6 +297,7 @@ class WorkspaceRepository(
         outputStream: OutputStream,
     ) = withContext(Dispatchers.IO) {
         val workspace = dao.getById(id) ?: error("Workspace not found: $id")
+        workspace.termuxPath?.let { return@withContext termux.export(it, path, outputStream) }
         manager.exportFile(workspace.root, path, area, outputStream)
     }
 
@@ -253,6 +307,7 @@ class WorkspaceRepository(
         path: String,
     ): Long = withContext(Dispatchers.IO) {
         val workspace = dao.getById(id) ?: error("Workspace not found: $id")
+        workspace.termuxPath?.let { return@withContext termux.stat(it, path).getValue("sizeBytes").jsonPrimitive.long }
         manager.ensureWorkspace(workspace.root)
         manager.rootfsFileSize(workspace.root, path)
     }
@@ -264,6 +319,7 @@ class WorkspaceRepository(
         outputStream: OutputStream,
     ) = withContext(Dispatchers.IO) {
         val workspace = dao.getById(id) ?: error("Workspace not found: $id")
+        workspace.termuxPath?.let { return@withContext termux.export(it, path, outputStream) }
         manager.ensureWorkspace(workspace.root)
         manager.exportRootfsFile(workspace.root, path, outputStream)
     }
@@ -274,6 +330,7 @@ class WorkspaceRepository(
         path: String,
     ): WorkspaceTreeResult = withContext(Dispatchers.IO) {
         val workspace = dao.getById(id) ?: error("Workspace not found: $id")
+        workspace.termuxPath?.let { return@withContext termux.tree(it, path) }
         manager.ensureWorkspace(workspace.root)
         manager.rootfsTree(workspace.root, path)
     }
@@ -286,6 +343,7 @@ class WorkspaceRepository(
     ): Boolean {
         val deleted = withContext(Dispatchers.IO) {
             val workspace = dao.getById(id) ?: return@withContext false
+            workspace.termuxPath?.let { termux.request(it, "delete", path, buildJsonObject { put("recursive", recursive) }); return@withContext true }
             manager.deleteFile(workspace.root, path, recursive, area)
         }
         return deleted
@@ -298,6 +356,7 @@ class WorkspaceRepository(
         overwrite: Boolean,
     ): WorkspaceFileEntry = withContext(Dispatchers.IO) {
         val workspace = dao.getById(id) ?: error("Workspace not found: $id")
+        workspace.termuxPath?.let { return@withContext termux.request(it, "move", source, buildJsonObject { put("target", TermuxWorkspaceBridge.relativePath(it, target)); put("overwrite", overwrite) }).getValue("entry").jsonObject.toEntry() }
         manager.ensureWorkspace(workspace.root)
         manager.moveFile(workspace.root, source, target, overwrite)
     }
@@ -310,6 +369,10 @@ class WorkspaceRepository(
         stdin: ByteArray? = null,
     ): WorkspaceCommandResult {
         val workspace = dao.getById(id) ?: error("Workspace not found: $id")
+        workspace.termuxPath?.let {
+            require(stdin == null) { "Use workspace_write_file for file content in Termux workspaces" }
+            return termux.execute(it, it, command, cwd, timeoutMillis)
+        }
         // runInterruptible 让协程取消转化为线程中断，从而打断阻塞的 Process.waitFor 并杀掉进程
         return runInterruptible(Dispatchers.IO) {
             manager.ensureWorkspace(workspace.root)
@@ -326,6 +389,10 @@ class WorkspaceRepository(
         cwd: String = "",
     ): BackgroundStatus {
         val workspace = dao.getById(id) ?: error("Workspace not found: $id")
+        workspace.termuxPath?.let {
+            val started = termux.start(it, it, command, cwd)
+            return termux.background(it, started.getValue("job_id").jsonPrimitive.content)
+        }
         // 与 executeCommand 用 runInterruptible 相反: 那里取消即意味着杀掉前台进程, 这里
         // 进程是要在工具调用结束后继续跑的后台任务, 取消(例如外层 withTimeoutOrNull 的共享
         // turn 预算到期)绝不能打断启动或丢弃刚拿到的 id, 否则进程已经起来(端口已绑定/名额
@@ -339,6 +406,7 @@ class WorkspaceRepository(
 
     suspend fun backgroundStatus(id: String, taskId: String): BackgroundStatus? {
         val workspace = dao.getById(id) ?: error("Workspace not found: $id")
+        if (workspace.termuxPath != null) return termux.background(workspace.termuxPath, taskId)
         return withContext(Dispatchers.IO) {
             manager.backgroundStatus(workspace.root, taskId)
         }
@@ -346,6 +414,7 @@ class WorkspaceRepository(
 
     suspend fun listBackground(id: String): List<BackgroundStatus> {
         val workspace = dao.getById(id) ?: error("Workspace not found: $id")
+        if (workspace.termuxPath != null) return termux.listBackground(workspace.termuxPath)
         return withContext(Dispatchers.IO) {
             manager.listBackground(workspace.root)
         }
@@ -353,6 +422,7 @@ class WorkspaceRepository(
 
     suspend fun killBackground(id: String, taskId: String): Boolean {
         val workspace = dao.getById(id) ?: error("Workspace not found: $id")
+        if (workspace.termuxPath != null) return termux.cancel(workspace.termuxPath, taskId)
         return withContext(Dispatchers.IO) {
             manager.killBackground(workspace.root, taskId)
         }
@@ -362,7 +432,7 @@ class WorkspaceRepository(
         val workspace = dao.getById(id) ?: return false
         dao.deleteById(id)
         withContext(Dispatchers.IO) {
-            manager.deleteWorkspace(workspace.root)
+            if (workspace.termuxPath == null) manager.deleteWorkspace(workspace.root)
         }
         cleanupAssistantReferences(id)
         return true

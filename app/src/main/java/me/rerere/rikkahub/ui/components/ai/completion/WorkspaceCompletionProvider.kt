@@ -16,15 +16,18 @@ class WorkspaceCompletionProvider(
     private val currentCwd: String? = null,
 ) : ChatCompletionProvider {
     override val id: String = "workspace_files"
-    private val relativeCwd = currentCwd.toWorkspaceRelativePath()
+    private var relativeCwd = currentCwd.toWorkspaceRelativePath()
+    private var workspacePathRoot = "/workspace"
 
     private var cachedAt: Long = 0L
     private var cachedEntries: List<WorkspaceFileEntry> = emptyList()
 
     override suspend fun complete(context: ChatCompletionContext): ChatCompletionList? {
         if (workspaceId.isNullOrBlank() || context.hasSelection) return null
+        workspacePathRoot = repository.getById(workspaceId)?.termuxPath ?: "/workspace"
+        relativeCwd = currentCwd?.removePrefix(workspacePathRoot)?.trimStart('/').orEmpty()
         val mention = findWorkspaceMention(context.text, context.cursor) ?: return null
-        val query = mention.query.normalizeWorkspaceQuery()
+        val query = mention.query.removePrefix(workspacePathRoot).trimStart('/').normalizeWorkspaceQuery()
         val absoluteQuery = mention.query.isWorkspaceAbsoluteQuery()
         val entries = loadEntries()
 
@@ -153,7 +156,7 @@ class WorkspaceCompletionProvider(
         return result
     }
 
-    private fun WorkspaceFileEntry.workspacePath(): String = "/workspace/$path"
+    private fun WorkspaceFileEntry.workspacePath(): String = "$workspacePathRoot/$path"
 
     private fun WorkspaceFileEntry.matchScore(query: String, absoluteQuery: Boolean): Int? {
         val normalizedPath = path.lowercase()

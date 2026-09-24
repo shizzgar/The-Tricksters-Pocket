@@ -104,16 +104,7 @@ fun WorkspacePage(vm: WorkspaceVM = koinViewModel()) {
     }
 
     if (showAddDialog) {
-        EditWorkspaceDialog(
-            title = stringResource(R.string.workspace_page_create),
-            initialName = "",
-            existingNames = workspaces.map { it.name.trim() }.toSet(),
-            onDismiss = { showAddDialog = false },
-            onConfirm = { name ->
-                vm.create(name)
-                showAddDialog = false
-            },
-        )
+        CreateWorkspaceDialog(workspaces.map { it.name.trim() }.toSet()) { showAddDialog = false }
     }
 
     editTarget?.let { workspace ->
@@ -140,7 +131,8 @@ fun WorkspacePage(vm: WorkspaceVM = koinViewModel()) {
         },
         onDismiss = { deleteTarget = null },
     ) {
-        Text(stringResource(R.string.workspace_page_delete_confirm))
+        if (deleteTarget?.termuxPath != null) Text(stringResource(R.string.workspace_termux_unlink_hint))
+        else Text(stringResource(R.string.workspace_page_delete_confirm))
     }
 }
 
@@ -215,7 +207,7 @@ private fun WorkspaceCard(
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        text = workspace.shellStatus.toShellStatusLabel(),
+                        text = workspace.termuxPath?.let { "Termux · $it" } ?: workspace.shellStatus.toShellStatusLabel(),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
