@@ -11,7 +11,7 @@
 - Миграция базы 31→32 сохраняет прежние Linux workspaces и настройки; восстановление резервных копий учитывает новую схему.
 - Release variant с оптимизацией, отдельным ID excp.rikkahub.rebro и подписью постоянным ключом вне репозитория. Код версии 189.
 
-[Настройка и границы проверки](docs/termux-workspaces-and-release.md). Результаты итогового CI будут добавлены после завершения проверки.
+[CI для `3bf0436`](https://github.com/shizzgar/rikkahub-agent/actions/runs/36057905938) прошёл: **828 JVM, 65 Python и 36 Android-тестов**, оптимизированная сборка release с R8 и проверка package ID / отсутствия debuggable. Готовый ARM64 APK подписан постоянным ключом; подписи v2/v3 проверены. [SHA-256 и сертификат](docs/releases/2.5.1-rebro.4.json). [Настройка и границы проверки](docs/termux-workspaces-and-release.md).
 
 ## 2.5.1-rebro.3 — NetBro и английские skills
 

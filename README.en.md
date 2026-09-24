@@ -141,7 +141,7 @@ RikkaHub and ExTV provide the multi-provider chat client, MCP, subagents, schedu
 
 ## Validation and current boundaries
 
-The [successful run for `92451a6`](https://github.com/shizzgar/rikkahub-agent/actions/runs/36023590276) passed **808 JVM, 46 Python and 32 Android tests**. It checked factory-prompt migration while preserving custom edits, English instructions and both Bro package manifests, NetBro helpers, restored-database migration, native QuickJS interruption, ReBro Blue, live steering and Stop, full-trace export, tool availability, phone/wide emulator UI and the ARM64 APK signature. These counts describe that revision; see [Actions](https://github.com/shizzgar/rikkahub-agent/actions/workflows/compaction-debug.yml) for current runs.
+The [successful CI run for `3bf0436`](https://github.com/shizzgar/rikkahub-agent/actions/runs/36057905938) passed **828 JVM, 65 Python and 36 Android tests** and built an optimized release with R8. It covers database migration, saved settings, linked Bro profiles, Termux file RPC boundaries, branding and Android UI. The emulator suite runs the debug variant; release is built separately. The real phone’s Termux connection still needs a device check after installation. [Validation boundary](docs/termux-workspaces-and-release.md#validation-boundary).
 
 - Traces are local and may contain private prompts, commands and results. Inspect exports before sharing.
 - Only provider-returned reasoning can be recorded. Deterministic replay and reconstruction of previously unrecorded events are not implemented.

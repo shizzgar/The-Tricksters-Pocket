@@ -65,6 +65,8 @@ sha256sum signed.apk
 
 Verify the resulting v2/v3 signature and record its public certificate and APK hash. A standalone signing helper is also included in the private key backup. For a local Gradle build, the same `REBRO_*` signing variables are supported; an incomplete signing configuration fails explicitly. Supplying none produces an unsigned release and never falls back to a debug key.
 
+The delivered ARM64 APK is signed with this key using APK Signature Scheme v2 and v3. Its exact APK SHA-256, source commit, certificate fingerprint and build-report hash are recorded in the [2.5.1-rebro.4 release manifest](releases/2.5.1-rebro.4.json).
+
 ## Validation boundary
 
 Python tests exercise the file RPC on a Linux filesystem, including external edits, chunk retries, traversal, symlinks and executable permissions. Android emulator tests run the debug variant and cover database migration, branding, linked-profile rendering and the workspace creation UI. The optimized release is built separately, inspected and signed. These checks do not establish successful communication with the owner's installed Termux or prove that third-party scanner binaries work on their phone. Those require a device check after installation.
