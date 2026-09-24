@@ -65,7 +65,7 @@ class RebroBrandInstrumentedTest {
         assertTrue(launcher is AdaptiveIconDrawable)
         assertNotNull((launcher as AdaptiveIconDrawable).foreground)
         context.assets.open("branding/rebro-avatar.webp").use { stream ->
-            val avatar = BitmapFactory.decodeStream(stream)
+            val avatar = requireNotNull(BitmapFactory.decodeStream(stream))
             assertNotNull(avatar)
             assertEquals(512, avatar.width)
             avatar.recycle()

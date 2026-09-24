@@ -128,6 +128,8 @@ class TrajectoryInstrumentedTest {
             assertEquals(12L, manifest.getValue("event_count").jsonPrimitive.long)
             assertTrue(manifest.getValue("complete").jsonPrimitive.boolean)
             assertEquals(id.toString(), manifest.getValue("conversation_id").jsonPrimitive.content)
+            assertEquals(me.rerere.rikkahub.BuildConfig.BUILD_REVISION,
+                manifest.getValue("metadata").jsonObject.getValue("build_revision").jsonPrimitive.content)
             val index = zip.getInputStream(zip.getEntry("sessions/$id/events.jsonl")).bufferedReader().use { it.readLines() }
             assertEquals(12, index.size)
             assertTrue(index.any { "tool.result" in it })

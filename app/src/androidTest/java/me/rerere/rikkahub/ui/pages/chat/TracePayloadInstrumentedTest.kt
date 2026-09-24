@@ -37,7 +37,7 @@ class TracePayloadInstrumentedTest {
                 put("required", buildJsonArray { add(JsonPrimitive("url")) })
             })
         }) } }
-        compose.setContent { MaterialTheme(colorScheme = darkColorScheme()) { Surface {
+        compose.setContent { MaterialTheme(colorScheme = me.rerere.rikkahub.ui.theme.presets.RebroThemePreset.standardDark) { Surface {
             Column(Modifier.fillMaxSize().testTag("trace-payload-fixture").verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Dialogue trajectory", style = MaterialTheme.typography.headlineSmall)
                 Text("Model request · 22 tools", style = MaterialTheme.typography.bodyMedium)

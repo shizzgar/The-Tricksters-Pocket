@@ -108,7 +108,7 @@ class ToolAccessInstrumentedTest {
         val disabled = mutableStateOf(emptySet<String>())
         compose.setContent {
             CompositionLocalProvider(LocalContext provides localized, LocalConfiguration provides localized.resources.configuration, LocalResources provides localized.resources) {
-                MaterialTheme(colorScheme = darkColorScheme()) {
+                MaterialTheme(colorScheme = me.rerere.rikkahub.ui.theme.presets.RebroThemePreset.standardDark) {
                     Surface {
                         ToolAccessList(tools, disabled.value, onToggle = { name, enabled -> disabled.value = if (enabled) disabled.value - name else disabled.value + name })
                     }
