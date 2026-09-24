@@ -1,5 +1,9 @@
 package me.rerere.rikkahub.ui.pages.setting
 
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -69,6 +73,19 @@ fun SettingPreferencesThemePage(vm: SettingVM = koinViewModel()) {
                 CardGroup(
                     modifier = Modifier.padding(horizontal = 8.dp),
                 ) {
+                    item(
+                        headlineContent = { Text("ReBro Blue") },
+                        supportingContent = { Text(stringResource(R.string.rebro_theme_description)) },
+                        leadingContent = {
+                            Image(painterResource(R.drawable.rebro_mascot), null, Modifier.size(56.dp))
+                        },
+                        trailingContent = {
+                            TextButton(onClick = {
+                                amoledDarkMode = false
+                                vm.updateSettings { it.copy(themeId = "rebro-blue", dynamicColor = false) }
+                            }) { Text(stringResource(R.string.rebro_theme_apply)) }
+                        },
+                    )
                     item(
                         headlineContent = { Text(stringResource(R.string.setting_page_dynamic_color)) },
                         supportingContent = { Text(stringResource(R.string.setting_page_dynamic_color_desc)) },

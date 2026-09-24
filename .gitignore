@@ -43,3 +43,7 @@ app/google-services.json
 
 # bun.lock is generated from the tracked pnpm-lock.yaml on clean checkouts
 /web-ui/bun.lock
+
+# Local Python runtime/trace analysis caches
+__pycache__/
+*.pyc

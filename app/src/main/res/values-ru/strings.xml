@@ -1936,4 +1936,6 @@
   <string name="compaction_total_timeout_description">До 240 минут, не меньше таймаута запроса. Включает все этапы сжатия. Также ограничивает суммарное время автоматического сжатия за один ход агента.</string>
   <string name="compaction_parallel_requests">Параллельные запросы</string>
   <string name="compaction_parallel_requests_description">От 1 до 4 запросов в группе. Выберите 1 или 2, если одновременные запросы перегружают сервер модели.</string>
+    <string name="rebro_theme_description">Тёмно-синий, голубой и холодная сталь. Согласованные светлая и тёмная палитры.</string>
+    <string name="rebro_theme_apply">Применить</string>
 </resources>

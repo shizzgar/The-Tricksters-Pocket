@@ -80,7 +80,7 @@ class TrajectoryInstrumentedTest {
                 LocalConfiguration provides localized.resources.configuration,
                 LocalResources provides localized.resources,
             ) {
-                MaterialTheme(colorScheme = if (russian) darkColorScheme() else lightColorScheme()) {
+                MaterialTheme(colorScheme = me.rerere.rikkahub.ui.theme.presets.RebroThemePreset.getColorScheme(russian)) {
                     ConversationTrajectoryScreen(conversation, false, {}, {}, journalOverride = journal)
                 }
             }

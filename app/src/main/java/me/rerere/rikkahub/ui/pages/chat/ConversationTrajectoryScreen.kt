@@ -103,6 +103,7 @@ internal fun ConversationTrajectoryScreen(conversation: Conversation, active: Bo
                             put("application_id", BuildConfig.APPLICATION_ID)
                             put("version_name", BuildConfig.VERSION_NAME)
                             put("version_code", BuildConfig.VERSION_CODE)
+                            put("build_revision", BuildConfig.BUILD_REVISION)
                         })
                     }
                 }

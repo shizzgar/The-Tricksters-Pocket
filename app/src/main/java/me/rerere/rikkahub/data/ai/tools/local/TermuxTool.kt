@@ -380,13 +380,19 @@ fun termuxRunCommandTool(context: Context, owner: String? = null): Tool = Tool(
         ~/.termux/termux.properties (one-time setup). In command mode, apt/apt-get are
         automatically wrapped with DEBIAN_FRONTEND=noninteractive and safe dpkg defaults;
         do not add extra -y flags unless the user specifically asked for unattended upgrades.
+        Prefer targeted queries and bounded output; use max_output_bytes for a smaller preview,
+        and termux_output_read with output_ref for the archived remainder. Check command -v/--help
+        before assuming GNU flags. Use a task directory or TMPDIR rather than desktop /tmp.
+        Validate a producer's exit status and non-empty output before parsing it. Fix a failed
+        probe before repeating an experiment. For long collectors/builds use durable jobs;
+        wait_timed_out only ends observation, so inspect the existing job instead of relaunching.
     """.trimIndent().replace("\n", " "),
     parameters = {
         InputSchema.Obj(
             properties = buildJsonObject {
                 put("command", buildJsonObject {
                     put("type", "string")
-                    put("description", "Shell command line, e.g. 'pkg update && pkg upgrade -y'. Mutually exclusive with executable+arguments.")
+                    put("description", "Shell command line, e.g. 'pwd'. Mutually exclusive with executable+arguments.")
                 })
                 put("executable", buildJsonObject {
                     put("type", "string")
@@ -412,6 +418,10 @@ fun termuxRunCommandTool(context: Context, owner: String? = null): Tool = Tool(
                 put("operation_id", buildJsonObject {
                     put("type", "string")
                     put("description", "Optional stable launch ID for background=true. Reuse on an uncertain retry to avoid duplicate execution.")
+                })
+                put("max_output_bytes", buildJsonObject {
+                    put("type", "integer")
+                    put("description", "Optional preview byte limit per stream, minimum 256, capped by your configured stdout/stderr limits. Full capture remains in output_ref; use termux_output_read for more. Omit or 0 uses Settings defaults.")
                 })
                 put("timeout_seconds", buildJsonObject {
                     put("type", "integer")
@@ -586,8 +596,9 @@ fun termuxRunCommandTool(context: Context, owner: String? = null): Tool = Tool(
                     archive.forEach { (key, value) -> put(key, value) }
                 }
                 put("exit_code", res.exitCode)
-                val maxOut = TermuxRuntime.maxStdoutBytes
-                val maxErr = TermuxRuntime.maxStderrBytes
+                val requestedPreview = input.jsonObject["max_output_bytes"]?.jsonPrimitive?.intOrNull
+                val maxOut = termuxPreviewLimit(requestedPreview, TermuxRuntime.maxStdoutBytes)
+                val maxErr = termuxPreviewLimit(requestedPreview, TermuxRuntime.maxStderrBytes)
                 // maxStdoutBytes/maxStderrBytes are UTF-8 byte budgets. Measure and cut on bytes
                 // (boundary-aligned via takeFirstUtf8Bytes) so multibyte output isn't mis-sized
                 // and the "bytes more" count is honest rather than a char-count delta.
@@ -607,7 +618,11 @@ fun termuxRunCommandTool(context: Context, owner: String? = null): Tool = Tool(
                     )
                 }
                 if (res.exitCode != 0) {
-                    put("note", "Non-zero exit code; check stderr.")
+                    put("note", "Non-zero exit code; inspect stdout and stderr. A search utility may use exit 1 for no matches; verify the command's contract before diagnosing failure.")
+                    diagnoseTermuxFailure(res.exitCode, res.stderr)?.let { diagnostic ->
+                        put("diagnostic", diagnostic.code)
+                        put("recovery", diagnostic.hint)
+                    }
                 }
             }
             is CaptureResult.Timeout -> buildJsonObject {

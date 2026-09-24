@@ -51,6 +51,26 @@ class TrajectoryTest {
         assertEquals("completed", normal.summary.state)
     }
 
+    @Test fun `intentional job cancellation is not a failed command`() {
+        fun outcome(state: String, error: String? = null): TraceSummary {
+            val envelope = buildJsonObject {
+                put("state", state); put("exit_code", -15)
+                if (error != null) put("error", error)
+            }
+            return traceSummary("tool.result", buildJsonObject {
+                put("tool", "termux_job_cancel")
+                put("tool_call_id", "synthetic-cancel")
+                put("output", buildJsonArray { add(buildJsonObject {
+                    put("type", "text"); put("text", envelope.toString())
+                }) })
+            })
+        }
+        assertEquals("cancelled", outcome("cancelled").state)
+        assertEquals("error", outcome("timed_out").state)
+        assertEquals("error", outcome("cancelled", "permission_denied").state)
+        assertEquals("error", outcome("failed").state)
+    }
+
     @Test fun `compaction updates collapse and preserve failure`() {
         val records = listOf(
             event(100, "compaction.event", """{"operation_id":"c","event":{"input":"{\"state\":\"running\",\"phase\":\"preparing\"}"}}"""),
