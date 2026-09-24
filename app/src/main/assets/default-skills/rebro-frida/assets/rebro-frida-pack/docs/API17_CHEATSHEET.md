@@ -1,11 +1,13 @@
-# Шпаргалка API, используемого этим паком
+# API reference used by this pack
 
-Это короткие собственные примеры для адаптации кода. Полное описание: [Frida JavaScript API](https://frida.re/docs/javascript-api/); [Python binding 17.2.14](https://github.com/frida/frida-python/blob/17.2.14/frida/core.py).
+These are small original adaptation examples. Full references:
+[Frida JavaScript API](https://frida.re/docs/javascript-api/);
+[Python binding 17.2.14](https://github.com/frida/frida-python/blob/17.2.14/frida/core.py).
 
-## Сборка и подключение
+## Build and attach
 
 ```python
-# Использовать уже установленный binding.
+# Use the already installed binding.
 import frida
 device = frida.get_device_manager().add_remote_device("127.0.0.1:27044")
 print(device.query_system_parameters())
@@ -14,47 +16,50 @@ session = device.attach(actual_pid)
 script = session.create_script(source_with_bridge_if_needed, runtime="qjs")
 script.on("message", on_message)
 script.load()
-# При завершении:
+# At completion:
 script.unload()
 session.detach()
 ```
 
-В паке эти операции обёрнуты таймаутами, Frida.Cancellable, логами и finally. Для custom core отмена остаётся best effort.
+The pack wraps these operations with timeouts, Frida.Cancellable, logs and finally.
+Cancellation remains best effort with a custom core.
 
-## Нативный API без старых статических вызовов Module
+## Native API without obsolete static Module calls
 
 ```js
 const m = Process.getModuleByName('libc.so');
-const address = m.findExportByName('openat'); // null, если отсутствует
+const address = m.findExportByName('openat'); // null when absent
 const exports = m.enumerateExports();
 const all = Process.enumerateModules();
 const globalAddress = Module.findGlobalExportByName('dlopen');
-// В onEnter(args) функции openat строка пути находится в args[1].
+// In openat's onEnter(args), the path string is args[1].
 ```
 
-Для строки пути используйте c.cstring(args[1]) внутри callbacks: helper проверяет readable range и ограничивает длину. Для собственной работы с памятью методы чтения вызываются у NativePointer.
+Use c.cstring(args[1]) inside callbacks: it checks the readable range and bounds
+length. For custom memory operations, invoke read methods on NativePointer.
+Prefer module-object and NativePointer APIs. Adapt older
+Module.findExportByName(moduleName, symbol) / Memory.readUtf8String(pointer) calls.
 
-Предпочитайте object API модуля и методы NativePointer. Не переносите без адаптации старые вызовы вида Module.findExportByName(moduleName, symbol) или Memory.readUtf8String(pointer).
-
-## Модуль загружается позже
+## Late module loading
 
 ```js
 const observer = Process.attachModuleObserver({
     onAdded(m) {
         if (m.name === 'libexample.so') {
-            // Здесь допустима точечная установка вашего native hook.
+            // Install the selected native hook here.
         }
     }
 });
-// При остановке observer.detach()
+// At stop: observer.detach()
 ```
 
-В паке используйте c.onModule: он сохраняет cleanup и пишет hook_error. Наличие observer проверяется как capability, а не по сравнению строк версий.
+Inside the pack, use c.onModule; it retains cleanup and records hook_error.
+Check observer availability as a capability, not by comparing version strings.
 
-## Java и overload
+## Java overloads
 
 ```js
-// Включать только после подключения pinned bridge в этот же Script.
+// Use only after including the pinned bridge in this same Script.
 Rebro.module('my_agent', true, (o, c) => {
     c.hookJava(o.class_name, o.method,
         function (args, state) { state.begin = Date.now(); },
@@ -68,14 +73,22 @@ Rebro.module('my_agent', true, (o, c) => {
 });
 ```
 
-c.hookJava ставит implementation для выбранных overloads, вызывает original через сохранённый overload, возвращает его результат и повторно бросает его исключение. Before/after observers не меняют аргументы. Их собственные ошибки фиксируются отдельно. Не вызывайте this[method](...) внутри observer: это может повторно войти в hook. Уже установленная implementation не перезаписывается. Getter implementation может возвращать NativeCallback, отличный от исходной JS-функции; для cleanup runtime сохраняет прочитанный после установки token.
+c.hookJava installs implementations for selected overloads, calls the original
+through the saved overload, returns its result and rethrows its exception.
+Before/after observers do not change arguments; their own errors are recorded
+separately. Do not call `this[method](...)` inside an observer: it may reenter the
+hook. Existing implementations are not overwritten. The implementation getter
+may return a NativeCallback distinct from the original JS function; cleanup retains
+the token read back after installation.
 
-Для Java class names и signatures используйте фактические reflection/overload данные. Примеры: int, java.lang.String, [B. В java_trace параметр signature=[] означает overload без аргументов. Если параметр не задан — все overloads этого метода.
+Use actual reflection/overload data for class names/signatures: e.g. int,
+java.lang.String, [B. java_trace signature=[] selects a no-argument overload;
+omitting it selects all overloads of the method.
 
-## ClassLoader, память, JNI, PAC
+## ClassLoader, memory, JNI and PAC
 
-- java_loaders показывает loader; java_trace.loader_class выбирает ровно один loader данного класса через Java.ClassFactory.get. Если таких экземпляров несколько, требуется собственный точный selector.
-- native_memory/native_scan разрешают ограниченный диапазон module + offset и проверяют границы; предварительно смотрите native_modules.
-- jni_register использует JNI table slot 215 и stride 3 * pointerSize. См. [upstream env.js](https://github.com/frida/frida-java-bridge/blob/b38a5b647d3e6b72aa19bcf8eb5e41c550a0e622/lib/env.js). Он видит регистрации после установки hook.
-- Не удаляйте PAC-биты произвольной маской. Начинайте с адресов, возвращённых runtime/ELF resolver. Наличие arm64/PAC/BTI не доказывает совместимость конкретного Stalker hook.
-- Для горячих функций уменьшайте набор хуков и частоту событий. max_per_second сокращает выдачу, но не устраняет стоимость входа в hook.
+- java_loaders lists loaders; java_trace.loader_class selects exactly one instance of that class through Java.ClassFactory.get. Multiple instances need a custom exact selector.
+- native_memory/native_scan permit a bounded module+offset range and check bounds; inspect native_modules first.
+- jni_register uses JNI table slot 215 and stride 3 * pointerSize. See [upstream env.js](https://github.com/frida/frida-java-bridge/blob/b38a5b647d3e6b72aa19bcf8eb5e41c550a0e622/lib/env.js). It observes registrations after hook installation.
+- Do not remove PAC bits with an arbitrary mask. Start with runtime/ELF-resolved addresses. arm64/PAC/BTI alone does not establish compatibility of a particular Stalker hook.
+- For hot functions, reduce hook count and event frequency. max_per_second reduces output, not hook-entry cost.

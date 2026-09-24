@@ -1,39 +1,47 @@
 ---
 name: rebro-frida
-description: "Выполнять Android runtime-анализ через pinned Frida: 38 модулей и 16 профилей Java/native/JNI/network/storage/crypto metadata; smoke, точные hooks, Compiler и cleanup. Использовать для наблюдения поведения и проверки гипотез."
+description: "Perform Android runtime analysis with pinned Frida: 38 modules and 16 Java/native/JNI/network/storage/crypto metadata profiles; smoke tests, exact hooks, Compiler and cleanup. Use to observe behavior and test hypotheses."
 ---
 
 # Runtime Frida
 
-RikkaHub skill, release 2.3. Включить отдельно. Получить собственный skill_root
-из успешного use_skill/termux_skill_sync; использовать как working_dir.
-Читать [контракт](references/contract.md), [правила агента](references/agent-contract.md),
-затем [процедуру](references/procedure.md). По работе tools/sync читать [harness](references/harness.md).
-Уже прочитанные общие references той же версии не перечитывать без причины.
-Пути других skills не вычислять. Выходы писать в case, исходники skill не изменять.
+RikkaHub skill, kit 2.3 with English instructions. Enable this skill separately.
+Obtain its own skill_root from a successful use_skill/termux_skill_sync response
+and use it as working_dir. Read the [contract](references/contract.md),
+[agent rules](references/agent-contract.md), then the [procedure](references/procedure.md).
+For tools and synchronization, read the [harness contract](references/harness.md).
+Do not reread shared references of the same version without a reason. Never infer
+another skill's path. Write outputs into the case; keep package sources unchanged.
 
-## Вход и результат
+Use the procedure as the starting point, local checks as evidence of the current
+environment, and focused Local search for missing or changed APIs/practices.
+Follow the primary-source links in references/sources.md and match documentation
+to the installed version. Historical pins and reports are not fresh observations;
+a newer webpage alone is not a reason to replace a working baseline.
 
-- Вход: Явный PID/package/user, доверенные pins и гипотеза.
-- Выход: Session JSONL, summary и интерпретация покрытия.
-- Frida — helper внутри analyze/verify attempt; stage frida не существует. Для отдельной диагностики сохранить самостоятельный evidence-каталог.
-- Для перехода между этапами использовать caseflow receipt с explicit parent.
-- Проверить фактическую доступность tools и смысл результата, а не только exit 0.
-- Учитывать текущие разрешения пользователя; не вводить повторное подтверждение
-  уже разрешённого действия и не расширять его на удаление/другие профили.
+## Inputs and result
 
-## Выполнение
+- Input: Explicit PID/package/user, trusted pins and a hypothesis.
+- Output: Session JSONL, summary and coverage interpretation.
+- Frida is a helper within an analyze/verify attempt; there is no frida stage. For standalone diagnostics, keep a separate evidence directory.
+- Use a caseflow receipt with an explicit parent between stages.
+- Check actual tool availability and the meaning of results, not just exit 0.
+- Honor established user authorization. Do not add repeat confirmation for an
+  already authorized action or extend its scope to deletion/other profiles.
 
-1. Прочитать нужную процедуру полностью, проверить идентичность target и входов.
-2. Проверить квитанцию предшествующего этапа и hashes. Для узкого запроса выбрать
-   соответствующий маршрут, не требовать ненужные этапы.
-3. Для этапа создать новый attempt, для helper использовать текущий; завести отдельный data/output каталог. Полезные shell-переменные
-   подставлять явно в каждом tool call; environment может не сохраняться.
-4. Выполнить скрипты с ограничениями ресурсов. Долгие команды — managed Termux job.
-5. Проверить gates из процедуры, сохранить evidence и закончить receipt.
-6. Отчитаться о доказанном результате и оставшейся границе проверки.
+## Execution
 
-## Скрипты этого пакета
+1. Read the needed procedure fully; verify target and input identities.
+2. Verify the preceding receipt and hashes. For a narrow request, select the
+   corresponding route without requiring unnecessary stages.
+3. Start a new attempt for a stage; helpers use the current attempt. Create a
+   separate data/output directory. Supply shell variables explicitly in every
+   tool call; the shell environment may not persist between calls.
+4. Execute scripts with resource limits. Use managed Termux jobs for long commands.
+5. Check the procedure's gates, preserve evidence and finish the receipt.
+6. Report the evidenced result and remaining verification boundary.
+
+## Package scripts
 
 - `scripts/apkset.py`
 - `scripts/caseflow.py`
@@ -43,29 +51,29 @@ RikkaHub skill, release 2.3. Включить отдельно. Получить
 - `scripts/pins.py`
 - `scripts/run_job.py`
 
-Вызов `python3 scripts/<name>.py --help` описывает фактический CLI.
-caseflow фиксирует целостность и структуру, но не подтверждает вручную заявленное
-поведение приложения. Для специализированных операций следовать процедуре.
+`python3 scripts/<name>.py --help` describes the actual CLI.
+caseflow records integrity and structure; it cannot validate manually asserted
+application behavior. Follow the procedure for specialist operations.
 
-## Ошибка и восстановление
+## Failure and recovery
 
-Записать failed/blocked/unknown с конкретной причиной. Не превращать отсутствие
-ответа в успех или в доказательство отсутствия side effect. Не перезапускать PM
-commit после обрыва; перейти к reconcile. Новое изменение файлов — новая попытка.
-Не заменять pinned Frida, ключ или ожидаемые hashes ради прохождения проверки.
+Record failed/blocked/unknown with a specific reason. A missing response does not
+establish success or absence of side effects. Do not repeat PM commit after an
+interruption; reconcile first. A new file change requires a new attempt.
+Do not replace pinned Frida, a signing key or expected hashes merely to pass a check.
 
-## Дополнительные материалы
+## Further reading
 
-- [Источники](references/sources.md)
-- [Проверки и ограничения релиза](references/validation.md)
+- [Sources](references/sources.md)
+- [Release checks and limitations](references/validation.md)
 - [frida](references/frida.md)
 - [collection](references/collection.md)
 - [troubleshooting](references/troubleshooting.md)
 - [device-profile](references/device-profile.md)
 - [system-prompt-integration](references/system-prompt-integration.md)
-- [CATALOG](assets/rebro-frida-pack/docs/CATALOG.md) — читать по текущей задаче.
-- [API17_CHEATSHEET](assets/rebro-frida-pack/docs/API17_CHEATSHEET.md) — читать по текущей задаче.
-- [BRIDGE](assets/rebro-frida-pack/docs/BRIDGE.md) — читать по текущей задаче.
-- [COMPATIBILITY](assets/rebro-frida-pack/docs/COMPATIBILITY.md) — читать по текущей задаче.
-- [RECIPES](assets/rebro-frida-pack/docs/RECIPES.md) — читать по текущей задаче.
-- [GITHUB_RESEARCH_RU](assets/rebro-frida-pack/docs/GITHUB_RESEARCH_RU.md) — читать по текущей задаче.
+- [CATALOG](assets/rebro-frida-pack/docs/CATALOG.md)
+- [API17_CHEATSHEET](assets/rebro-frida-pack/docs/API17_CHEATSHEET.md)
+- [BRIDGE](assets/rebro-frida-pack/docs/BRIDGE.md)
+- [COMPATIBILITY](assets/rebro-frida-pack/docs/COMPATIBILITY.md)
+- [RECIPES](assets/rebro-frida-pack/docs/RECIPES.md)
+- [GitHub research (English; historical filename)](assets/rebro-frida-pack/docs/GITHUB_RESEARCH_RU.md)

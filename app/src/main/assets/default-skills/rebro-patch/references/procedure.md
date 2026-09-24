@@ -1,27 +1,27 @@
-# Патч: от объяснённого изменения к воспроизводимому дереву
+# Patching: from an explained change to a reproducible tree
 
-## Вход
+## Inputs
 
-Прочитать analysis.json: задача, package/user, точный split, источник наблюдения,
-что должно измениться и какие соседние сценарии должны сохраниться.
-Нужны неизменённое decoded tree, parent receipt analyze, полный APK set и
-текстовый/бинарный payload для планируемого изменения. Для начала создать attempt
-с inputs decoded tree, plan и каждым payload. Патчировать минимальное число файлов.
+Read analysis.json: objective, package/user, exact split, observation source,
+intended change and neighboring scenarios that must remain intact.
+Require the unchanged decoded tree, parent analyze receipt, full APK set and
+text/binary payload for the planned change. Start an attempt with the decoded tree,
+plan and every payload as inputs. Change the smallest useful number of files.
 
-Не править Java, восстановленную JADX, с ожиданием что Apktool её соберёт:
-для этой цепочки рабочая модель — smali/resources/manifest/native assets.
-Изменение Java исходного проекта и Gradle build — другой build route.
+Do not edit JADX-recovered Java expecting Apktool to compile it: this pipeline
+works on smali/resources/manifest/native assets. Editing original Java sources
+and using Gradle is a different build route.
 
-## План exact replacement
+## Exact replacement plan
 
-Снять tree hash: `python3 scripts/tree_hash.py "$DECODED_TREE"`.
-Для изменяемого файла получить полный SHA-256. Составить patch-plan.json:
+Get the tree hash: `python3 scripts/tree_hash.py "$DECODED_TREE"`.
+Obtain the full SHA-256 of each changed file. Prepare patch-plan.json:
 
 ```json
 {
   "schema": 2,
-  "purpose": "Изменить диагностическую подпись экрана лабораторного APK",
-  "expected_behavior": "На диагностическом экране видна новая подпись; остальные экраны прежние",
+  "purpose": "Change the diagnostic screen label in the lab APK",
+  "expected_behavior": "The diagnostic screen shows the new label; other screens are unchanged",
   "input_tree_sha256": "FULL_TREE_SHA256",
   "operations": [{
     "action": "replace_text",
@@ -34,39 +34,39 @@
 }
 ```
 
-Поддерживаются literal replace_text, replace_file, add_file и delete_file.
-Для файлового payload указать `payload` и `payload_sha256`; для add_file preimage
-должен отсутствовать и before_sha256=null. Для удаления нужен точный исходный hash.
-Нет regex/глобального «замени везде» и shell-команд внутри плана. Это ограниченный
-механизм применения уже принятого изменения, не автономный поиск места патча.
+Supported operations are literal replace_text, replace_file, add_file and delete_file.
+For file payloads, supply `payload` and `payload_sha256`; add_file requires the
+preimage to be absent and before_sha256=null. Deletion requires an exact original hash.
+No regex/global "replace everywhere" or shell commands inside the plan. This is a
+bounded mechanism for an already selected change, not autonomous patch discovery.
 
 ```sh
 python3 scripts/patch_tree.py --tree "$DECODED_TREE" \
   --plan "$PATCH_PLAN" --out-dir "$PATCH_OUTPUT"
 ```
 
-Скрипт сначала проверяет план, копирует исходники в новый `tree/`, применяет изменения,
-сверяет input и пишет patch-report. На исходной версии план проходит, на других
-байтах останавливается. Повтор на существующий output запрещён.
+The script validates the plan, copies sources into a new `tree/`, applies changes,
+rechecks the input and writes patch-report. The plan applies to the original bytes
+and stops on different bytes. Reusing an existing output directory is forbidden.
 
-## Ревью по типу изменения
+## Review by change type
 
-| Тип | Проверить до build |
+| Type | Check before build |
 |---|---|
-| Smali | правильный class/method descriptor; именно нужный DEX/split; registers/locals; wide-register пары; type flow; try/catch границы; monitor balance; корректные invoke/move-result/return |
-| Manifest | package/version и split identity сохранены; exported/permissions/SDK изменения соответствуют задаче; namespaced XML корректен |
-| Resources | resource name/ID не потерян; qualifiers и переводы; ссылки между ресурсами; case-sensitive пути; ресурс не продублирован |
-| Native `.so` | правильный ABI/build ID; файловое смещение сопоставлено PT_LOAD; calling convention, PAC/BTI, ELF alignment; новое содержимое проверено отдельно |
-| Assets | кодировка, размеры, checksums и формат данных; не повреждены неизвестные бинарные поля |
+| Smali | Correct class/method descriptor and DEX/split; registers/locals; wide-register pairs; type flow; try/catch boundaries; monitor balance; valid invoke/move-result/return |
+| Manifest | Package/version and split identity preserved; exported/permission/SDK changes match the task; valid namespaced XML |
+| Resources | Names/IDs retained; qualifiers and translations; cross-resource references; case-sensitive paths; no duplicate resources |
+| Native `.so` | Correct ABI/build ID; file offset mapped to PT_LOAD; calling convention, PAC/BTI, ELF alignment; changed content independently checked |
+| Assets | Encoding, sizes, checksums and format; unknown binary fields preserved |
 
-Smali синтаксис подтвердит rebuild, но он не докажет отсутствие runtime VerifyError
-или правильность ветки. До тяжёлого hook/patch сформулировать наблюдаемое изменение,
-проверить отрицательный контроль и зафиксировать исходный результат.
+Rebuild checks smali syntax but does not rule out runtime VerifyError or a wrong
+branch. Before an expensive hook/patch, state the observable change, check a
+negative control and record baseline behavior.
 
-## Выход и откат
+## Output and rollback
 
-Pass означает: exact preimage совпал, изменились только заявленные файлы, сохранён
-hash результата и есть проверяемая гипотеза. Семантический успех — этап verify.
-В failure отметить stale input, ambiguous match, syntax/format issue или неполную
-гипотезу; не увеличивать count, чтобы «продавить» неожиданное совпадение.
-Откат — исходное дерево остаётся неизменным; новый вариант делать новой попыткой.
+Pass means the exact preimage matched, only declared files changed, the result
+hash is saved and a testable hypothesis exists. Semantic success belongs to verify.
+For failure, identify stale input, ambiguous match, syntax/format issue or incomplete
+hypothesis; do not increase count to force an unexpected match through.
+Rollback preserves the original tree unchanged; use a new attempt for a new variant.

@@ -36,7 +36,10 @@ class RebroAssistantInstrumentedTest {
             val skill = requireNotNull(skills[name]) { "Not installed: $name" }
             assertEquals(name, SkillFrontmatterParser.parse(skill.skillFile.readText())["name"])
             val files = SkillPackage.readFiles(skill.skillDir)
-            val manifest = files.getValue("MANIFEST.sha256").toString(Charsets.UTF_8).lineSequence()
+            val manifestBytes = files.getValue("MANIFEST.sha256")
+            assertEquals(entry.getValue("manifest_sha256").jsonPrimitive.content, SkillPackage.digest(manifestBytes))
+            assertEquals(entry.getValue("bytes").jsonPrimitive.long, files.values.sumOf { it.size.toLong() })
+            val manifest = manifestBytes.toString(Charsets.UTF_8).lineSequence()
                 .filter { it.isNotBlank() }.map { it.split(Regex("\\s+"), limit = 2) }.toList()
             val expectedPaths = manifest.map { it[1].removePrefix("*") }.toSet() + "MANIFEST.sha256"
             assertTrue("$name missing=${expectedPaths - files.keys}; extra=${files.keys - expectedPaths}", expectedPaths == files.keys)

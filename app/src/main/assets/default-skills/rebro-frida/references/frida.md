@@ -1,45 +1,46 @@
-# Frida: рабочий playbook для агента
+# Frida: operating playbook
 
-## Маршрут от transport к доказательству
+## From transport to evidence
 
-Это диагностические ступени по необходимости, не обязательный полный стартовый
-checklist. В релизе 2.3 paths/pins/flat recipe даны пользовательским промптом;
-native RPC smoke и Compiler build дополнительно сообщены пользователем как pass.
-Проверять новый Java adapter и нужный target contract, не переоткрывать ремонт среды.
+These are diagnostic stages to select as needed, not a mandatory full startup
+checklist. Kit 2.3 obtained paths/pins/flat-loader recipe from the user's prompt;
+the user also reported passing native RPC smoke and Compiler build. Verify the
+new Java adapter and relevant target contract rather than reopening environment repair.
 
-1. Проверить pins и endpoint `127.0.0.1:27044`.
-2. Перечислить процессы через этот endpoint; сверить PID, process name, package и
-   Android user. Main process и `package:remote` — разные цели.
-3. На выбранном тестовом PID загрузить `agents/native_probe.js` на 5 секунд.
-4. Используя **существующий проверенный loader patched bridge**, собрать Java probe.
-5. Проверить один Java/native hook и вызвать ровно одно соответствующее действие UI.
-6. Сохранить JSONL, ошибки и результат detach. Сравнить с запуском без hook.
+1. Verify pins and endpoint `127.0.0.1:27044`.
+2. List processes through that endpoint; match PID, process name, package and
+   Android user. Main process and `package:remote` are different targets.
+3. Load `agents/native_probe.js` on the selected test PID for 5 seconds when needed.
+4. Assemble the Java probe using the **existing verified patched-bridge loader**.
+5. Check one Java/native hook and trigger exactly one corresponding UI action.
+6. Save JSONL, errors and detach result. Compare with an unhooked run.
 
-Сборка и attach изменяют разные части системы: Compiler build — локальная операция,
-создание script и hooks происходят в target. Успех первой не доказывает вторую.
-Данные `Frida.version` внутри native probe лучше отражают runtime загруженного агента,
-чем версия Python bindings, но не заменяют hash custom server и историю сборки.
+Build and attach affect different parts of the system: Compiler build is local;
+script creation/hooks occur in the target. Success of the former does not prove
+the latter. `Frida.version` inside the native probe better reflects the loaded
+agent runtime than the Python binding version, but does not replace the custom
+server hash and build history.
 
-## Frida 17 и bridge
+## Frida 17 and bridges
 
-В Frida 17 bridges вынесены из GumJS. REPL/frida-trace из upstream frida-tools
-поставляют bridges для совместимости; `session.create_script()` сам Java не добавляет.
-Для **этой среды** использовать patched bridge, уже прошедший проверку.
+Frida 17 moved bridges out of GumJS. Upstream frida-tools REPL/frida-trace bundle
+bridges for compatibility; `session.create_script()` does not add Java itself.
+For **this environment**, use the already verified patched bridge.
 
-Есть два разных сценария:
+Two distinct routes:
 
-- Есть исходный ESM-проект patched bridge: импортировать его через существующий
-  зафиксированный dependency/path, собрать агент имеющимся `frida.Compiler()`.
-- Есть только `bridge-final.js`: для данного baseline известен flat UTF-8 script с
-  экспортом `frida_java_bridge_default`. Adapter rebro-flat включает его в начало
-  того же Script и задаёт globalThis.Java для модулей пака. Для другого baseline
-  сначала выяснить loader/формат. Не дописывать текст к непрозрачному Compiler bundle.
+- With the patched bridge's ESM source project, import the existing pinned
+  dependency/path and build with the installed `frida.Compiler()`.
+- With only `bridge-final.js`, this baseline uses a flat UTF-8 script exporting
+  `frida_java_bridge_default`. rebro-flat places it at the beginning of the same
+  Script and exposes globalThis.Java for pack modules. For another baseline,
+  establish the loader/format first. Do not append text to an opaque Compiler bundle.
 
-Глобальные переменные разных `create_script()` не общие. Загрузка bridge отдельным
-script не гарантирует наличие Java в следующем. В комплекте Java templates рассчитаны
-на Java в **том же script**, а не на автоматическую подстановку.
+Globals are not shared between separate `create_script()` calls. Loading a bridge
+in one script does not make Java available in another. Kit Java templates expect
+Java in the **same script**, not automatic insertion.
 
-Upstream-образец ESM entry, если именно выбранный dependency уже pinned:
+Upstream-style ESM entry, only when the selected dependency is already pinned:
 
 ```js
 import Java from 'frida-java-bridge';
@@ -49,88 +50,85 @@ Java.perform(() => {
 });
 ```
 
-Этот import не предписывает ставить upstream bridge вместо patched.
-`package-lock.json` и bridge source revision хранить вместе с проектом кейса.
-`npm ci` допустим для отдельного проверенного проекта; `npm install latest` не baseline.
+This import does not instruct replacement of the patched bridge with upstream.
+Keep `package-lock.json` and bridge source revision with the case project.
+`npm ci` may be used for a separate reviewed project; `npm install latest` is not a baseline.
 
-## Совместимость старых snippets
+## Older snippets
 
-| Старый паттерн | Проверять/использовать в Frida 17 |
+| Older pattern | Check/use in Frida 17 |
 |---|---|
-| Java существует в любом create_script | явное включение выбранного bridge |
+| Java exists in every create_script | Explicitly include the selected bridge |
 | `Module.findExportByName('libx.so', 'f')` | `Process.getModuleByName('libx.so').findExportByName('f')` |
-| поиск export во всех модулях | `Module.findGlobalExportByName('f')`, если глобальный поиск нужен |
+| Search exports in all modules | `Module.findGlobalExportByName('f')` when global lookup is required |
 | `Memory.readUtf8String(p)` | `p.readUtf8String(limit)` |
 | `Memory.readU32(p)` | `p.readU32()` |
-| постоянный polling загруженных модулей | проверить наличие `Process.attachModuleObserver` |
-| произвольное `--no-pause` из старого гайда | читать `frida --help` установленной версии |
+| Permanent module polling | Check availability of `Process.attachModuleObserver` |
+| Arbitrary `--no-pause` from old guides | Read the installed `frida --help` |
 
-Не применять механическую замену ко всем `Memory.*`: часть API по-прежнему находится
-на Memory. Для `get*` учитывать исключение, для `find*` — `null`.
+Do not mechanically replace every `Memory.*`: some APIs remain on Memory.
+Handle exceptions for `get*` and `null` for `find*`.
 
-## Практика hooks
+## Hook practice
 
-Предпочитать наблюдение одного метода изменению поведения. Указывать точный overload,
-class loader и процесс. В hook сохранять вызов оригинала и его исключения;
-не перехватывать бизнес-исключение и не возвращать случайное значение.
+Prefer observing one method before changing behavior. Specify the exact overload,
+class loader and process. Preserve the original call and exceptions; do not swallow
+a business exception or return an arbitrary value.
 
-Для поздно загружаемого кода определить конкретный loader и использовать
-`Java.ClassFactory.get(loader)`. Не перечислять всю кучу и все методы на каждом
-вызове. `Java.perform` может ожидать app loader; пустой лог за 5 секунд — ещё не crash.
-UI-операции проводить на main thread, когда этого требует API приложения.
+For late-loaded code, identify the loader and use `Java.ClassFactory.get(loader)`.
+Do not enumerate the entire heap/all methods on each call. `Java.perform` may wait
+for the app loader; a quiet five-second log is not automatically a crash. Use the
+main thread for UI operations when the app API requires it.
 
-Ограничивать lifetime callback-объектов, wrapper-объектов и native allocations.
-Память для строки нельзя считать живой после сборки JS-мусора: держать reference
-столько, сколько native-код хранит pointer. Не писать строку большей длины поверх
-исходного буфера. Это отдельные вопросы от прав страницы памяти.
+Manage callback, wrapper and native-allocation lifetimes. String memory does not
+remain alive after JS garbage collection automatically: retain a reference for as
+long as native code retains the pointer. Do not overwrite an original buffer with
+a longer string. These issues are separate from page permissions.
 
-## Производительность и наблюдаемость
+## Performance and observability
 
-В комплекте native hook считает вызовы и отправляет агрегат раз в секунду.
-Не отправлять `send()` на каждый горячий вызов. Задать ограничение количества
-строк/байтов, sampling и окно наблюдения. Аргументы, токены, сетевые body и ключи
-не собирать без необходимости конкретного эксперимента.
+The kit native hook counts calls and sends aggregates once per second. Do not
+`send()` on every hot call. Set row/byte limits, sampling and an observation window.
+Collect arguments, tokens, network bodies and keys only when the experiment needs them.
 
-Backtrace снимать по условию или первым N событиям, а не на каждой итерации.
-Stalker включать для одного выбранного потока и короткого окна после более дешёвой
-проверки Interceptor; анализировать данные отдельно. JNI tracer нужен, когда JNI
-действительно является вопросом, а не стандартным первым действием.
+Take backtraces conditionally or for the first N events, not every iteration.
+Use Stalker for one selected thread and a short window after a cheaper Interceptor
+check; analyze results separately. JNI tracing is for a JNI question, not a default first step.
 
-`script.unload()` и `session.detach()` должны выполняться и при ошибке.
-Не использовать `Interceptor.detachAll()` для удаления одного своего hook внутри
-сложного объединённого script; хранить listener. На Android убийство клиента/UID
-не заменяет проверку состояния target после аварии.
+Run `script.unload()` and `session.detach()` on error too. Do not use
+`Interceptor.detachAll()` to remove one owned hook from a combined script; retain
+the listener. Killing the Android client/UID does not replace checking target state
+after failure.
 
-## Матрица capability
+## Capability matrix
 
-Заполнять отдельным результатом `pass / fail / not_tested`, target PID/package,
-boot ID, хешами агента и baseline, временем и evidence:
+Record separate `pass / fail / not_tested` results, target PID/package, boot ID,
+agent/baseline hashes, time and evidence:
 
-| Возможность | Доказательство |
+| Capability | Evidence |
 |---|---|
 | endpoint/list | health JSON |
 | native attach/load | native-ready |
 | Java bridge | java-ready |
-| Java interception | java-hook-installed + java-call после действия |
+| Java interception | java-hook-installed + java-call after the action |
 | native interception | hook-installed + call-count |
-| Compiler build | bundle SHA-256 и отсутствие build exception |
-| unload/detach | runner завершился, target продолжает работать |
-| spawn/child gating | отдельный лабораторный сценарий; в этом комплекте не автоматизирован |
+| Compiler build | Bundle SHA-256 and no build exception |
+| unload/detach | Runner completed and target remains functional |
+| spawn/child gating | Separate lab scenario; not automated by this kit |
 
-## Community: как превращать пример в инструмент
+## Adapting community examples
 
-Для найденного snippet сохранить URL, автора, revision/дату, license, SHA-256,
-ожидаемый API, runtime, target signature и выходную схему. Прочитать весь script
-до исполнения. Удалить не относящиеся к задаче hooks и сторонние загрузки.
-Заменить глобальное логирование минимальным событием, добавить таймаут и cleanup,
-проверить на лабораторном target, затем включить в case scripts.
+For a snippet, record URL, author, revision/date, license, SHA-256, expected API,
+runtime, target signature and output schema. Read the whole script before execution.
+Remove unrelated hooks/external downloads. Replace broad logging with minimal events,
+add a timeout/cleanup, validate on a lab target, then place it in case scripts.
 
-Не подавать агенту всю коллекцию frida-snippets как system prompt. Давать карточку:
-«симптом → нужная API-глава → адаптированный script → как подтвердить результат».
-CodeShare — каталог примеров, не пакет проверенных зависимостей для автозапуска.
+Do not load the entire frida-snippets collection into the system prompt. Use a
+focused card: symptom → relevant API section → adapted script → result verification.
+CodeShare is an example catalog, not vetted dependencies for automatic execution.
 
-Первоисточники: [bridges](https://frida.re/docs/bridges/),
-[миграция 17.0](https://frida.re/news/2025/05/17/frida-17-0-0-released/),
+Primary sources: [bridges](https://frida.re/docs/bridges/),
+[17.0 migration](https://frida.re/news/2025/05/17/frida-17-0-0-released/),
 [API](https://frida.re/docs/javascript-api/),
 [best practices](https://frida.re/docs/best-practices/),
 [Java bridge](https://github.com/frida/frida-java-bridge),

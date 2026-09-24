@@ -51,19 +51,63 @@ class RebroAssistantTest {
         assertEquals(REBRO_SKILLS, merged.first { it.id == REBRO_ASSISTANT_ID }.enabledSkills)
     }
 
-    @Test fun `prompt preserves operating rules and pins while reflecting the supplied kit inventory`() {
+    @Test fun `prompt delegates detailed procedures and dated inventory to skills`() {
         val prompt = createRebroAssistant().systemPrompt
-        assertEquals(21, Regex("(?m)^## [0-9]+\\.").findAll(prompt).count())
         for (name in REBRO_SKILLS) assertTrue(name, prompt.contains(name))
         for (text in listOf(
-            "SM-S928B", "Android **16 / API 36**", "127.0.0.1:27044", "excp.rikkahub.debug",
-            "ripgrep 15.2.0", "apksigner 37.0.0", "skill_root", "termux_skill_sync", "search_web",
-            "c377c4bb2eb42bfc99a89bb68bc65d4581f1fd84057b23459887d1da3da3fd87",
-            "6be272a9e37d5c8e230a922e95a3ac3f803053ea11236fe0bff0e251b00429ad",
-            "d3550a89c0cdf32717417f3fdf116e1b462e7c1feb434fbd61ac7f7747eec61a",
-            "{{device_info}}", "{{model_name}}", "\$HOME", "\$REBRO_APK",
+            "references/operating-rules.md", "skill_root", "termux_skill_sync", "search_web",
+            "operation_id", "stdout_next_cursor", "{{device_info}}", "{{model_name}}",
         )) assertTrue(text, prompt.contains(text))
-        assertFalse(prompt.contains("Future skill integration is not assumed"))
-        assertFalse(prompt.contains("No skill, helper repository"))
+        assertFalse(prompt.contains("SM-S928B"))
+        assertFalse(prompt.contains("c377c4bb2eb42bfc99a89bb68bc65d4581f1fd84057b23459887d1da3da3fd87"))
+        assertTrue(prompt.length < legacyPrompt("rebro").length / 2)
     }
+
+    @Test fun `both profiles combine skills and search in the shared evidence policy`() {
+        val policy = me.rerere.rikkahub.data.ai.prompts.BRO_EVIDENCE_POLICY
+        for (assistant in listOf(createRebroAssistant(), createNetbroAssistant())) {
+            assertTrue(assistant.name, assistant.systemPrompt.contains(policy))
+            assertTrue(assistant.systemPrompt.contains("normally Russian"))
+            assertFalse(Regex("[\\u0400-\\u04ff]").containsMatchIn(assistant.systemPrompt))
+        }
+        assertTrue(policy.contains("Start from the connected skills"))
+        assertTrue(policy.contains("Local search does not replace them"))
+        assertTrue(policy.contains("version-matched primary sources"))
+        assertTrue(policy.contains("Reuse already loaded skills"))
+    }
+
+    @Test fun `exact legacy factory prompts upgrade without changing preferences`() {
+        for ((name, preset) in listOf("rebro" to createRebroAssistant(), "netbro" to createNetbroAssistant())) {
+            val saved = preset.copy(
+                name = "My " + preset.name, systemPrompt = legacyPrompt(name),
+                enabledSkills = emptySet(), localTools = emptyList(), enableWebSearch = false,
+                disabledLocalTools = setOf("use_skill", "termux_run_command"),
+            )
+            val restored = JsonInstant.decodeFromString<Assistant>(JsonInstant.encodeToString(saved))
+            val upgraded = mergeDefaultAssistants(listOf(restored), DEFAULT_AUTO_ENABLED_SKILLS)
+            assertEquals(saved.copy(systemPrompt = preset.systemPrompt), upgraded.single { it.id == saved.id })
+            assertEquals(upgraded, mergeDefaultAssistants(upgraded, DEFAULT_AUTO_ENABLED_SKILLS))
+        }
+    }
+
+    @Test fun `even a small user edit prevents automatic prompt replacement`() {
+        for ((name, preset) in listOf("rebro" to createRebroAssistant(), "netbro" to createNetbroAssistant())) {
+            for (prompt in listOf(legacyPrompt(name) + "\n", "", "My procedure")) {
+                val saved = preset.copy(systemPrompt = prompt)
+                val upgraded = mergeDefaultAssistants(listOf(saved), emptySet())
+                assertEquals(saved, upgraded.single { it.id == saved.id })
+            }
+        }
+    }
+
+    @Test fun `copied legacy prompts in custom profiles do not migrate by name`() {
+        for (name in listOf("rebro", "netbro")) {
+            val custom = Assistant(name = name, systemPrompt = legacyPrompt(name))
+            assertEquals(custom, mergeDefaultAssistants(listOf(custom), emptySet()).single { it.id == custom.id })
+        }
+    }
+
+    private fun legacyPrompt(name: String): String = requireNotNull(
+        javaClass.getResource("/assistant-prompts/$name-legacy.txt")
+    ).readText(Charsets.UTF_8)
 }

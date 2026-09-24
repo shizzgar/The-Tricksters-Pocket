@@ -1,60 +1,60 @@
-# RikkaHub: выполнение и доступ к навыкам
+# RikkaHub: execution and skill access
 
-Контракт сверён по руководству PR #1 на head
-`d7210a5dd2782f7da9b8c4eefb1d16c02921261d`. Установленная APK может быть другой сборкой;
-имена полей и доступность определяются актуальной схемой tool, не этим документом.
+This contract was checked against the PR #1 guide at head
+`d7210a5dd2782f7da9b8c4eefb1d16c02921261d`. The installed APK may be another build;
+current tool schemas, not this document, determine field names and availability.
 
-## Подключение пакетов
+## Connecting packages
 
-1. Импортировать нужные ZIP из imports/ отдельно и подключить к выбранному ассистенту.
-2. Включить Termux-инструменты, передачу полных пакетов и нужные skills.
-3. Вызвать use_skill / termux_skill_sync. Брать working_dir из возвращённого skill_root.
-4. Писать config/output в case или другой внешний каталог; оставлять skill_root
-   неизменным. Для Python можно использовать `python3 -B scripts/...`.
+1. Import the required ZIPs from imports/ separately and connect them to the selected assistant; built-in presets already include their default kit.
+2. Enable Termux tools, full-package transfer and the required skills.
+3. Call use_skill / termux_skill_sync. Take working_dir from the returned skill_root.
+4. Write config/output to the case or another external directory; keep skill_root
+   unchanged. For Python, use `python3 -B scripts/...`.
 
-В текущем head **без подключённого существующего навыка skill-tools скрыты целиком**.
-Отключение use_skill также скрывает остальные skill-tools. Агент не создаст первый
-навык через невидимый skill_create: сначала подключить один через интерфейс.
-Текст системного промпта не включает tools и не изменяет exclusions.
+In the reviewed revision, **all skill tools are hidden when no existing skill is
+connected**. Disabling use_skill also hides the other skill tools. The agent cannot
+create the first skill through an invisible skill_create: connect one in the UI first.
+A system prompt does not enable tools or change exclusions.
 
-На телефоне наблюдались три RikkaHub package IDs. Их Termux-копии разделены;
-не брать skill_root другой установки. Импортированная версия навыка и версия APK
-приложения — разные сущности. Новая sync не обновляет файлы у уже запущенного job.
+Three RikkaHub package IDs were observed on the original phone. Their Termux copies
+are separate; do not use skill_root from another installation. Imported skill version
+and app APK version are distinct. A new sync does not replace files used by a running job.
 
-## Короткая команда, job и PTY
+## Short command, job and PTY
 
-Для ограниченного чтения использовать termux_run_command, если он доступен.
-command и executable+arguments — альтернативные формы; повторно смотреть текущую
-схему. Captured completion отличается от dispatch в видимый терминал.
-Проверять exit_code, stdout/stderr, timeout, truncation и returned output references.
+Use termux_run_command for bounded reads when available. command and
+executable+arguments are alternative forms; consult the current schema.
+Captured completion differs from dispatch to a visible terminal. Inspect exit_code,
+stdout/stderr, timeout, truncation and returned output references.
 
-Для долгой неинтерактивной операции использовать managed termux_job_* и стабильный
-operation_id. После потери ответа сверять прежний job; сохранять byte cursors без
-самостоятельного пересчёта. Wait timeout не отменяет исполнение. Не обещать следующий
-автономный ход модели лишь потому, что процесс запущен в фоне.
+For long noninteractive work, use managed termux_job_* with a stable operation_id.
+After a lost response, reconcile the previous job. Preserve byte cursors unchanged.
+A wait timeout does not cancel execution. A background process alone does not
+schedule the model's next autonomous turn.
 
-Для интерактивной программы использовать termux_session_* с точным returned ID.
-Экран, echo и wait_for-текст не являются exit status; сохранять свежий marker/result
-в файл. Ошибка send/read может возникнуть после доставки input: не посылать повторно
-до проверки. Сервис и его клиент имеют разные lifecycles.
+Use termux_session_* for interactive programs, with the exact returned ID.
+Screen contents, echo and wait_for text are not exit status; save a fresh marker/result
+to a file. send/read can fail after input delivery: inspect before resending.
+A service and its client have separate lifecycles.
 
-## Редактирование skill агентом
+## Agent edits to skills
 
-Новая группа создания/редактирования выключена по умолчанию. Даже при подключённом
-skill использовать только tools, реально выставленные текущему ассистенту:
+The skill creation/editing group is disabled by default. Even with a connected
+skill, use only tools exposed to the current assistant:
 skill_create/list_files/read_file/write_file/edit_file/manage_files/delete.
 
-Для записи сначала получить revision дерева, затем sha256 файла. Устаревшая пара —
-конфликт, не повод убрать проверку. Точечная замена требует единственного совпадения.
-Чтение идёт страницами по 16 KiB, text write до 256 KiB, binary до 64 KiB; общий пакет
-до 200 файлов/20 MiB. Эти пределы не заменяют текущую схему tool.
+Before writing, obtain the tree revision and then the file's sha256. A stale pair
+means a conflict, not permission to remove the check. An exact edit requires a
+unique match. The reviewed limits were 16 KiB read pages, 256 KiB text writes,
+64 KiB binary writes, and 200 files/20 MiB per package; consult current tool schemas.
 
-Правки общего пакета видят все подключившие его ассистенты. skill_delete удаляет
-пакет, drafts/recovery и отключает его у всех — это не способ выключить один skill
-в текущей задаче. Отладка case scripts не требует редактирования пакета.
+Edits to a shared package affect all assistants connected to it. skill_delete removes
+the package, drafts/recovery and all connections; it is not a way to disable one skill
+for the current task. Debugging case scripts does not require modifying the package.
 
-Список tools может обновиться между запросами; доступ перепроверяется перед вызовом.
-Отключённый tool не выполнять по старой истории или альтернативным приватным путям.
-Новая запись в skill не исполняет скрипт: после осмысленной правки нужна sync.
+Tool availability may change between requests and is checked again on invocation.
+Do not execute a disabled tool through old history or another private path.
+Writing a skill does not execute its scripts: sync after an intentional package change.
 
-Источник: [руководство текущего head](https://github.com/shizzgar/rikkahub-agent/blob/d7210a5dd2782f7da9b8c4eefb1d16c02921261d/docs/agent-runtime/trajectory-and-termux-skills.ru.md).
+Source: [guide at the reviewed head](https://github.com/shizzgar/rikkahub-agent/blob/d7210a5dd2782f7da9b8c4eefb1d16c02921261d/docs/agent-runtime/trajectory-and-termux-skills.ru.md).

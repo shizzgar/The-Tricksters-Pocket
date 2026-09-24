@@ -1,31 +1,31 @@
-# Диагностика: симптом → следующий эксперимент
+# Diagnosis: symptom → next experiment
 
-| Симптом | Сначала проверить | Не делать автоматически |
+| Symptom | Check first | Do not do automatically |
 |---|---|---|
-| zipalign отсутствует | PATH, `dpkg-query -L aapt`, policy пакета | скачивать первый APK signing bundle |
-| exec format error / missing linker | `file`, ELF interpreter, ABI/bionic | chmod 777 или запуск через su |
-| Connection refused :27044 | точный endpoint, root socket read, известная service session | второй сервер на другом порту |
-| Health OK, attach fail | актуальный PID/user, точную ошибку, crash/SELinux evidence | объявлять всё несовместимым по номеру версии |
-| Java undefined | bridge в том же script, тип bundle/loader | переустановить frida-python |
-| Java unavailable | native-only process, неверный PID, стадия запуска | считать bridge сломанным без native probe |
-| Java class not found | split, class loader, процесс, obfuscation | dump всех методов/всей кучи |
-| Hook installed, событий нет | вызвать действие, overload, loader, JIT/inlining как гипотеза | утверждать, что функция не используется |
-| Module missing | lazy load, module path/name, split | бесконечный polling без deadline |
-| JNI/native hook crash | address/prototype/ABI, crash log, build ID | отключить SELinux или патчить PAC наугад |
-| JADX убит без Java exception | resource status, memory pressure, Android kill logs | увеличить heap до всей MemAvailable |
-| Job dispatch успешен, результата нет | job ID/cursors, terminal state, artifact | заново запускать команду с side effects |
-| Старый PID существует после reboot | boot ID + process identity | сигнал по устаревшему PID |
-| APK verify OK, install fails | certificate, version, user, complete splits, manifest | uninstall / clear data |
-| install fails с `.so` | ZIP и ELF alignment, ABI, page size | считать `zipalign` заменой перелинковки |
-| Root read denied | фактический SELinux context и AVC | глобальный permissive |
+| zipalign absent | PATH, `dpkg-query -L aapt`, package policy | Download the first APK signing bundle |
+| exec format error / missing linker | `file`, ELF interpreter, ABI/Bionic | chmod 777 or run through su |
+| Connection refused :27044 | Exact endpoint, root socket read, known service session | Start a second server on another port |
+| Health OK, attach fails | Current PID/user, exact error, crash/SELinux evidence | Declare incompatibility from version numbers alone |
+| Java undefined | Bridge in the same script, bundle/loader type | Reinstall frida-python |
+| Java unavailable | Native-only process, wrong PID, startup stage | Declare a broken bridge without a native probe |
+| Java class not found | Split, class loader, process, obfuscation | Dump all methods/the whole heap |
+| Hook installed, no events | Trigger action, overload, loader, JIT/inlining hypothesis | Assert the function is unused |
+| Module missing | Lazy loading, module path/name, split | Poll forever without a deadline |
+| JNI/native hook crash | Address/prototype/ABI, crash log, build ID | Disable SELinux or patch PAC speculatively |
+| JADX killed without Java exception | Resources, memory pressure, Android kill logs | Increase heap to all MemAvailable |
+| Job dispatched, no result | Job ID/cursors, terminal state, artifact | Repeat a command with side effects |
+| Old PID exists after reboot | Boot ID and process identity | Signal a stale PID |
+| APK verify OK, install fails | Certificate, version, user, full splits, manifest | Uninstall / clear data |
+| Install fails with `.so` | ZIP and ELF alignment, ABI, page size | Treat zipalign as ELF relinking |
+| Root read denied | Actual SELinux context and AVC | Global permissive mode |
 
-## Минимальное evidence
+## Minimal evidence
 
-Записывать время UTC, Android boot ID, target package/user/PID, действие UI,
-точную команду без секретов, exit code, stderr и ожидаемый артефакт. Для Frida —
-baseline manifest + agent hash + runtime version. Для APK — input/output hash,
-cert digest и split manifest. Для crash — доступный crash buffer и tombstone
-нужного процесса, не весь каталог чужих crash reports.
+Record UTC time, Android boot ID, target package/user/PID, UI action, exact command
+without secrets, exit code, stderr and expected artifact. For Frida: baseline
+manifest + agent hash + runtime version. For APKs: input/output hash, certificate
+digest and split manifest. For crashes: the relevant process's available crash
+buffer/tombstone, not every app's crash reports.
 
 ```sh
 su -c 'logcat -b crash -d -t 200'
@@ -34,22 +34,22 @@ su -c 'dumpsys battery'
 cat /proc/pressure/memory
 ```
 
-Сначала подобрать фильтр под свой процесс и время. Snapshot может содержать данные
-других приложений; перед включением в отчёт выбрать относящиеся строки.
-Если freezer неизвестен, прочитать актуальный cgroup path целевого PID и затем
-его состояние. Не хранить путь с PID 26048 как постоянную настройку.
+Choose a filter for the selected process/time first. Snapshots may contain other
+apps' data; select relevant lines before reporting. If freezer state is unknown,
+read the target PID's current cgroup path and then its state. Do not retain a path
+containing historical PID 26048 as permanent configuration.
 
-## Rollback эксперимента
+## Experiment rollback
 
-Остановить собственный managed job, выгрузить собственный script/session, сохранить
-частичный лог и отметить, что получилось проверить. Снять второй native probe на
-лабораторном target. Не менять baseline и не перезапускать сервис только ради чистого лога.
+Stop the owned managed job, unload the owned script/session, preserve partial logs
+and state what was verified. Take a second native probe on the lab target.
+Do not change the baseline or restart the service merely to get a clean log.
 
-## Место на диске
+## Storage
 
-Разделять input/evidence и воспроизводимые work/output/cache. Сначала построить
-отчёт `du -h -d 2 "$HOME/rebro/cases"`; не удалять ничего по одному имени каталога.
-Кандидаты: повторные декомпиляции, старые временные build trees, завершённые логи.
-Сохранять исходные APK, полный baseline, патчи, результаты эксперимента и manifest.
-Архивация на том же разделе тоже требует места. Не пытаться автоматически упаковать
-16 GB при остатке, не покрывающем новый архив и текущую работу.
+Separate input/evidence from reproducible work/output/cache. Start with
+`du -h -d 2 "$HOME/rebro/cases"`; do not delete from directory names alone.
+Candidates include duplicate decompilations, old temporary build trees and completed
+logs. Preserve original APKs, full baseline, patches, experiment results and manifests.
+Archiving on the same partition also needs free space. Do not automatically archive
+16 GB when available space cannot cover both the archive and current work.

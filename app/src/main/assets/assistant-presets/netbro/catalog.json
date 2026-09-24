@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "release": "1.0.0",
+  "instruction_language": "en",
+  "packages": [
+    {
+      "name": "netbro-workflow",
+      "title": "Network investigation and evidence",
+      "files": 6,
+      "bytes": 20642,
+      "manifest_sha256": "80cbff6c2e201791c9a10f402ce7f02e0bfe2f3a26e9f68ae98887724d0814b9"
+    },
+    {
+      "name": "netbro-environment",
+      "title": "Environment and tool installation",
+      "files": 4,
+      "bytes": 8232,
+      "manifest_sha256": "ec7c95b6a2eecd37a55ec280d94f077b98db09ca8cffeb0988a6054a65b6f58a"
+    },
+    {
+      "name": "netbro-bbot",
+      "title": "BBOT: reconnaissance and events",
+      "files": 3,
+      "bytes": 3569,
+      "manifest_sha256": "9ae560decd6c119a66ec84ad5bae26be7f516d34e07d970959c73eb08c029e17"
+    },
+    {
+      "name": "netbro-nmap",
+      "title": "Nmap: hosts, ports and services",
+      "files": 3,
+      "bytes": 3246,
+      "manifest_sha256": "e3db4b2c573ed025e0753c20eb4163b326b57779da3732afdf73c7312f14b3cc"
+    },
+    {
+      "name": "netbro-nuclei",
+      "title": "Nuclei: templates and findings",
+      "files": 3,
+      "bytes": 3314,
+      "manifest_sha256": "c00763583a9f058878fa81051fdcce774945158bfa3811f28a734b8d46fbf17e"
+    },
+    {
+      "name": "netbro-legba",
+      "title": "Legba: protocols and authentication",
+      "files": 3,
+      "bytes": 4380,
+      "manifest_sha256": "ff600e406bde6a07edf7d4ea21a7423f9b6f9808d87a3e8212ccfa91ccdfde5a"
+    }
+  ]
+}

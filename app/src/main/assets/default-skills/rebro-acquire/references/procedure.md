@@ -1,21 +1,21 @@
-# Acquisition: исходный набор как опора всей цепочки
+# Acquisition: the source set anchors the whole pipeline
 
-Вход: package, Android user, case ID и свежий environment receipt. Определить,
-является ли источник installed package, локальным monolithic APK или полным набором
-splits. Для AAB/APKS сначала отдельное осмысленное извлечение под конфигурацию устройства;
-не называть произвольный набор ZIP-файлов полным installed set.
+Inputs: package, Android user, case ID and a fresh environment receipt. Determine
+whether the source is an installed package, a local monolithic APK or a complete
+split set. AAB/APKS requires a separate deliberate extraction for the device
+configuration; an arbitrary ZIP collection is not a complete installed set.
 
 ```sh
 python3 scripts/acquire_apks.py com.example.lab --android-user 0 --out-dir "$ACQUIRE_DIR"
 ```
 
-Скрипт делает scoped root-read, создаёт копии с Termux ownership, сверяет размер/hash
-с источником и повторно проверяет список путей. `acquisition.json` должен иметь complete.
-Не выбирать base по порядковому номеру; список нужен целиком.
-Процесс чтения не является атомарной транзакцией Package Manager: исключить внешнее
-обновление app на время acquisition, а при обнаруженном drift повторить в новом каталоге.
+The script performs scoped root reads, creates copies owned by Termux, verifies
+source size/hash and checks the path list again. `acquisition.json` must be complete.
+Do not choose base by ordinal position; preserve the entire list. Reads are not an
+atomic Package Manager transaction: exclude external app updates during acquisition
+and repeat in a new directory if drift is detected.
 
-Передать все полученные APK в inspection под JVM lock:
+Pass all acquired APKs to inspection under the JVM lock:
 
 ```sh
 python3 scripts/run_job.py --job-dir "$INSPECT_JOB" --cwd "$SKILL_ROOT" \
@@ -25,15 +25,15 @@ python3 scripts/run_job.py --job-dir "$INSPECT_JOB" --cwd "$SKILL_ROOT" \
     --logs "$INSPECT_LOGS" "$BASE_APK" "$SPLIT_APK"
 ```
 
-Последние аргументы — точный список из acquisition, пример не предписывает два APK.
-Inspection читает фактические package/version/split и подписи. Требует ровно один base,
-уникальные split IDs и одинаковую signing identity. Исходники сохранить отдельно
-от work/output, не re-sign их in-place. Finish evidence=source-set, outputs=копии,
-manifest, acquisition и inspection logs.
-`--acquisition` также требует точного совпадения всех записанных копий и hashes;
-случайно пропущенный split блокирует source manifest. Это снимок установленного
-состава, не перечень всех on-demand features, существующих в исходном AAB.
+The final arguments are the exact acquisition list; this example does not require
+two APKs. Inspection reads actual package/version/split metadata and signatures.
+It requires exactly one base, unique split IDs and one signing identity. Preserve
+sources separately from work/output; do not re-sign them in place.
+Finish evidence=source-set, outputs=copies, manifest, acquisition and inspection logs.
+`--acquisition` also requires every recorded copy and hash to match; an omitted split
+blocks the source manifest. This is a snapshot of the installed composition, not
+all on-demand features that may exist in the original AAB.
 
-Локальный внешний unsigned APK для одной подписи относится к intake режима sign-only,
-а не source: отсутствие подписи не нужно выдавать за успешную проверку оригинала.
-Acquisition не копирует app data; backup БД/Keystore — отдельный конкретный сценарий.
+A local external unsigned APK supplied only for signing belongs to sign-only intake,
+not source: missing signatures are not successful original-signature verification.
+Acquisition does not copy app data; database/Keystore backup is a separate specific task.

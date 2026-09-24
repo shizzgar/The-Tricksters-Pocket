@@ -1,57 +1,56 @@
-# Сбор данных для окончательной настройки
+# Collecting missing environment evidence
 
-**Для описанного телефона досбор путей/пинов закрыт в kit 2.3:** пользователь передал
-системный промпт с тремя полными hashes и flat bridge recipe. Использовать поставленный
-pins.rebro-known-good-20260922.json и процедуру rebro-frida. Следующие команды нужны
-для новых неизвестных сред или конкретной нехватки evidence, не как обязательный шаг.
+**Paths/pins for the supplied phone were resolved in kit 2.3:** the user provided
+a prompt with three full hashes and the flat-bridge recipe. Use the supplied
+pins.rebro-known-good-20260922.json and rebro-frida procedure. The commands below
+are for unknown environments or a specific evidence gap, not mandatory startup.
 
-Самодостаточный `rebro_collect.py` требует только Python 3. Запустить из обычного
-Termux тем же Python, который загружает рабочий frida binding:
+Standalone `rebro_collect.py` needs only Python 3. Run it as ordinary Termux using
+the Python that loads the working Frida binding:
 
 ```sh
 python3 rebro_collect.py
 ```
 
-При запуске из импортированного rebro-environment: `python3 scripts/rebro_collect.py`.
-Root mode auto сначала проверяет KernelSU `su`, затем `sudo -n`; команды остаются
-ограниченными чтениями. Сам Python-контроллер не запускать под root: иначе получится
-чужой HOME/PATH и неверный Python baseline. При желании явно задать `--root su`.
+From the imported rebro-environment package, use `python3 scripts/rebro_collect.py`.
+Root mode auto checks KernelSU `su`, then `sudo -n`; commands remain bounded reads.
+Do not run the Python controller as root: that changes HOME/PATH and the Python
+baseline. Set `--root su` explicitly if needed.
 
-По умолчанию включены loopback Frida handshake и число процессов, без attach/spawn.
-Общий бюджет проверок — 240 секунд; вывод каждой команды ограничен. Инструменты
-проверяются последовательно; JVM version commands получают heap 256 MiB.
-Каталог поиска — HOME/rebro, глубина до 12, не более 25000 entries; обход в ширину,
-до 1024 entries в одном каталоге. Исходники больших декомпиляций и node_modules
-пропускаются. Лимиты для bridge/baseline/loader/tool разделены, поэтому множество
-build helpers не вытесняет bridge. Причины неполноты отражены в limit_reasons.
-Скрипт не сканирует всё /data как filesystem dump.
+Defaults include loopback Frida handshake and process count, without attach/spawn.
+The overall probe budget is 240 seconds, with per-command output bounds. Tools are
+checked sequentially; JVM version commands get 256 MiB heap. Search uses HOME/rebro,
+depth 12, at most 25000 entries, breadth-first traversal and 1024 entries per directory.
+Large decompilation sources/node_modules are skipped. Bridge/baseline/loader/tool
+limits are independent, so many build helpers cannot displace bridges. Incompleteness
+is recorded in limit_reasons. This is not a filesystem dump of all /data.
 
-После уже полученной полной инвентаризации использовать **точечный досбор**:
+After a full inventory, use **focused follow-up**:
 
 ```sh
 python3 rebro_collect.py --focus frida
 ```
 
-Этот режим пропускает hardware/tool/package inventory и увеличивает лимит поиска
-до 100000 entries, сохраняя общий бюджет 240 секунд. Root reads, loaded binding,
-loopback handshake, кандидаты bridge/loader/pins остаются. Установка зависимостей,
-перезапуск сервиса и attach не выполняются. Флаг --root su допустим, но auto сам
-выбирает доступный KernelSU. При неполном поиске можно задать несколько конкретных
---search-root; отсутствие найденного файла не доказывает его отсутствие на телефоне.
+This skips hardware/tool/package inventory and increases search to 100000 entries,
+retaining the 240-second overall budget. It keeps root reads, loaded binding,
+loopback handshake and bridge/loader/pin candidates. No dependency installation,
+service restart or attach occurs. --root su is supported, but auto already selects
+available KernelSU. If search is incomplete, specify several concrete --search-root
+paths; a file not found within limits is not proven absent from the phone.
 
-| Информация | Для чего нужна |
+| Information | Purpose |
 |---|---|
-| Реальные model/SoC/ABI/page size/kernel | Проверить профиль устройства и native alignment |
-| RAM/disk/CPU policies/thermal/cgroup | Настроить ресурсные ограничения и устойчивость jobs |
-| Tool paths/versions/packages/local apt candidates | Закрыть zipalign/apksigner и сопоставить wrappers |
-| Binding path/full hash + server parameters | Проверить используемый Python и transport |
-| Root process candidates и hash `/proc/PID/exe` | Сопоставить файл baseline с работающим executable |
-| Listener 27044 | Проверить endpoint, не публикуя прочие соединения |
-| Bridge candidates/hash/format markers | Выбрать plain adapter либо сохранить private loader |
-| Loader AST markers/runtime literals | Проверить QJS/V8 и способ сборки без копирования исходника |
-| RikkaHub/Termux package versions | Сопоставить телефон с текущим контрактом синхронизации |
+| Actual model/SoC/ABI/page size/kernel | Verify device profile and native alignment |
+| RAM/disk/CPU policies/thermal/cgroup | Configure resource budgets and job resilience |
+| Tool paths/versions/packages/local apt candidates | Resolve zipalign/apksigner and wrapper identity |
+| Binding path/full hash + server parameters | Check active Python and transport |
+| Root process candidates and `/proc/PID/exe` hash | Compare baseline file with running executable |
+| Listener 27044 | Check endpoint without exposing unrelated connections |
+| Bridge candidates/hash/format markers | Choose plain adapter or preserve private loader |
+| Loader AST markers/runtime literals | Check QJS/V8 and assembly without copying source |
+| RikkaHub/Termux package versions | Compare the phone with the sync contract |
 
-Если пути уже известны, передать их в том же запуске:
+If paths are already known, supply them in the same run:
 
 ```sh
 python3 rebro_collect.py \
@@ -60,33 +59,33 @@ python3 rebro_collect.py \
   --baseline /absolute/path/trusted-pins.json
 ```
 
-Флаги повторяемые; выбранные пути — реальные локальные файлы, не placeholders.
-Без --baseline поиск извлекает только ожидаемые artifact paths/hashes из возможных
-manifests; остальные поля JSON исключаются. Ссылки на bridge внутри разрешённых RE
-roots дополнительно проверяются, даже если имя отличается от bridge-final.js;
-относительные paths разрешаются от каталога manifest. Соседние Python/shell launchers
-также проверяются. Для loader candidates сохраняются AST markers, без исходного текста.
-Файлы вроде frida_version.py не считаются Java loader из-за одного имени или hash:
-нужны признаки create_script и bridge. contract_verified остаётся false до live smoke.
-Никакой кандидат не выбирается для исполнения и
-не объявляется доверенным автоматически. Поддерживаемые чтением формы:
-kit artifacts{id,path,sha256} и Frida Pack pins{binding,bridge,server_binary}.
+Flags are repeatable; paths must be actual local files, not unresolved placeholders.
+Without --baseline, candidate manifest search extracts only expected artifact
+paths/hashes and excludes other JSON fields. Bridge references inside allowed RE
+roots are also inspected even when not named bridge-final.js; relative paths resolve
+from the manifest directory. Nearby Python/shell launchers are inspected too.
+Loader candidates retain AST markers, not source text. A file such as frida_version.py
+is not a Java loader merely because of its name/hash: create_script and bridge
+indicators are required. contract_verified remains false until live smoke.
+No discovered candidate is executed or automatically trusted. Supported read formats:
+kit artifacts{id,path,sha256} and Frida Pack pins{binding,bridge,server_binary}.
 
-Выход — новый приватный каталог `HOME/rebro/reports/inventory-...` и ZIP рядом с ним.
-stdout выводит report_zip. ZIP содержит report.json, SUMMARY.ru.md,
-observed-artifacts.json и SHA256SUMS. Сюда нужно передать получившийся ZIP.
+Output is a new private `HOME/rebro/reports/inventory-...` directory and adjacent ZIP.
+stdout reports report_zip. The ZIP contains report.json, SUMMARY.ru.md (English
+content; historical filename retained), observed-artifacts.json and SHA256SUMS.
+Provide that ZIP when environment evidence is requested.
 
-Из истории команд, окружения, keystores, парольных файлов и данных приложений
-информация не собирается. Bridge/loader source не копируется. Отчёт всё же содержит
-системные пути, названия RE-каталогов, версии, PID и рабочие hashes — это технический
-отчёт о данном устройстве, а не анонимный публичный telemetry payload.
+The collector does not read shell history, environment secrets, keystores, password
+files or app data. It does not copy bridge/loader source. The report still contains
+system paths, RE directory names, versions, PIDs and working hashes: it is a technical
+device report, not anonymous public telemetry.
 
-Ошибки доступа, отсутствующий tool, timeout и неполный поиск остаются явными статусами;
-это не повод ставить пакеты или менять SELinux во время сбора. --no-online пропускает
-transport, --no-tools пропускает версии, --no-discover пропускает поиск. Ctrl-C сохраняет
-частичный отчёт. Существующий output не перезаписывается.
+Access errors, missing tools, timeouts and incomplete search remain explicit statuses;
+they do not authorize package installation or SELinux changes during collection.
+--no-online skips transport, --no-tools skips versions, --no-discover skips search.
+Ctrl-C preserves a partial report. Existing output is never overwritten.
 
-Collector подтверждает наблюдаемые параметры, не происхождение baseline. Формат
-bridge определяется эвристикой; private launcher может потребовать отдельного разбора.
-Настоящие native/Java smoke, hook hit и align→sign→install на lab APK остаются
-приёмкой на устройстве. Они намеренно не маскируются successful inventory.
+The collector establishes observations, not baseline provenance. Bridge format is
+heuristic; a private launcher may need separate analysis. Actual native/Java smoke,
+hook hits and align→sign→install on a lab APK remain device acceptance checks.
+Successful inventory must not conceal those untested boundaries.
