@@ -8,6 +8,14 @@
 
 Нужны Android 8.0+ (API 26) и ARM64 либо x86_64. Готовый артефакт CI рассчитан на **ARM64**. Для x86_64 можно собрать APK из исходников.
 
+### ReBro release
+
+Начиная с **2.5.1-rebro.4**, ReBro Agent имеет отдельную release-сборку с оптимизацией и постоянным сертификатом. Полученный подписанный ARM64 APK устанавливается напрямую. Он не заменяет debug-приложение: экспортируйте там резервную копию и восстановите её в release, затем заново разрешите Termux для нового приложения.
+
+[ReBro release APK workflow](https://github.com/shizzgar/rikkahub-agent/actions/workflows/rebro-release.yml) сохраняет проверенный **unsigned** APK и данные сборки на 30 дней. Этот CI-артефакт нужно подписать постоянным ключом перед установкой; приватного ключа в репозитории и публичных артефактах нет. [Подписание, сертификат и Termux workspaces](termux-workspaces-and-release.md).
+
+### Debug-канал
+
 1. Откройте [Agent runtime debug APK](https://github.com/shizzgar/rikkahub-agent/actions/workflows/compaction-debug.yml).
 2. Выберите успешный прогон нужной ревизии `master`. Убедитесь, что это репозиторий **shizzgar/rikkahub-agent**.
 3. В **Artifacts** скачайте **rikkahub-compaction-arm64-debug**. Для скачивания артефактов GitHub может потребоваться вход в аккаунт.

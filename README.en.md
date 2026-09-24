@@ -54,6 +54,8 @@ These are changes in our development line relative to the ExTV base we started f
 | **Compaction** | Configurable deadlines and concurrency, retained evidence, source validation when saving | Compress long histories without committing stale summaries |
 | **Metrics** | Measured content-receiving TPS and expandable details below the message | Separate model response speed from command execution and waiting |
 | **Termux diagnostics** | Specific failure hints, per-call preview limits and archived full output | Repair the failing step and keep repeated requests smaller |
+| **Termux workspace** | A linked real directory, editor, import/export and command console | Work with original project files and durable jobs from the app |
+| **Bro subagents** | ReBro and NetBro profiles link to their saved assistants | Dispatch with their own skills, tools, search and workspace |
 | **Termux jobs** | Persistent background jobs, stdout/stderr pages, read cursors, cancellation and job manager | Inspect long commands directly from chat |
 | **Skill workspace** | File operations, code editor, Markdown/image preview, HEX, imports/exports and drafts | Manage skill instructions, scripts and resources inside the app |
 | **Skills → Termux** | Versioned full-package transfer with hashes and a returned `skill_root` | Run scripts alongside their assets and references |
@@ -115,7 +117,7 @@ The environment profile is a **September 22, 2026 snapshot of an SM-S928B runnin
 
 ## Meet NetBro
 
-**NetBro 🛰️** ships as a separate assistant with Termux, Local search and six skills: **BBOT, Nmap, Nuclei, Legba**, environment checks and investigation workflow. Its packages include references, a case template and Python helpers for bounded version checks, host/CIDR scope filtering and XML/JSONL summaries. Long operations use the existing Termux jobs and Trajectory.
+**NetBro** ships as a separate assistant with Termux, Local search and six skills: **BBOT, Nmap, Nuclei, Legba**, environment checks and investigation workflow. Its packages include references, a case template and Python helpers for bounded version checks, host/CIDR scope filtering and XML/JSONL summaries. Long operations use the existing Termux jobs and Trajectory.
 
 The APK bundles skills; external scanner binaries are installed separately in the selected environment. The profile accounts for native Termux/Linux differences, uses live device context and preserves saved profile settings across upgrades.
 

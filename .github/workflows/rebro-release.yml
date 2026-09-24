@@ -17,8 +17,7 @@ concurrency:
 jobs:
   verify:
     uses: ./.github/workflows/compaction-debug.yml
-  release:
-    needs: verify
+  build_release:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
@@ -37,8 +36,10 @@ jobs:
         with:
           version: 10
       - uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-read-only: false
       - name: Build optimized release APKs
-        run: bash ./gradlew --no-daemon --max-workers=2 :app:assembleRelease
+        run: bash ./gradlew --no-daemon --build-cache --max-workers=2 :app:assembleRelease
       - name: Record release provenance and signing tools
         shell: bash
         run: |
@@ -57,10 +58,10 @@ jobs:
           sha256sum *.apk apksigner.jar > SHA256SUMS
       - uses: actions/upload-artifact@v7
         with:
-          name: rebro-arm64-release-unsigned
+          name: rebro-arm64-release-candidate
           path: build/rebro-release/
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 1
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -70,4 +71,18 @@ jobs:
             app/build/reports/
             app/schemas/
           if-no-files-found: warn
+          retention-days: 30
+  release:
+    needs: [verify, build_release]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: rebro-arm64-release-candidate
+          path: build/rebro-release/
+      - uses: actions/upload-artifact@v7
+        with:
+          name: rebro-arm64-release-unsigned
+          path: build/rebro-release/
+          if-no-files-found: error
           retention-days: 30

@@ -68,7 +68,7 @@ android {
     buildTypes {
         release {
             applicationIdSuffix = ".rebro"
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.getByName("release").takeIf { it.storeFile != null }
             optimization {
                 enable = true
             }

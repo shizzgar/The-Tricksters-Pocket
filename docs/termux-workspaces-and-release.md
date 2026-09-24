@@ -46,7 +46,7 @@ Profiles remain editable, disableable and deletable. Upgrades preserve those cho
 
 The release can be installed next to the existing debug version. Export a backup from the old app, install the signed release, and restore that backup in the new app. Android grants permissions per application: reconnect Termux and regrant the new app's `RUN_COMMAND` permission. Do not uninstall the old app until the restored chats, profiles and settings have been checked.
 
-The **ReBro release APK** workflow first runs the runtime/unit/Python/emulator gate and then builds optimized release APKs. It checks the release package ID and rejects a debuggable manifest. Its `rebro-arm64-release-unsigned` artifact is intentionally **not installable** until signed. It includes the exact commit, APK hashes, manifest metadata and the Android build-tools signing JAR.
+The **ReBro release APK** workflow runs the runtime/unit/Python/emulator gate and the optimized build in parallel. Its final `release` job publishes the verified artifact only after both succeed. An intermediate `candidate` artifact is retained for one day and is not an approved release. It checks the release package ID and rejects a debuggable manifest. Its `rebro-arm64-release-unsigned` artifact is intentionally **not installable** until signed. It includes the exact commit, APK hashes, manifest metadata and the Android build-tools signing JAR.
 
 The permanent private key is kept outside Git, public releases and CI artifacts. The owner must retain its private backup; generating a replacement key prevents future APKs from updating an installed release with the old signature. The APK's public certificate fingerprint can be published safely. The ReBro release key created for 2.5.1-rebro.4 has SHA-256 fingerprint `0FAC079E040D97CCE1786CEB21DC0855C0D09B2DF3222A43E71C46DD2C517805`.
 
@@ -67,7 +67,7 @@ Verify the resulting v2/v3 signature and record its public certificate and APK h
 
 ## Validation boundary
 
-Python tests exercise the file RPC on a Linux filesystem, including external edits, chunk retries, traversal, symlinks and executable permissions. Android tests cover database migration, branding, linked-profile rendering and the workspace creation UI. These checks do not establish successful communication with the owner's installed Termux or prove that third-party scanner binaries work on their phone. Those require a device check after installation.
+Python tests exercise the file RPC on a Linux filesystem, including external edits, chunk retries, traversal, symlinks and executable permissions. Android emulator tests run the debug variant and cover database migration, branding, linked-profile rendering and the workspace creation UI. The optimized release is built separately, inspected and signed. These checks do not establish successful communication with the owner's installed Termux or prove that third-party scanner binaries work on their phone. Those require a device check after installation.
 
 
 A short device check after installation: link a disposable Termux project, edit a text file in the app and confirm its contents from Termux; then modify the open file in Termux and confirm that the app asks to reload on save. Start and cancel a background command from the workspace console. Finally unlink the workspace and confirm that the directory remains in Termux. This verifies the actual Android service connection and device permission setup that the emulator tests cannot exercise.
