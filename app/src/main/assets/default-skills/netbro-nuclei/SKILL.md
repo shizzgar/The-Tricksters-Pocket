@@ -1,26 +1,26 @@
 ---
 name: netbro-nuclei
-description: "Работать с Nuclei: выбрать и проверить templates под конкретную цель, ограничить rate/concurrency, сохранить JSONL, разобрать findings и подтвердить применимость результата."
+description: "Use Nuclei: select and validate templates for a specific target, bound rate/concurrency, save JSONL, interpret findings and verify their applicability."
 ---
 
 # Nuclei
 
-Проверить nuclei -version, help и версию/источник templates.
-Для установки читать netbro-environment; по запуску —
-[процедуры](references/operations.md).
+Check nuclei -version, help and the templates' version/source.
+Use netbro-environment for installation and the
+[procedures](references/operations.md) for execution.
 
-1. Подготовить ограниченный список URL/hosts из scope. Не передавать все
-   результаты разведки без проверки.
-2. Выбрать конкретные template IDs/files или узкий набор для нужного сервиса.
-   Severity — не оценка нагрузки или безопасности шаблона.
-3. Проверить изменённые шаблоны через -validate; понять requests, redirects,
-   matchers, extractors и внешние callbacks.
-4. Задать rate limit, concurrency, timeout, retries и общий срок job.
-5. Сохранить JSONL и диагностический лог отдельно. Тяжёлые headless/code/DAST
-   режимы не включать как универсальный способ «проверить всё».
-6. Проверить ошибки/skipped templates и полноту run. Коррелировать находки
-   по template-id, matcher и endpoint; перепроверять только существенные
-   результаты, не запускать весь набор ради одного отсутствующего файла.
+1. Prepare a bounded list of in-scope URLs/hosts. Do not pass all reconnaissance
+   results without checking them.
+2. Select specific template IDs/files or a narrow set for the relevant service.
+   Severity does not measure a template's load or operational safety.
+3. Check changed templates with -validate; understand requests, redirects,
+   matchers, extractors and external callbacks.
+4. Set rate limit, concurrency, timeout, retries and an overall job deadline.
+5. Save JSONL and diagnostic logs separately. Do not enable expensive
+   headless/code/DAST modes as a universal way to "check everything".
+6. Check errors/skipped templates and run completeness. Correlate findings by
+   template-id, matcher and endpoint. Recheck only material findings rather than
+   rerunning an entire set to obtain one missing file.
 
-Для агрегатов загрузить netbro-workflow и использовать summarize.py nuclei.
-Исходные raw request/response и extracted secrets не выводить в чат без нужды.
+For aggregates, load netbro-workflow and use summarize.py nuclei.
+Do not unnecessarily print raw requests/responses or extracted secrets in chat.

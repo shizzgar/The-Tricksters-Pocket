@@ -1,8 +1,8 @@
-# Native RE: короткая карточка
+# Native RE: focused reference
 
-Начать с SHA-256, `file`, ELF headers, program headers, notes, imports/exports и
-build ID. Убедиться в ELFCLASS64/AArch64 и Android dynamic linker/runtime, прежде
-чем запускать скачанный бинарник. arm64 для GNU/Linux не равен android/arm64.
+Start with SHA-256, `file`, ELF headers, program headers, notes, imports/exports and
+build ID. Verify ELFCLASS64/AArch64 and Android dynamic linker/runtime before
+executing a downloaded binary. GNU/Linux arm64 is not android/arm64.
 
 ```sh
 file "$LIB"
@@ -13,31 +13,31 @@ llvm-objdump -d --no-show-raw-insn "$LIB" > "$REBRO_CASE/work/disassembly.txt"
 rabin2 -I -i -E "$LIB"
 ```
 
-В radare2 сначала metadata и конкретная функция. `aaa` на многомегабайтном vendor ELF
-не обязательный первый шаг. Дизассемблировать нужный диапазон по вопросу; длинный
-полный objdump также запускать с лимитом времени/вывода.
+In radare2, begin with metadata and a specific function. `aaa` over a multi-megabyte
+vendor ELF is not a mandatory first step. Disassemble the range relevant to the
+question; even a full objdump needs time/output bounds.
 
-Для адреса hook фиксировать module path, build ID, load base и выбранный RVA.
-Файловое смещение не равно RVA: сопоставлять `PT_LOAD.p_offset` и `p_vaddr`.
-Не переносить offsets между версиями, splits или ABI. На stripped ELF отсутствие
-символа не доказывает отсутствие кода.
+For a hook address, record module path, build ID, load base and selected RVA.
+File offsets differ from RVAs: map `PT_LOAD.p_offset` against `p_vaddr`.
+Do not transfer offsets between versions, splits or ABIs. A missing symbol in a
+stripped ELF does not prove missing code.
 
-JNI бывают экспортируемые `Java_*` и динамические регистрации. При втором варианте
-исследовать загрузку модуля и момент RegisterNatives в конкретном target; общий
-Java hook может быть дешевле глубокого JNI trace. Не цеплять все libart symbols
-на постоянной основе.
+JNI may use exported `Java_*` names or dynamic registration. For the latter,
+investigate module loading and RegisterNatives timing in the selected target.
+A focused Java hook may be cheaper than deep JNI tracing. Do not hook all libart
+symbols persistently.
 
-PAC/BTI — свойства CPU и конкретного кода/отображений, а не одна галочка.
-При SIGILL/SIGSEGV после hook сначала снять crash evidence, проверить ABI, адрес,
-prototype и executable mapping. Не «чинить» strip PAC или записью инструкций
-без понимания pointer provenance и calling convention.
+PAC/BTI depend on CPU and specific code/mappings, not one checkbox. For SIGILL/SIGSEGV
+after a hook, capture crash evidence and check ABI, address, prototype and executable
+mapping first. Do not "fix" it by stripping PAC or writing instructions without
+understanding pointer provenance and calling convention.
 
-Для 16 KiB совместимости проверять LOAD segment alignment в ELF отдельно от
-alignment `.so` внутри APK. `zipalign` не перелинкует ELF.
+For 16 KiB compatibility, check ELF LOAD segment alignment separately from `.so`
+alignment inside the APK. `zipalign` does not relink an ELF.
 
-Использовать `Process.getModuleByName(...).findExportByName(...)` и Interceptor
-для первого наблюдения; Stalker оставить для конкретной трассировочной гипотезы.
+Use `Process.getModuleByName(...).findExportByName(...)` and Interceptor for an initial
+observation; reserve Stalker for a specific tracing hypothesis.
 
-Источники: [LLVM readelf](https://llvm.org/docs/CommandGuide/llvm-readelf.html),
+Sources: [LLVM readelf](https://llvm.org/docs/CommandGuide/llvm-readelf.html),
 [r2 book](https://book.rada.re/), [Frida Stalker](https://frida.re/docs/stalker/),
 [Android page sizes](https://developer.android.com/guide/practices/page-sizes).

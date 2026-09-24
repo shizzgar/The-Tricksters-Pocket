@@ -1,4 +1,4 @@
-# BBOT: процедуры
+# BBOT procedures
 
 ~~~sh
 bbot --version
@@ -8,42 +8,43 @@ bbot --list-modules
 bbot -p subdomain-enum --current-preset
 ~~~
 
-Ориентир для согласованной доменной разведки; example.test заменить заданным
-доменом, run-001 и путь — уникальным case run:
+Example for authorized domain reconnaissance; replace example.test with the
+selected domain, and run-001 and the path with a unique case run:
 
 ~~~sh
 bbot -t example.test -p subdomain-enum -rf passive \
   -n run-001 -o /absolute/case/bbot -y
 ~~~
 
--y убирает CLI-подтверждение только для уже выбранной операции.
-Фильтр passive относится к modules; не обещать отсутствие DNS, внешних API,
-проверок зависимостей или иных подготовительных обращений.
-Для строгой офлайн-задачи не запускать этот пример.
-Один домен может включать поддомены; для точного host проверить --strict-scope.
-Исключения задавать через -b по help текущей версии.
+-y suppresses CLI confirmation only for the already selected operation.
+The passive filter applies to modules; it does not promise an absence of DNS,
+external API requests, dependency checks or other preparation traffic.
+Do not run this example for a strictly offline task.
+A domain target can include subdomains; check --strict-scope for an exact host.
+Set exclusions with -b according to the installed version's help.
 
-## Различия версий
+## Version differences
 
-| Вопрос | 2.x | 3.x |
+| Question | 2.x | 3.x |
 |---|---|---|
-| -s | silent | seeds; silent перенесён в -S |
-| -w / --whitelist | отдельный scope | удалён; scope задаётся -t |
-| Seeds | обычно -t | -s/--seeds; без него используются targets |
-| Структурированный event | data может быть object | data_json для структурированных данных |
-| Output | проверить установленный help | -o / --output-dir; короткий -o не угадывает имя файла |
+| -s | silent | seeds; silent moved to -S |
+| -w / --whitelist | separate scope | removed; scope is set by -t |
+| Seeds | usually -t | -s/--seeds; defaults to targets when omitted |
+| Structured event | data may be an object | data_json holds structured data |
+| Output | check installed help | -o / --output-dir; short -o does not infer a filename |
 
-Не копировать устаревшие --allow-deadly и названия heavy presets.
-Проверять --current-preset или --dry-run до долгого запуска, но не считать dry-run
-обещанием отсутствия setup/dependency effects. Не печатать full config с API keys.
+Do not copy obsolete --allow-deadly flags or heavy preset names. Inspect
+--current-preset or --dry-run before a long execution, but do not treat dry-run
+as a guarantee of no setup/dependency effects. Do not print full configurations
+containing API keys.
 
-BBOT сохраняет результаты в каталоге scan. Имена файлов и успешность записи
-проверить по фактическому output. output.json — поток JSON objects по строкам.
-Новое выполнение обычно получает новое имя: повтор старого имени может дописать
-старые файлы. Не включать Slack/Discord/HTTP output modules для локального отчёта.
+BBOT saves results in the scan directory. Verify filenames and successful writes
+from actual output. output.json is a stream of JSON objects, one per line.
+A new execution normally gets a new name: reusing a name may append to old files.
+Do not enable Slack/Discord/HTTP output modules for a local report.
 
-## Источники
+## Sources
 
 - [CLI 3.x](https://github.com/blacklanternsecurity/bbot/blob/a6fb827bb144cdb85b52e142a4d6e14ed5f94b69/bbot/scanner/preset/args.py)
-- [Миграция 2→3](https://github.com/blacklanternsecurity/bbot/blob/a6fb827bb144cdb85b52e142a4d6e14ed5f94b69/docs/migration/3.0_breaking_changes.md)
-- [Форматы output](https://github.com/blacklanternsecurity/bbot/blob/a6fb827bb144cdb85b52e142a4d6e14ed5f94b69/docs/scanning/output.md)
+- [Migration 2 to 3](https://github.com/blacklanternsecurity/bbot/blob/a6fb827bb144cdb85b52e142a4d6e14ed5f94b69/docs/migration/3.0_breaking_changes.md)
+- [Output formats](https://github.com/blacklanternsecurity/bbot/blob/a6fb827bb144cdb85b52e142a4d6e14ed5f94b69/docs/scanning/output.md)

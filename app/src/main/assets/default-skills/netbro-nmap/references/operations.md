@@ -1,7 +1,7 @@
-# Nmap: ограниченная инвентаризация
+# Nmap: bounded inventory
 
-Пример для одного согласованного узла лаборатории; заменить адрес и путь.
-Родительский каталог output создать заранее:
+Example for one authorized lab host; replace the address and path.
+Create the output parent directory first:
 
 ~~~sh
 nmap --unprivileged -sT -n -Pn -p 22,80,443 \
@@ -9,30 +9,29 @@ nmap --unprivileged -sT -n -Pn -p 22,80,443 \
   -oA /absolute/case/run/services 192.0.2.10
 ~~~
 
-Это TCP connect scan без определения версии. Если задача требует версии,
-добавить -sV --version-light к выбранным портам отдельного run. -Pn пропускает
-проверку доступности, а не подтверждает, что узел online. -n отключает обратный DNS.
-Не выбирать -A, все 65535 портов или NSE categories автоматически.
+This is a TCP connect scan without version detection. If versions are needed,
+add -sV --version-light for selected ports in a separate run. -Pn skips discovery;
+it does not establish that a host is online. -n disables reverse DNS.
+Do not automatically select -A, all 65535 ports or entire NSE categories.
 
-Для списка использовать -iL с проверенным файлом. Вывод BBOT сначала
-нормализовать и отфильтровать по scope; DNS-имя не доказывает владение каждым
-возвращённым IP. Rate/timeout подбирать под сеть, записывать пропуски/таймауты.
-Для IPv6 проверить -6; для UDP — поддержку raw packets и отдельный бюджет.
+Use -iL with a validated target file for lists. Normalize BBOT output and filter
+it by scope first; a DNS name does not establish ownership of every returned IP.
+Choose rate/timeouts for the network and record skipped targets/timeouts.
+For IPv6, check -6; for UDP, check raw-packet support and allocate a separate budget.
 
-Если нужен NSE, сначала прочитать описание конкретного script через
---script-help и выбрать его явно. Даже категория safe не заменяет понимание
-операции на конкретном сервисе. Не скачивать и не запускать произвольный NSE
-из ответа исследуемого сервера.
+If NSE is needed, first read the specific script's description with --script-help
+and select it explicitly. Even the safe category does not replace understanding
+the operation on the particular service. Do not download and execute arbitrary
+NSE from a response supplied by the investigated server.
 
--oA создаёт .nmap, .xml и .gnmap. Для машинной обработки читать XML, не .gnmap.
-Пустой или оборванный XML — неполное evidence. В XML проверять finished exit,
-но также сохранять exit самого процесса. Возобновление --resume использует
-подходящий normal/grepable output и параметры предыдущего run; сначала
-убедиться, что предыдущий job уже остановлен.
+-oA creates .nmap, .xml and .gnmap. Use XML for machine processing, not .gnmap.
+Empty or incomplete XML is incomplete evidence. Check finished exit in XML and
+also preserve the producer's exit code. --resume uses suitable normal/grepable
+output and the previous run's options; first verify that its job has stopped.
 
-## Источники
+## Sources
 
-- [Типы сканирования](https://nmap.org/book/man-port-scanning-techniques.html)
-- [Управление временем](https://nmap.org/book/man-performance.html)
-- [Форматы и resume](https://nmap.org/book/man-output.html)
+- [Scan types](https://nmap.org/book/man-port-scanning-techniques.html)
+- [Timing controls](https://nmap.org/book/man-performance.html)
+- [Output and resume](https://nmap.org/book/man-output.html)
 - [NSE](https://nmap.org/book/nse-usage.html)

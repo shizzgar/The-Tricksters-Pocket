@@ -1,32 +1,33 @@
 ---
 name: netbro-environment
-description: "Проверить среду NetBro в Android/Termux или выбранном Linux: наличие и версии BBOT, Nmap, Nuclei, Legba; выбрать совместимую установку и диагностировать зависимости."
+description: "Check the NetBro environment in Android/Termux or a selected Linux: BBOT, Nmap, Nuclei and Legba availability and versions, compatible installation routes and dependency diagnosis."
 ---
 
-# Окружение NetBro
+# NetBro environment
 
-Сначала проверить только нужную для задачи среду. Наличие skill не означает
-наличие бинарника. Не менять работающий toolchain ради проверки чужой инструкции.
+Check only the environment needed for the task first. A skill does not imply
+that its external binary is installed. Do not change a working toolchain merely
+to try instructions written for another environment.
 
-Получить свой skill_root через use_skill/termux_skill_sync. Helper не сканирует
-сеть, не устанавливает пакеты, не вызывает su и не читает credentials:
+Obtain this package's skill_root through use_skill/termux_skill_sync. The helper
+does not scan the network, install packages, invoke su or read credentials:
 
 ~~~sh
 python3 -B scripts/preflight.py --tool nmap
 python3 -B scripts/preflight.py --tool bbot --tool nuclei --timeout 8
 ~~~
 
-Без --tool проверяются все четыре программы. Проверка запускает только
-version-команду найденного бинарника с дедлайном и ограниченным выводом.
-version_ok означает лишь успешную version-команду, не готовность каждого
-модуля/плагина и не успешный scan. Сохранить вывод в case.
+Without --tool, all four programs are checked. Each probe runs only the located
+binary's version command, with a deadline and bounded output. version_ok means
+only that the version command succeeded, not that every module/plugin is ready
+or that a scan succeeded. Save the result in the case directory.
 
-Далее читать [установку и совместимость](references/install.md).
-В выбранной среде отдельно проверить фактический --help, необходимые
-модули/шаблоны, свободное место, маршрут и DNS только если они важны для задачи.
-Различать native Termux, proot/chroot и удалённый Linux; пути и версии между
-ними не взаимозаменяемы. Сканирование из удалённого Linux идёт из его сети.
+Then read [installation and compatibility](references/install.md).
+Within the selected environment, check actual --help, required modules/templates,
+free space, routing and DNS only when relevant to the task. Distinguish native
+Termux, proot/chroot and remote Linux; paths and versions are not interchangeable.
+A scan launched on remote Linux uses that host's network.
 
-При ошибке загрузчика, wheel, компилятора или модуля указать конкретный
-недостающий слой. Не повторять без изменений установку, не использовать
-случайные бинарники, не изменять глобально VPN/DNS/SELinux.
+For loader, wheel, compiler or module errors, identify the missing layer.
+Do not repeat an unchanged installation, use random binaries, or globally alter
+VPN, DNS or SELinux.

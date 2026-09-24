@@ -1,20 +1,20 @@
-# Установка: подготовить, применить один раз, сверить фактическое состояние
+# Installation: prepare, apply once, reconcile actual state
 
-## Область действия
+## Scope
 
-Сценарий рассчитан на обычный лабораторный APK/full split set и явный Android user.
-Package Manager использует общие code paths приложения для нескольких профилей:
-`--user 0` не означает, что обновление кода не затронет другой профиль.
-Системные пакеты, APEX, downgrade, key rotation и смена split topology исключены
-из автоматического installer; это отдельные задачи, а не ошибки для обхода флагами.
+This procedure handles an ordinary lab APK/full split set and an explicit Android
+user. Package Manager shares app code paths across profiles: `--user 0` does not
+mean a code update cannot affect another profile. System packages, APEX, downgrade,
+key rotation and split-topology changes are outside the automatic installer; these
+are separate tasks, not errors to bypass with flags.
 
-Право установить/обновить берётся из текущего запроса. Если пользователь попросил
-только патч или подпись, завершить на соответствующем артефакте. Если установка уже
-разрешена, подготовленный ready plan можно выполнить без повторного вопроса.
-Отдельное действие требуется для расширения области на другие профили, удаления
-приложения или его данных. Скрипт не выполняет uninstall, pm clear, reboot и downgrade.
+Installation/update authorization comes from the current request. If only a patch
+or signature is requested, stop at that artifact. An already authorized installation
+can apply a ready plan without another question. Expanding to other profiles,
+uninstalling an app or deleting its data requires separate authorization. The
+script does not uninstall, pm clear, reboot or downgrade.
 
-## Read-only план
+## Read-only plan
 
 ```sh
 python3 scripts/run_job.py --job-dir "$INSTALL_PLAN_JOB" --cwd "$SKILL_ROOT" \
@@ -23,98 +23,98 @@ python3 scripts/run_job.py --job-dir "$INSTALL_PLAN_JOB" --cwd "$SKILL_ROOT" \
     --android-user 0 --out-dir "$INSTALL_PLAN_DIR"
 ```
 
-Plan использует root-чтения и пишет evidence в новый каталог:
+Plan uses root reads and writes evidence into a new directory:
 
-1. Повторно проверяет реальную подпись и alignment всех входных APK.
-2. Перечисляет Android users и присутствие **только целевого package**.
-3. Снимает реальные пути/hashes установленного набора во всех затронутых профилях.
-4. Сохраняет исходные installed APK в Termux и читает их identity/certificates.
-5. Сравнивает signer, version, split topology, system-app status и scope users.
-6. Повторяет snapshot, чтобы заметить изменение во время подготовки.
+1. Reverify actual signatures/alignment of every input APK.
+2. Enumerate Android users and presence of **only the target package**.
+3. Read actual installed-set paths/hashes in every affected profile.
+4. Copy original installed APKs into Termux and inspect identity/certificates.
+5. Compare signer, version, split topology, system-app status and user scope.
+6. Repeat the snapshot to detect changes during preparation.
 
-Выход `install-plan.json`, его полный SHA-256 и status ready/blocked.
-При certificate mismatch установка поверх существующего app блокируется; авторский
-signing key нельзя заменить root. Не выполнять автоматическую деинсталляцию.
-`--allow-other-users` применять только если влияние на перечисленные профили уже
-входит в разрешённую задачу. Plan живёт 10 минут; после истечения подготовить заново.
+Output: `install-plan.json`, its full SHA-256 and ready/blocked status.
+Certificate mismatch blocks updating the installed app; root cannot replace the
+author's signing key. Do not uninstall automatically. Use `--allow-other-users`
+only when impact on the listed profiles is already authorized. A plan is valid
+for 10 minutes; prepare another after expiration.
 
-## Применение
+## Apply
 
 ```sh
 python3 scripts/install_set.py apply --plan "$INSTALL_PLAN" \
   --expected-plan-sha256 "$REVIEWED_PLAN_SHA256" --out-dir "$INSTALL_RESULT_DIR"
 ```
 
-Запускать как managed job с внешним deadline, но не как daemon/root Python:
-скрипт остаётся Termux UID, отдельные `su -c pm ...` выполняют PM-операции.
-В apply нет JVM-команд; при обёртке run_job использовать resource light.
+Run as a managed job with an outer deadline, not as daemon/root Python: the script
+stays under Termux UID and individual `su -c pm ...` calls perform PM operations.
+Apply has no JVM commands; use resource light if wrapping it with run_job.
 
-Перед первым изменением сверяются plan hash, APK hashes, boot ID и текущий snapshot.
-Под plan записывается одноразовый execution journal. В одной PM session создаётся
-полный набор; APK передаются в `install-write` **через stdin**, без chmod Termux home
-и без обязательного root staging. Перед commit состояние `commit_requested`
-сохраняется на диск. После `Success` читаются реальные установленные пути/hashes.
-`commit_requested` — checkpoint перед вызовом PM, сам по себе он не доказывает,
-что команда дошла до сервиса. Он требует осторожной сверки исхода.
+Before the first mutation, compare plan hash, APK hashes, boot ID and current
+snapshot. Write a single-use execution journal for the plan. Create the full set
+in one PM session; pass APKs to `install-write` **through stdin**, without chmod on
+Termux home or mandatory root staging. Persist `commit_requested` before commit.
+After `Success`, read actual installed paths/hashes. `commit_requested` is a
+checkpoint before calling PM, not proof that PM received the command; reconcile
+its outcome carefully.
 
-Только совпадение полного installed set с intended set даёт install pass.
-Если нужные байты уже установлены в нужном профиле на этапе plan/apply, результат
-фиксируется как already_present; это не требует повторной установки.
-Скрипт не запускает Activity и не доказывает функциональную работоспособность.
+Only an exact full installed-set match with the intended set gives install pass.
+If the intended bytes are already installed for the intended profile at plan/apply,
+record already_present without reinstalling. The script does not launch an Activity
+or establish functional behavior.
 
-## Аварии и неизвестный исход
+## Failure and unknown outcome
 
-| Состояние | Что делать |
+| State | Action |
 |---|---|
-| Ошибка до create | исправить preflight, новый plan |
-| Create ответ потерян | unknown; изучить лог и состояние сессий, не создавать повтор вслепую |
-| Ошибка write, session ID известен | abandon только своей session; сохранить результат cleanup |
-| Commit отправлен, ответа нет | unknown; сначала read-only reconcile |
-| Success получен, hashes отличаются | unknown: возможна гонка/внешнее обновление; не признавать pass |
-| SIGKILL/force-stop | читать execution journal; started/commit_requested не означают failed |
+| Error before create | Fix preflight; create a new plan |
+| Create response lost | unknown; inspect logs/session state, do not blindly create again |
+| Write error with known session ID | Abandon only the owned session; preserve cleanup result |
+| Commit sent, no response | unknown; read-only reconcile first |
+| Success received, hashes differ | unknown: possible race/external update; not pass |
+| SIGKILL/force-stop | Read execution journal; started/commit_requested does not mean failed |
 
-Сначала проверить прежний managed job: потеря клиента не означает, что процесс
-остановился. Использовать сохранённые job ID, status, boot ID и stdout/stderr cursors;
-не начинать сверку, пока старый исполнитель продолжает менять evidence. Не удалять lock.
+Reconcile the previous managed job first: losing the client does not mean the
+process stopped. Use saved job ID, status, boot ID and stdout/stderr cursors.
+Do not reconcile while the old executor is still changing evidence. Do not remove its lock.
 
 ```sh
 python3 scripts/install_set.py reconcile --report "$INSTALL_REPORT" \
   --out "$RECONCILIATION_JSON"
 ```
 
-В `--report` допустим также полный `execution.json`: в него сохраняется копия отчёта.
-Сопоставить его с report_path и логами; два файла пишутся последовательно и после
-обрыва могут отражать разные checkpoints. Три поля phase/session/status без plan,
-его hash и target identity не заменяют полный journal.
+`--report` also accepts complete `execution.json`, which contains a report copy.
+Compare it with report_path and logs: the two files are written sequentially and
+may reflect different checkpoints after interruption. Three phase/session/status
+fields without plan, its hash and target identity do not replace the full journal.
 
-Reconcile ничего не устанавливает: сравнивает нынешнее состояние с задуманным и
-сохраняет новую запись. При полном совпадении можно закрыть install receipt этой
-записью; при несовпадении остаётся unknown. Это не доказательство, что старая session
-никогда не завершится. Сначала изучить её фактическое состояние; автоматического retry нет.
-Скрипт не запрашивает состояние PM session: при mismatch остаётся отдельное
-device-specific исследование её ID/принадлежности/терминального состояния, начиная
-с `pm help` текущей сборки. Универсальной команды `install-status` toolkit не обещает.
+Reconcile installs nothing: it compares current and intended state and writes a
+new record. A full match can close the install receipt with that record; otherwise
+status remains unknown. A mismatch does not prove the old session can never finish.
+Inspect its actual state first; there is no automatic retry. The script does not
+query PM session state. After mismatch, investigate its ID/ownership/terminal state
+for the actual device, starting with that build's `pm help`. The toolkit does not
+promise a universal `install-status` command.
 
-CLI exit codes: ready/pass=0, blocked plan=3, unknown reconcile=4; исключение —
-ненулевой выход с диагностикой. Всегда читать JSON status и конкретные evidence.
-Если install attempt ещё открыт, закрыть его reconciliation evidence. Если receipt
-уже создан как unknown, не переписывать: новый install attempt от того же passing
-sign parent может только сверить старую операцию, без повторной установки.
+CLI exits: ready/pass=0, blocked plan=3, unknown reconcile=4; exceptions return
+nonzero with diagnostics. Always read JSON status and concrete evidence.
+If the install attempt is still open, close it with reconciliation evidence.
+If an unknown receipt already exists, do not rewrite it: a new install attempt
+from the same passing sign parent may reconcile the old operation without reinstalling.
 
-Прежний план одноразовый, повторный apply запрещён. Для новой операции создать
-новый plan после разрешения предыдущей неопределённости. Global install lock
-координирует только этот toolkit; другие PM callers могут работать независимо.
+The old plan is single-use; repeat apply is forbidden. Resolve previous uncertainty
+before preparing a new plan for a new operation. The global install lock coordinates
+only this toolkit; other PM callers remain independent.
 
-## Восстановление и границы
+## Recovery and boundaries
 
-Сохранённые APK — резервная копия кода, не пользовательских данных. Обновление может
-мигрировать БД; первое открытие может менять remote state. До рискованного теста
-подготовить собственный data backup и критерий восстановления либо отдельный lab target.
-Успешный rollback APK не гарантирует совместимость новой БД со старой версией.
+Saved APKs back up code, not user data. An update may migrate databases; first launch
+may change remote state. Before a risky test, prepare a suitable data backup and
+restoration criterion or use a separate lab target. Successful APK rollback does
+not guarantee that the old app can read the new database.
 
-Parser PM намеренно строгий: неизвестный output/ошибка root/недоступный user приводит
-к остановке. В Android/Samsung сборке сначала проверить `pm help` и acceptance на
-своём lab APK. Реальный install этого комплекта в данной сессии не выполнялся.
+The PM parser is deliberately strict: unknown output, root errors or unavailable
+users stop execution. Check Android/Samsung `pm help` and acceptance on an owned lab
+APK first. The kit's original validation did not perform a real device installation.
 
-Источники: [ADB/PM](https://developer.android.com/tools/adb#pm),
+Sources: [ADB/PM](https://developer.android.com/tools/adb#pm),
 [AOSP PM implementation](https://github.com/aosp-mirror/platform_frameworks_base/blob/main/services/core/java/com/android/server/pm/PackageManagerShellCommand.java).

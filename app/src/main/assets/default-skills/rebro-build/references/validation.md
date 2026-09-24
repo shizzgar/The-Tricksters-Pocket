@@ -1,56 +1,59 @@
-# Валидация Rebro 2.3
+# Original Rebro 2.3 validation and its boundaries
 
-Локальные проверки этого релиза выполняются на host Linux/Python 3.12, не на телефоне.
-Реальный root, Android Package Manager, apksigner и Frida endpoint здесь не вызывались.
-Релиз опирается на **67 Python tests** (55 kit + 12 из пользовательского Frida Pack)
-и **65 JavaScript contract checks** пака. Их исходные scopes сохраняются. Отдельно
-проверены ZIP limits, checksums, links, CLI help и JavaScript syntax.
-Точные результаты записаны в validation-results.json внешнего дистрибутива.
+The original kit was checked on host Linux/Python 3.12, not the phone. Real root,
+Android Package Manager, apksigner and Frida endpoint were not invoked there.
+That release reported **67 Python tests** (55 kit + 12 supplied Frida Pack tests)
+and **65 JavaScript contract checks** from the pack. Preserve those original scopes.
+ZIP limits, checksums, links, CLI help and JavaScript syntax were also checked.
+Exact historical results are in validation-results.json of the original distribution.
+These counts describe the supplied kit, not the current app CI or new phone tests.
 
-Collector проверен на ограничение вывода/времени, quoting root arguments, исключение
-сырого bridge/loader source, scan bounds, отсутствие следования symlink и выпуск
-самодостаточного отчёта. Девять checks версии 2.2 покрывают широкий поиск среди больших
-build trees, раздельные лимиты, false loader candidates, reference paths, zipalign usage
-и focused mode. Adapter проверен на внешний config/output, pin mismatch,
-запрет observed-only baseline, offline native build и отказ от перезаписи config.
-Пять новых checks 2.3 проверяют same-Script экспорт frida_java_bridge_default в Node VM,
-сохранение source bytes, отказ на неправильный hash/Compiler bundle/ESM/отсутствующий
-экспорт, выбор режима из manifest и точное соответствие pins исходному промпту.
-Root и live injection в host tests не выполняются.
+Collector checks covered output/time bounds, root-argument quoting, exclusion of
+raw bridge/loader source, search bounds, no symlink following and self-contained
+reports. Nine 2.2 checks covered wide search across large build trees, independent
+limits, false loader candidates, reference paths, zipalign usage and focused mode.
+Adapter checks covered external config/output, pin mismatch, rejection of an
+observed-only baseline, offline native build and refusal to overwrite config.
+Five 2.3 checks covered same-Script frida_java_bridge_default export in Node VM,
+source-byte preservation, rejection of wrong hash/Compiler bundle/ESM/missing export,
+manifest mode selection and exact pin agreement with the original prompt.
+Host tests did not perform root operations or live injection.
 
-Дополнительно получен реальный пользовательский inventory ZIP (collector 2.1.0):
-root reads, tool probes, Frida handshake и loaded/live executable hashes. Исправленный
-collector 2.2.0 проверен на host fixtures. После получения системного промпта его
-повторный запуск для paths/pins этого телефона больше не требуется.
-Наличие inventory не означает выполненную установку APK или Java injection.
-Тесты исходного Frida Pack сохраняют ранее проверенный результат: его 85 файлов не менялись.
-В этой итерации адресно повторены 26 integration tests. 29 pipeline tests и vendor
-checks сохранены по неизменённым исходникам; scope и результаты записаны в JSON.
-Пользователь также передал текстовый отчёт об успешных native RPC smoke и Compiler
-TS build; raw event logs этого прогона здесь не приложены. Fresh Java hook и новый
-rebro-flat adapter на телефоне в нём не проверялись.
+A real user inventory ZIP from collector 2.1.0 supplied root reads, tool probes,
+Frida handshake and loaded/live executable hashes. Collector 2.2.0 was verified
+against host fixtures. The later full prompt resolved this phone's paths/pins,
+so another collector run for those fields is unnecessary. Inventory does not
+establish APK installation or Java injection.
 
-Проверяемые классы поведения: точный patch и отказ на stale preimage; защита путей;
-целостность APK set; согласованность сертификатов; immutable outputs; parent receipt
-и отказ на stale upstream; запрет повторного install; неизвестный исход commit и
-read-only reconciliation. Signing/PM тестируются моделями инструментов: это проверка
-управления процессом, не Android end-to-end и не криптографическая сертификация.
+The original integration retained the Frida Pack's 85 files unchanged. This app's
+English adaptation changes documentation/catalog text, not vendor runtime code,
+and regenerates checksums. Historical checks included 26 targeted integration
+tests; 29 pipeline tests and vendor checks retained their earlier results on
+unchanged runtime sources. The user also supplied a text report of successful
+native RPC smoke and Compiler TS build without its raw event logs. That run did
+not test a fresh Java hook or the new rebro-flat adapter on the phone.
 
-Для приёмки APK-маршрута на устройстве использовать собственный маленький lab APK;
-эта последовательность не является обязательным стартом каждой задачи анализа:
+Behavior classes checked: exact patches and stale-preimage rejection; path safety;
+APK-set integrity; certificate consistency; immutable outputs; parent receipts
+and stale-upstream rejection; prevention of repeated install; unknown commit
+outcomes and read-only reconciliation. Signing/PM use tool models: this checks
+process control, not Android end-to-end or cryptographic certification.
 
-1. Импорт каждого ZIP, включение skills, use_skill/sync и доступность scripts.
-2. Doctor, реальные tool версии, full pins, новая RAM/disk проверка.
-3. Acquisition source APK и проверка фактического full set/certificate.
-4. No-op decode/build/sign/install и исходный функциональный контроль.
-5. Малый ресурсный патч с exact plan; build/sign с тем же лабораторным ключом.
-6. Plan/apply, hashes установленных APK; target и neighbor acceptance tests.
-7. Отдельно controlled split APK set, отказ при неправильном сертификате,
-   отказ второго JVM job и безопасная отмена собственного managed job.
-8. После необходимой для выбранного маршрута приёмки перейти к реальному кейсу;
-   новый Frida Java adapter отдельно проверяется
-   существующим patched bridge, а не случайным новым upstream bundle.
+For device acceptance of an APK route, use a small owned lab APK. This is not a
+mandatory startup sequence for every analysis task:
 
-Симуляция обрыва commit на реальном телефоне — отдельный лабораторный эксперимент;
-сначала освоить read-only reconcile. Не тренировать восстановление на единственной
-установке приложения с ценными данными.
+1. Import/enable needed skills, use_skill/sync and check script availability.
+2. Doctor, actual versions, full pins and fresh RAM/disk checks.
+3. Acquire source APKs and verify the actual complete set/certificate.
+4. No-op decode/build/sign/install and baseline functional control.
+5. Small resource patch with an exact plan; build/sign with the same lab key.
+6. Plan/apply, installed-APK hashes, target and neighboring acceptance tests.
+7. Separately: controlled split set, wrong-certificate rejection, rejection of a
+   second JVM job and safe cancellation of the owned managed job.
+8. After acceptance needed for the selected route, proceed to the real case.
+   Verify the new Frida Java adapter with the existing patched bridge, not an
+   arbitrary replacement upstream bundle.
+
+Simulating an interrupted commit on the phone is a separate lab experiment.
+Learn read-only reconcile first. Do not practice recovery on the only installation
+of an app containing valuable data.

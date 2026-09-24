@@ -1,86 +1,99 @@
 {
-  "release": "2.3",
+  "schema_version": 2,
+  "release": "2.3-en.1",
+  "source_kit_release": "2.3",
   "caseflow_contract": "2.0",
+  "instruction_language": "en",
   "packages": [
     {
       "name": "rebro-workflow",
-      "title": "Управление цепочкой",
-      "zip": "imports/rebro-workflow.zip",
-      "files": 12,
-      "bytes": 28743,
-      "sha256": "c58cc645d961df3e49252b99e0d55aa8d956a325b04798e00497fe10e4f5416c"
+      "title": "Workflow orchestration",
+      "files": 13,
+      "bytes": 118786,
+      "manifest_sha256": "4e19fee233c5fc04b4b65636963b07feb195ff296111496650020266da6a9513",
+      "source_zip": "imports/rebro-workflow.zip",
+      "source_zip_sha256": "c58cc645d961df3e49252b99e0d55aa8d956a325b04798e00497fe10e4f5416c"
     },
     {
       "name": "rebro-environment",
-      "title": "Среда и baseline",
-      "zip": "imports/rebro-environment.zip",
+      "title": "Environment and baseline",
       "files": 24,
-      "bytes": 68533,
-      "sha256": "0dcc23d618f582ffce88c7ab14c264dfa4f287d2ea1ad2ad68179786e6773ab4"
+      "bytes": 142709,
+      "manifest_sha256": "d480e920ed1b5750bb4ad38315676a0965fd706de9b2bb59645dd8d9d4c9a953",
+      "source_zip": "imports/rebro-environment.zip",
+      "source_zip_sha256": "0dcc23d618f582ffce88c7ab14c264dfa4f287d2ea1ad2ad68179786e6773ab4"
     },
     {
       "name": "rebro-acquire",
-      "title": "Получение APK",
-      "zip": "imports/rebro-acquire.zip",
+      "title": "APK acquisition",
       "files": 14,
-      "bytes": 31594,
-      "sha256": "645cd99c7d2945d31b7159d0bb0e55ef09752d6418b91011ac65e1b843d7b246"
+      "bytes": 62499,
+      "manifest_sha256": "a921e6ab230d4b3de2c178131664d34b38c2467acafbd3de005586081c0dd646",
+      "source_zip": "imports/rebro-acquire.zip",
+      "source_zip_sha256": "645cd99c7d2945d31b7159d0bb0e55ef09752d6418b91011ac65e1b843d7b246"
     },
     {
       "name": "rebro-analyze",
-      "title": "Анализ",
-      "zip": "imports/rebro-analyze.zip",
+      "title": "Analysis",
       "files": 16,
-      "bytes": 34756,
-      "sha256": "338b9b97fd5f4211a3c6b1772a39a6866255bc06270f3978b47649a862d0b09b"
+      "bytes": 65100,
+      "manifest_sha256": "58db8a47c8dcf609ceecdfcd3f908644af499674ddfa389e6c6216f3720ca0f2",
+      "source_zip": "imports/rebro-analyze.zip",
+      "source_zip_sha256": "338b9b97fd5f4211a3c6b1772a39a6866255bc06270f3978b47649a862d0b09b"
     },
     {
       "name": "rebro-patch",
-      "title": "Патч",
-      "zip": "imports/rebro-patch.zip",
+      "title": "Patching",
       "files": 14,
-      "bytes": 31006,
-      "sha256": "2c9c32ef656fe633ea70dec05b3b542e073118bd3773030531ee00060d88ec7c"
+      "bytes": 59946,
+      "manifest_sha256": "fd15edca570ed374d85d428245bfd2f8d5920e133b0e3f8a393e81794f5d0fea",
+      "source_zip": "imports/rebro-patch.zip",
+      "source_zip_sha256": "2c9c32ef656fe633ea70dec05b3b542e073118bd3773030531ee00060d88ec7c"
     },
     {
       "name": "rebro-build",
-      "title": "Сборка",
-      "zip": "imports/rebro-build.zip",
+      "title": "Rebuilding",
       "files": 16,
-      "bytes": 35064,
-      "sha256": "eabc7cedb3e041b4b8087dc20eb8ab3a86dc76ee17cdb71ed5f32c48b5148748"
+      "bytes": 66763,
+      "manifest_sha256": "ffe5633b8ec4d052381af0a04e1e5b53c46f8753c17f011b8b7d70189ddf0d44",
+      "source_zip": "imports/rebro-build.zip",
+      "source_zip_sha256": "eabc7cedb3e041b4b8087dc20eb8ab3a86dc76ee17cdb71ed5f32c48b5148748"
     },
     {
       "name": "rebro-sign",
-      "title": "Подпись",
-      "zip": "imports/rebro-sign.zip",
+      "title": "Signing",
       "files": 14,
-      "bytes": 32838,
-      "sha256": "f49f1f51175d68b23e7f73708ab048da75cb10f97f7ddc603671ef02941a2e1c"
+      "bytes": 65045,
+      "manifest_sha256": "ca87b8ef3113189ceab732e3a6c76ecaf9174f31e5ff952562bd18691bfa17f9",
+      "source_zip": "imports/rebro-sign.zip",
+      "source_zip_sha256": "f49f1f51175d68b23e7f73708ab048da75cb10f97f7ddc603671ef02941a2e1c"
     },
     {
       "name": "rebro-install",
-      "title": "Установка",
-      "zip": "imports/rebro-install.zip",
+      "title": "Installation",
       "files": 14,
-      "bytes": 37238,
-      "sha256": "128541c1617a784e1914fa62ef3b906e2f26bc75bce33f1d2abd01baee73b267"
+      "bytes": 78285,
+      "manifest_sha256": "56ab09d45bfc678ebbe6e25213544b5c5afccc605eb4b50955cad84cc47cc474",
+      "source_zip": "imports/rebro-install.zip",
+      "source_zip_sha256": "128541c1617a784e1914fa62ef3b906e2f26bc75bce33f1d2abd01baee73b267"
     },
     {
       "name": "rebro-verify",
-      "title": "Проверка поведения",
-      "zip": "imports/rebro-verify.zip",
+      "title": "Behavior verification",
       "files": 14,
-      "bytes": 33077,
-      "sha256": "7c9554e78bd3a75eeab36a96f1d72e7335ca341deb00f1d59220fae42e1bd7a1"
+      "bytes": 63352,
+      "manifest_sha256": "d97ecfc2c47814aba498736dfa983bb9e828b71994de8db28490d871c6362562",
+      "source_zip": "imports/rebro-verify.zip",
+      "source_zip_sha256": "7c9554e78bd3a75eeab36a96f1d72e7335ca341deb00f1d59220fae42e1bd7a1"
     },
     {
       "name": "rebro-frida",
       "title": "Runtime Frida",
-      "zip": "imports/rebro-frida.zip",
       "files": 115,
-      "bytes": 167669,
-      "sha256": "eb2910f06f005b4420975deda93879ddb87fdbc7647d3e61d1d77d60e8f16669"
+      "bytes": 323776,
+      "manifest_sha256": "7f6ce2800572bfe741daefb652f68fddd7d266746df71fdd19b7e7d0b4ab7393",
+      "source_zip": "imports/rebro-frida.zip",
+      "source_zip_sha256": "eb2910f06f005b4420975deda93879ddb87fdbc7647d3e61d1d77d60e8f16669"
     }
   ]
 }

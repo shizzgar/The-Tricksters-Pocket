@@ -8,12 +8,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / "app/src/main/assets"
 PACKAGES = {
-    "netbro-workflow": "Сетевое исследование и evidence",
-    "netbro-environment": "Среда и установка инструментов",
-    "netbro-bbot": "BBOT: разведка и события",
-    "netbro-nmap": "Nmap: хосты, порты и сервисы",
-    "netbro-nuclei": "Nuclei: шаблоны и находки",
-    "netbro-legba": "Legba: протоколы и аутентификация",
+    "netbro-workflow": "Network investigation and evidence",
+    "netbro-environment": "Environment and tool installation",
+    "netbro-bbot": "BBOT: reconnaissance and events",
+    "netbro-nmap": "Nmap: hosts, ports and services",
+    "netbro-nuclei": "Nuclei: templates and findings",
+    "netbro-legba": "Legba: protocols and authentication",
 }
 
 
@@ -41,7 +41,7 @@ def render():
             "manifest_sha256": hashlib.sha256(manifest).hexdigest(),
         })
     generated[ASSETS / "assistant-presets/netbro/catalog.json"] = (
-        json.dumps({"schema_version": 1, "release": "1.0.0", "packages": catalog}, ensure_ascii=False, indent=2) + "\n"
+        json.dumps({"schema_version": 1, "release": "1.0.0", "instruction_language": "en", "packages": catalog}, ensure_ascii=False, indent=2) + "\n"
     ).encode()
     return generated
 

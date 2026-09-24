@@ -1,6 +1,81 @@
 {
   "kit_sha256": "cf9d949bf541f027fc5b2a0d677159b636d07e55e2ebdfa2f586a9e169f247f8",
   "system_prompt_source_sha256": "fafcecdbc2e9079ccb047e8b91c8a7171f693bfe289af54181084aaf6029145f",
-  "packages": "The ten imports/*.zip packages are unpacked byte-for-byte into default-skills. MANIFEST.sha256 is preserved for each package.",
-  "system_prompt": "Original 21 sections retained; skill routing, live harness contract and dated device inventory adapted for this built-in profile."
+  "packages": "English adaptation of the ten supplied kit 2.3 packages. Original source ZIP identities are retained in source_packages. Instruction/reference prose, Frida catalog descriptions and collector report strings are translated. Detailed prior operating guidance is added to rebro-workflow. Vendor executable sources, examples, device JSON, trusted pins and licenses remain unchanged. Package manifests and the nested Frida Pack SHA256SUMS describe the adapted bytes.",
+  "system_prompt": "Short English coordinator shared with NetBro for skills + Local search + current local evidence. The previous 21-section operating detail is available through rebro-workflow/references/operating-rules.md; historical device evidence is explicitly dated. Only exact known factory prompts migrate automatically; custom prompts remain untouched.",
+  "source_kit_release": "2.3",
+  "source_packages": [
+    {
+      "name": "rebro-workflow",
+      "zip": "imports/rebro-workflow.zip",
+      "files": 12,
+      "zip_bytes": 28743,
+      "zip_sha256": "c58cc645d961df3e49252b99e0d55aa8d956a325b04798e00497fe10e4f5416c"
+    },
+    {
+      "name": "rebro-environment",
+      "zip": "imports/rebro-environment.zip",
+      "files": 24,
+      "zip_bytes": 68533,
+      "zip_sha256": "0dcc23d618f582ffce88c7ab14c264dfa4f287d2ea1ad2ad68179786e6773ab4"
+    },
+    {
+      "name": "rebro-acquire",
+      "zip": "imports/rebro-acquire.zip",
+      "files": 14,
+      "zip_bytes": 31594,
+      "zip_sha256": "645cd99c7d2945d31b7159d0bb0e55ef09752d6418b91011ac65e1b843d7b246"
+    },
+    {
+      "name": "rebro-analyze",
+      "zip": "imports/rebro-analyze.zip",
+      "files": 16,
+      "zip_bytes": 34756,
+      "zip_sha256": "338b9b97fd5f4211a3c6b1772a39a6866255bc06270f3978b47649a862d0b09b"
+    },
+    {
+      "name": "rebro-patch",
+      "zip": "imports/rebro-patch.zip",
+      "files": 14,
+      "zip_bytes": 31006,
+      "zip_sha256": "2c9c32ef656fe633ea70dec05b3b542e073118bd3773030531ee00060d88ec7c"
+    },
+    {
+      "name": "rebro-build",
+      "zip": "imports/rebro-build.zip",
+      "files": 16,
+      "zip_bytes": 35064,
+      "zip_sha256": "eabc7cedb3e041b4b8087dc20eb8ab3a86dc76ee17cdb71ed5f32c48b5148748"
+    },
+    {
+      "name": "rebro-sign",
+      "zip": "imports/rebro-sign.zip",
+      "files": 14,
+      "zip_bytes": 32838,
+      "zip_sha256": "f49f1f51175d68b23e7f73708ab048da75cb10f97f7ddc603671ef02941a2e1c"
+    },
+    {
+      "name": "rebro-install",
+      "zip": "imports/rebro-install.zip",
+      "files": 14,
+      "zip_bytes": 37238,
+      "zip_sha256": "128541c1617a784e1914fa62ef3b906e2f26bc75bce33f1d2abd01baee73b267"
+    },
+    {
+      "name": "rebro-verify",
+      "zip": "imports/rebro-verify.zip",
+      "files": 14,
+      "zip_bytes": 33077,
+      "zip_sha256": "7c9554e78bd3a75eeab36a96f1d72e7335ca341deb00f1d59220fae42e1bd7a1"
+    },
+    {
+      "name": "rebro-frida",
+      "zip": "imports/rebro-frida.zip",
+      "files": 115,
+      "zip_bytes": 167669,
+      "zip_sha256": "eb2910f06f005b4420975deda93879ddb87fdbc7647d3e61d1d77d60e8f16669"
+    }
+  ],
+  "adaptation_release": "2.3-en.1",
+  "instruction_language": "en"
 }

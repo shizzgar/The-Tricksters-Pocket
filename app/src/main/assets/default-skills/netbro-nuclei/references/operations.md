@@ -1,14 +1,14 @@
-# Nuclei: воспроизводимый запуск
+# Nuclei: reproducible execution
 
-Проверить установленные -h/-version и текущие flags. Templates изменяются
-независимо от движка: фиксировать tag/commit либо локальный hash выбранных файлов.
+Inspect installed -h/-version and supported flags. Templates change independently
+of the engine: record their tag/commit or hashes of selected local files.
 
 ~~~sh
 nuclei -version
 nuclei -validate -t /absolute/case/templates/selected.yaml
 ~~~
 
-Пример ограниченного run по подготовленному списку, с выбранным template:
+Example of a bounded run over a prepared list with a selected template:
 
 ~~~sh
 nuclei -l /absolute/case/urls.txt \
@@ -18,25 +18,25 @@ nuclei -l /absolute/case/urls.txt \
   -o /absolute/case/run/findings.jsonl
 ~~~
 
-Проверить наличие каждого флага в установленной версии.
--rl ограничивает запросы/сек, -c — параллельные templates, -bs — targets
-на template; они не взаимозаменяемы. Общий deadline задаётся также в Termux job.
--ni отключает Interactsh/OAST, -dr — redirects, -duc — проверку обновлений.
-Это не универсальная песочница для содержимого template: читать сам шаблон.
-Если задаче нужны callbacks/redirects, выбрать конкретное разрешённое поведение,
-отметить изменение и возможные внешние запросы в case.
+Verify every flag in the installed version.
+-rl limits requests/second, -c concurrent templates, and -bs targets per template;
+they are not interchangeable. Also set the overall deadline in the Termux job.
+-ni disables Interactsh/OAST, -dr redirects and -duc update checks. These are not
+a universal sandbox for template contents: read the template itself. If the task
+requires callbacks/redirects, choose the specific authorized behavior and record
+the change and possible external requests in the case.
 
-Не использовать -ai для обычного локального run: это внешний сервис.
-Не включать -code, -headless или DAST по умолчанию.
-Не считать отсутствие findings эквивалентом «уязвимостей нет»: часть шаблонов
-может быть пропущена, upstream requirements не выполнены или requests не дошли.
+Do not use -ai for an ordinary local run: it is an external service.
+Do not enable -code, -headless or DAST by default.
+No findings does not mean "no vulnerabilities": templates may have been skipped,
+upstream requirements unmet, or requests undelivered.
 
-JSONL с -omit-raw/-omit-template уменьшает лишний контекст, но extractors и URL
-всё ещё могут содержать секреты. Локальный summarize.py не печатает raw HTTP
-и извлечённые значения, а query/userinfo убирает из адресного preview.
+JSONL with -omit-raw/-omit-template reduces unnecessary context, but extractors
+and URLs can still contain secrets. The local summarize.py omits raw HTTP and
+extracted values, and strips query/userinfo from address previews.
 
-## Источники
+## Sources
 
-- [Установка](https://docs.projectdiscovery.io/opensource/nuclei/install)
-- [Запуск и flags](https://docs.projectdiscovery.io/tools/nuclei/running)
-- [Репозиторий шаблонов](https://github.com/projectdiscovery/nuclei-templates)
+- [Installation](https://docs.projectdiscovery.io/opensource/nuclei/install)
+- [Execution and flags](https://docs.projectdiscovery.io/tools/nuclei/running)
+- [Template repository](https://github.com/projectdiscovery/nuclei-templates)

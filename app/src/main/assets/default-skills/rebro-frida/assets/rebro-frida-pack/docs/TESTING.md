@@ -1,26 +1,33 @@
-# Проверки и критерии приёмки
+# Validation and acceptance
 
-Офлайн-проверки выполнены на Linux с Python 3.12 и Node; это не Termux/ART и не ваш patched Frida. Точная версия инструментов и результаты: tests/VALIDATION.json, tests/VALIDATION.txt.
+Original offline validation ran on Linux with Python 3.12 and Node, not Termux/ART
+or the user's patched Frida. Exact tool versions and historical results are in
+tests/VALIDATION.json and tests/VALIDATION.txt.
 
-Покрытие тестов:
+Coverage:
 
-- все 38 агентов: загрузка, init и cleanup на ограниченных mock API;
-- все 16 профилей: совместная инициализация, лимит hooks, завершение;
-- генерация bundle каждого профиля с поддержанными mock bridge-адаптерами;
-- сохранение receiver, аргументов, результата и исходного Java-исключения;
-- observer exceptions не заменяют исходный результат метода;
-- снятие своей implementation по read-back token; отказ от перезаписи существующей реализации;
-- квоты, отсутствие Java/API, поздняя загрузка ELF, границы памяти;
-- IPv4 byte order, JNI table/row layout, Stalker cleanup;
-- callback paths Java modules с представительными аргументами;
-- pin mismatch, timeout cancellation, controller failures, resume-after-load-failure, unload/detach;
-- синтаксис всех поставляемых Python/JS файлов.
+- All 38 agents: load, init and cleanup against bounded mock APIs.
+- All 16 profiles: combined initialization, hook limits and completion.
+- Bundle generation for every profile with supported mock bridge adapters.
+- Preservation of receiver, arguments, result and original Java exception.
+- Observer exceptions do not replace the method's original result.
+- Removal of the owned implementation using a read-back token; refusal to overwrite an existing implementation.
+- Quotas, unavailable Java/APIs, late ELF loading and memory boundaries.
+- IPv4 byte order, JNI table/row layout and Stalker cleanup.
+- Java-module callback paths with representative arguments.
+- Pin mismatch, timeout cancellation, controller failures, resume-after-load-failure and unload/detach.
+- Syntax of all supplied Python/JS files.
 
-Повторить:
+Repeat with:
 ```sh
 python tools/verify.py --tests
 ```
 
-Не увеличивайте тестовую выборку на устройстве без конкретной причины. Достаточная первая приёмка: doctor online, обе фазы smoke, короткие native-survey/java-survey, затем реальный вызов одного нужного хуку метода. Зафиксируйте runtime, хеши, целевой процесс и результаты. Только такие события подтверждают on-device coverage.
+Do not broaden device testing without a concrete reason. Initial acceptance:
+doctor online, both smoke phases, short native-survey/java-survey, then an actual
+call to one relevant hooked method. Record runtime, hashes, target process and
+results. Those events establish on-device coverage.
 
-Тесты не проверяют качество патчей bridge, ART inline/compiled hooks, vendor SELinux rules, PAC/BTI/Stalker на конкретной прошивке, наличие классов стороннего приложения или все реальные overloads Android16. Ни один успешный mock тест не помечает агент как device-verified.
+Mocks do not verify bridge patch quality, ART inline/compiled hooks, vendor SELinux,
+PAC/BTI/Stalker on this firmware, third-party app classes or all Android16 overloads.
+No successful mock test marks an agent device-verified.

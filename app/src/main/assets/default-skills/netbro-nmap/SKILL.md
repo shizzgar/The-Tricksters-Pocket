@@ -1,24 +1,23 @@
 ---
 name: netbro-nmap
-description: "Работать с Nmap из Termux/Linux: инвентаризация хостов, TCP/UDP портов и сервисов, версия и NSE по задаче, ограничения привилегий, сохранение и разбор XML."
+description: "Use Nmap from Termux/Linux: inventory hosts, TCP/UDP ports and services, select version detection and NSE for the task, handle privilege constraints, save and interpret XML."
 ---
 
 # Nmap
 
-Проверить nmap --version и выбранную среду. Для установки использовать
-netbro-environment; по scan options читать [процедуры](references/operations.md).
+Check nmap --version and the selected environment. Use netbro-environment for
+installation; read the [procedures](references/operations.md) for scan options.
 
-1. Взять явные хосты/сети, исключения и нужные порты из case.
-2. Для обычного Termux начать с unprivileged TCP connect scan (-sT),
-   разумного набора портов и конечного host timeout.
-3. Отделять discovery от service detection. Если discovery недоступен, -Pn
-   использовать для известного ограниченного списка; не превращать большую
-   сеть в полный scan автоматически.
-4. SYN/UDP/OS и некоторые NSE требуют дополнительных условий и нагрузки.
-   Проверить реальную capability; proot root сам её не даёт.
-5. Сохранить XML и текст через -oA, проверить exit и XML runstats.
-6. Отчёт строить по host/port/state/service evidence; filtered и open|filtered
-   не объявлять открытыми. Баннер версии сам по себе не доказывает уязвимость.
+1. Take explicit hosts/networks, exclusions and required ports from the case.
+2. For ordinary Termux work, start with an unprivileged TCP connect scan (-sT),
+   a reasonable port set and a finite host timeout.
+3. Separate discovery from service detection. If discovery is unavailable, use
+   -Pn for a known bounded list; do not automatically scan an entire large network.
+4. SYN/UDP/OS detection and some NSE scripts have additional requirements and
+   traffic costs. Check actual capabilities; proot root alone does not grant them.
+5. Save XML and text through -oA; inspect the exit code and XML runstats.
+6. Base reports on host/port/state/service evidence; do not call filtered or
+   open|filtered ports open. A version banner alone does not prove vulnerability.
 
-Загрузить netbro-workflow для summarize.py nmap. Helper показывает состояния
-портов и limited preview; отсутствие портов в превью не скрывает общий счётчик.
+Load netbro-workflow for summarize.py nmap. The helper shows port states and a
+limited preview; omitted preview items remain included in total counts.

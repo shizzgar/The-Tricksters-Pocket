@@ -1,33 +1,33 @@
-# Проверка: артефакт, установленный код и поведение
+# Verification: artifact, installed code and behavior
 
-Прочитать acceptance_tests из исходного analysis либо согласованного задания sign-only.
-Перед каждым экспериментом сверить package/user/version, полный installed set,
-boot ID и runtime PID. PID не постоянный идентификатор и не всегда main process.
+Read acceptance_tests from the original analysis or agreed sign-only task.
+Before each experiment, check package/user/version, the complete installed set,
+boot ID and runtime PID. PID is neither permanent identity nor always the main process.
 
-## Три независимых результата
+## Three independent results
 
-| Уровень | Проверка | Чего она не доказывает |
+| Layer | Check | What it does not establish |
 |---|---|---|
-| Артефакт | подпись/alignment/metadata/hashes | что приложение установилось |
-| Установка | код действительно установлен для нужного user | что нужная ветка работает |
-| Функция | воспроизведённое действие и наблюдаемый результат | отсутствие всех возможных регрессий |
+| Artifact | Signature/alignment/metadata/hashes | That the app installed |
+| Installation | Code actually installed for the intended user | That the relevant branch works |
+| Function | Reproduced action and observed result | Absence of every possible regression |
 
-Для patch-сценария минимум: исходный контроль, целевое изменение, соседний
-сценарий без ожидаемых изменений и отсутствие новой явной ошибки/краша.
-Не добавлять постоянный Frida hook для проверки статического патча, если он сам
-может создавать наблюдаемый эффект: сначала проверить без инструментации.
+For a patch, the minimum is a baseline control, target change, an unchanged
+neighboring scenario and no new evident failure/crash. Do not add a persistent
+Frida hook to verify a static patch if that hook can itself cause the observed
+effect: check without instrumentation first.
 
-Если нужен runtime evidence, вызвать rebro-frida, проверить pins и начать с native
-probe. Затем один нужный Java/native hook, ограниченный interval/log volume,
-точное действие UI и cleanup. Сопоставить с тестом без hook. Чистый stdout, запуск
-Activity и отсутствие crash buffer не равны выполненной acceptance-проверке.
+If runtime evidence is needed, call rebro-frida, verify pins and begin with a native
+probe. Then use one relevant Java/native hook, a bounded interval/log budget, the
+exact UI action and cleanup. Compare against an unhooked test. Clean stdout, an
+Activity launch and an empty crash buffer do not establish acceptance.
 
-## Evidence и итог
+## Evidence and outcome
 
-Записывать ожидаемое и фактическое поведение, команду/действие без секретов, время,
-источник результата (screen/log/Frida/return value) и путь к исходным evidence-файлам.
-Файлы evidence включить в outputs текущего verify attempt, чтобы caseflow фиксировал
-их содержимое. В отчет не копировать все app data или логи чужих процессов.
+Record expected/actual behavior, command/action without secrets, time, result
+source (screen/log/Frida/return value) and original evidence paths. Include evidence
+files in the current verify attempt's outputs so caseflow records their contents.
+Do not copy all app data or unrelated-process logs into the report.
 
 ```json
 {
@@ -41,22 +41,22 @@ Activity и отсутствие crash buffer не равны выполненн
      "expected": "Lab patched", "observed": "Lab patched",
      "evidence": "evidence/target-screen.png"},
     {"id": "neighbor-flow", "required": true, "result": "pass",
-     "expected": "Обычный соседний экран", "observed": "Обычный соседний экран",
+     "expected": "Normal neighboring screen", "observed": "Normal neighboring screen",
      "evidence": "evidence/neighbor-screen.png"}
   ]
 }
 ```
 
-Это пример структуры, **не готовый отчет о реальном тесте**. Заполнять только реально
-наблюдёнными результатами. Required skipped/not_tested — не pass. Если исходного
-контроля нет, отметить ограничение, не придумывать сравнение. Для sign-only без
-запроса install/функционального теста завершить на подписанном артефакте и ясно указать
-границы выполненной проверки.
+This is a structural example, **not a report of an actual test**. Fill it only with
+observed results. Required skipped/not_tested is not pass. If the baseline control
+is absent, state the limitation rather than inventing a comparison. For sign-only
+without requested installation/functional testing, finish at the signed artifact
+and state exactly what was verified.
 
-## Диагностика по границе
+## Diagnosis by boundary
 
-Неверное поведение при корректной установке → analyze/patch с новым parent.
+Incorrect behavior after correct installation → analyze/patch with a new parent.
 VerifyError/Resources.NotFound → patch/build. Certificate/install failure → sign/install.
-Frida-only crash → проверить без инструментации до изменения APK.
-Новый эксперимент сохраняет отдельные данные, прежние квитанции остаются как история.
-Автоматический откат/удаление не являются частью verify.
+Frida-only crash → check without instrumentation before changing the APK.
+Save separate data for a new experiment; preserve old receipts as history.
+Automatic rollback/deletion is not part of verify.

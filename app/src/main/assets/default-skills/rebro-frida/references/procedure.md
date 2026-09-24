@@ -1,30 +1,32 @@
-# Frida Pack в модульном Rebro kit
+# Frida Pack in the modular Rebro kit
 
-## Состав и входы
+## Contents and inputs
 
-В `assets/rebro-frida-pack/` включены все 85 файлов пользовательского пака 1.0.0:
-38 модулей, 16 профилей, controller/runtime, examples, документация, тесты и MIT license.
-Файлы сохранены побайтно; исходный `SHA256SUMS` проверяется адаптером при запуске.
-Это подключаемый слой внутри rebro-frida; analyze/verify используют его по необходимости.
+`assets/rebro-frida-pack/` contains all 85 files from the supplied pack 1.0.0:
+38 modules, 16 profiles, controller/runtime, examples, documentation, tests and MIT
+license. This English adaptation changes documentation and catalog descriptions;
+vendor runtime code remains unchanged. The adapter verifies the updated `SHA256SUMS`
+at startup. Original source archive hashes remain in the app's provenance metadata.
+This is a component within rebro-frida, used by analyze/verify when needed.
 
-В RikkaHub запускать через `scripts/frida_pack.py`. Он использует внешний config и
-внешний каталог evidence, сохраняет неизменяемость skill_root и общий Frida lock.
-Примеры прямого `rebro.py configure/run` в исходном README относятся к самостоятельной
-копии пака: их defaults `local.json`/`runs` не подходят для синхронизированного skill.
+In RikkaHub, run through `scripts/frida_pack.py`. It uses external config/evidence,
+preserves skill_root and holds the shared Frida lock. Direct `rebro.py configure/run`
+examples in the original README apply to a standalone copy: their `local.json`/`runs`
+defaults are unsuitable for a synchronized skill.
 
-Получить собственный skill_root через use_skill/sync. Прочитать контракт и baseline,
-проверить task scope, process/package/user. PID берётся из актуального списка процессов.
-Внешние profile/options можно передавать абсолютными путями; placeholders из examples
-не являются реальными class names или адресами целевого приложения.
+Obtain this skill's own skill_root through use_skill/sync. Read the contract and
+baseline; verify task scope, process/package/user. Get PID from the current process
+list. External profiles/options accept absolute paths; example placeholders are
+not actual target class names or addresses.
 
-## Первый запуск
+## First use
 
-Для этой среды пользовательский системный промпт уже дал полный baseline и loader
-recipe. Использовать `config/pins.rebro-known-good-20260922.json`; широкого поиска
-bridge больше не требуется. Прочитать system-prompt-integration.md. Для иного
-неизвестного окружения collector остаётся отдельным способом сбора наблюдений.
+The supplied prompt already established this environment's full baseline and loader
+recipe. Use `config/pins.rebro-known-good-20260922.json`; broad bridge discovery is
+unnecessary. Read system-prompt-integration.md. The collector remains available
+for specific observations in a different unknown environment.
 
-Создать внешний config из существующего доверенного manifest формата kit:
+Create external config from an existing trusted kit-format manifest:
 
 ```sh
 python3 scripts/frida_pack.py --config "$FRIDA_CONFIG" configure --pins "$BASELINE_PINS"
@@ -32,8 +34,8 @@ python3 scripts/frida_pack.py --config "$FRIDA_CONFIG" doctor --online
 python3 scripts/frida_pack.py --config "$FRIDA_CONFIG" ps
 ```
 
-Для первого использования поставленного baseline из текущего skill_root доступна
-конкретная команда (указанный config должен ещё не существовать):
+For first use of the supplied baseline from the current skill_root, use this form
+(the named config must not already exist):
 
 ```sh
 python3 -B scripts/frida_pack.py \
@@ -41,45 +43,45 @@ python3 -B scripts/frida_pack.py \
   --pins config/pins.rebro-known-good-20260922.json --root-read
 ```
 
-Manifest объявляет режим rebro-flat; configure выбирает его автоматически и проверяет
-файлы/loaded binding. Команда не делает attach, не запускает сервис и не ставит пакеты.
-Config хранит точную ссылку на immutable manifest этой версии навыка: сохранять её
-Termux-копию, пока config используется, либо заранее перенести manifest в отдельный
-приватный config-каталог и передать его явный путь через --pins. После обновления
-не угадывать расположение прежнего skill_root и не перезаписывать config автоматически.
+The manifest declares rebro-flat; configure selects it automatically and verifies
+files/the loaded binding. It does not attach, start a service or install packages.
+Config references the immutable manifest in this skill version: retain that Termux
+copy while in use, or first copy the manifest into a separate private config directory
+and supply its explicit --pins path. After an update, do not guess the old skill_root
+or overwrite config automatically.
 
-`FRIDA_CONFIG` — новый файл вне skill_root. Для server binary, доступного только root,
-при configure добавить `--root-read`: это разрешает только scoped su sha256sum.
-Manifest, service file, bridge и действительно загруженная Python extension должны
-совпадать с уже выбранными pins. Повторное configure не перезаписывает файл.
+`FRIDA_CONFIG` must be a new file outside skill_root. For a root-only server binary,
+add `--root-read` at configure; it permits only scoped su sha256sum. Manifest,
+service file, bridge and actually loaded Python extension must match the already
+selected pins. Repeated configure never overwrites the file.
 
-Поддерживаются plain bridge формы auto/global/expression из upstream docs/BRIDGE.md
-и rebro-flat для экспорта frida_java_bridge_default из пользовательского baseline.
-Режим rebro-flat сохраняет bridge source в начале общего Script, затем публикует
-alias globalThis.Java для модулей пака. Исходный bridge-файл не изменяется. Отсутствие
-нужного экспорта приводит к явной JS-ошибке, не к подстановке другого bridge.
-Контроллер использует QJS. Для compiler bundle/ESM/private loader сначала прочитать
-его текущий контракт. Можно создать отдельный config с `configure --native-only` и
-использовать native profiles, сохранив Java на существующем loader. Этот режим не
-объявляет Java проверенной. Не ставить новый bridge ради прохождения проверки.
+Supported plain-bridge modes: auto/global/expression from upstream docs/BRIDGE.md,
+and rebro-flat for the supplied baseline's frida_java_bridge_default export.
+rebro-flat preserves bridge source at the beginning of the combined Script, then
+publishes globalThis.Java for pack modules. It never changes the bridge file.
+A missing export gives an explicit JS error, not another bridge. The controller
+uses QJS. For Compiler bundles/ESM/private loaders, read their actual contract first.
+A separate config with `configure --native-only` permits native profiles while Java
+stays on its existing loader; it does not mark Java verified. Do not install a new
+bridge merely to pass the check.
 
-## Smoke и профиль
+## Smoke and profiles
 
-Полный smoke не обязателен перед каждым кейсом. Пользователь уже сообщил успешную
-native spawn/attach/load/RPC/cleanup цепочку и Compiler build; новый Java adapter
-нуждается в отдельной проверке на текущем lab target. CLI smoke запускает обе фазы;
-для точечной проверки Java использовать run с выбранным Java модулем/профилем.
+Full smoke is unnecessary before every case. The user already reported native
+spawn/attach/load/RPC/cleanup and Compiler build success; the new Java adapter needs
+a separate check on the current lab target. CLI smoke runs both phases; for a
+focused Java check, use run with the selected Java module/profile.
 
-Долгие команды выполнять штатным managed Termux job из skill_root. Контроллер имеет
-собственные duration/startup bounds и best-effort cleanup; внешний deadline должен
-учитывать две фазы smoke и время detach, например 90 секунд для короткого smoke.
-Контроллер выполняется с Termux UID; инъекцию обслуживает уже работающий root service.
-CLI принимает PID и не заменяет внешнюю проверку `(boot_id, PID, start_ticks)`:
-сверить актуальную identity/профиль и сохранить в case перед attach. Пример ниже
-использует явно выбранный LAB_PID/TARGET_PID, не PID из старого отчёта.
+Use managed Termux jobs from skill_root for long commands. The controller has its
+own duration/startup bounds and best-effort cleanup; the outer deadline must cover
+both smoke phases and detach, for example 90 seconds for short smoke.
+The controller runs as Termux UID; the existing root service performs injection.
+CLI PID input does not replace external `(boot_id, PID, start_ticks)` checks:
+verify current identity/profile and record it before attach. Examples use explicitly
+selected LAB_PID/TARGET_PID, never a historical report's PID.
 
-Для первой Java-приёмки нового adapter профиль java-smoke проверяет только java_probe,
-без установки hooks. Чтобы проверить также lifecycle hit выбранного lab приложения:
+The java-smoke profile checks java_probe only, without hooks. To also verify a
+lifecycle hit in the selected lab app:
 
 ```sh
 python3 -B scripts/frida_pack.py --config "$FRIDA_CONFIG" run \
@@ -87,10 +89,10 @@ python3 -B scripts/frida_pack.py --config "$FRIDA_CONFIG" run \
   --duration 15 --startup-timeout 10 --output "$JAVA_EVIDENCE"
 ```
 
-Подставить полученную текущую identity и новый evidence path. После готовности hook
-выполнить разрешённый переход Activity и потребовать событие activity от этой сессии.
-Отсутствие hit при отсутствии триггера не доказывает неисправность bridge. Сохранить
-script errors, statuses, событие и cleanup summary; слово ready само по себе не gate.
+Supply current identity and a new evidence path. After hook readiness, perform the
+authorized Activity transition and require an activity event from that session.
+No hit without a trigger does not prove a bridge defect. Preserve script errors,
+statuses, event and cleanup summary; ready alone does not pass the gate.
 
 ```sh
 python3 scripts/frida_pack.py --config "$FRIDA_CONFIG" smoke \
@@ -99,38 +101,38 @@ python3 scripts/frida_pack.py --config "$FRIDA_CONFIG" run \
   --pid "$TARGET_PID" --profile java-survey --duration 10 --output "$SURVEY_EVIDENCE"
 ```
 
-Один профиль за сессию. Создаваемая вложенная session directory имеет уникальный ID.
-Сохранить напечатанный абсолютный путь. Shared lock координирует только этот adapter;
-прямой upstream controller и другие launchers его не соблюдают.
+One profile per session. The nested session directory has a unique ID; keep its
+printed absolute path. The shared lock coordinates only this adapter, not the
+direct upstream controller or other launchers.
 
-| Задача | Профиль / модуль |
+| Task | Profile / module |
 |---|---|
-| Проверить transport/runtime | doctor, native-smoke, java-smoke |
-| Выбрать module/loader/class | native-survey, java-survey, exports |
-| Наблюдать поздний код | modules, dynamic-code, jni |
-| UI и IPC | app-observe, binder |
-| Файлы/БД/preferences | storage, native-io |
-| Сетевые endpoints | network, okhttp |
-| Алгоритм/режим/размер crypto | crypto-metadata |
-| Потоки | threads |
-| Точный метод/символ | java_trace / native_trace + отдельный options JSON |
-| Малый участок памяти | native_memory / native_scan с явным диапазоном |
-| Краткое tracing одного потока | native_stalker_calls, experimental, отдельный lab target |
+| Check transport/runtime | doctor, native-smoke, java-smoke |
+| Select module/loader/class | native-survey, java-survey, exports |
+| Observe late code | modules, dynamic-code, jni |
+| UI and IPC | app-observe, binder |
+| Files/databases/preferences | storage, native-io |
+| Network endpoints | network, okhttp |
+| Crypto algorithm/mode/size | crypto-metadata |
+| Threads | threads |
+| Exact method/symbol | java_trace / native_trace + separate options JSON |
+| Small memory region | native_memory / native_scan with an explicit range |
+| Short single-thread tracing | native_stalker_calls, experimental, separate lab target |
 
-Capture metadata имеет конкретные границы: имена keys, пути и URL path могут попадать
-в evidence. Native memory/scan — отдельные выбранные операции. Профили не включают
-автоматическое получение ключей или изменение результатов бизнес-логики.
+Metadata capture has specific boundaries: key names, paths and URL paths may appear
+in evidence. Native memory/scan are separately selected operations. Profiles do not
+automatically capture keys or alter business-logic results.
 
-## Сборка агента и existing loader
+## Building an agent and using an existing loader
 
-Native bundle можно подготовить полностью offline:
+A native bundle can be prepared entirely offline:
 
 ```sh
 python3 scripts/frida_pack.py build-native --profile native-survey --out "$BUNDLE_JS"
 ```
 
-Для Java bundle — `--config "$FRIDA_CONFIG" build ...`; bridge попадает в тот же
-Script context. Пример с точечным hook:
+For Java bundles, use `--config "$FRIDA_CONFIG" build ...`; the bridge enters the
+same Script context. Focused hook example:
 
 ```sh
 python3 scripts/frida_pack.py --config "$FRIDA_CONFIG" run \
@@ -138,27 +140,28 @@ python3 scripts/frida_pack.py --config "$FRIDA_CONFIG" run \
   --duration 10 --output "$TRACE_EVIDENCE"
 ```
 
-Модули из пака можно перенести на существующий loader через native build/явно
-подготовленный Java adapter. Непрозрачный Frida compiler bundle не конкатенировать
-с plain JavaScript. Оригинальные минимальные probes и Compiler wrapper из kit также
-сохранены; для них прочитать `references/frida.md`.
+Pack modules can use an existing loader through native build/an explicitly prepared
+Java adapter. Do not concatenate opaque Frida Compiler bundles with plain JavaScript.
+The kit's original minimal probes and Compiler wrapper remain available; read
+`references/frida.md` for them.
 
-## Как принять результат
+## Accepting the result
 
-Из session directory читать session.json, summary.json и events.jsonl, затем:
+Read session.json, summary.json and events.jsonl from the session directory, then:
 
 ```sh
 python3 -B assets/rebro-frida-pack/tools/summarize.py "$SESSION_DIR"
 ```
 
-`active` означает инициализацию. Нужны hook_installed/java_hooks и реальное целевое
-hit-событие. Проверить reason, ready, cleanup_errors, unavailable, quota/truncation и
-agent_counters.dropped. Exit 0 при quota/interrupt не подтверждает полное покрытие.
-После instrumentation проверить нужный сценарий также без hooks.
+`active` means initialization. Require hook_installed/java_hooks and an actual
+target hit. Inspect reason, ready, cleanup_errors, unavailable, quota/truncation
+and agent_counters.dropped. Exit 0 after quota/interrupt does not establish full
+coverage. Also check the relevant scenario without hooks.
 
-Session directory и итоговую интерпретацию включить в outputs текущего analyze/verify
-attempt. Не менять исходные логи после finish. Frida smoke не закрывает acceptance
-статического APK-патча; verify требует своих реальных целевых и regression tests.
+Include the session directory and interpretation in the current analyze/verify
+attempt's outputs. Do not mutate logs after finish. Frida smoke does not establish
+a static APK patch's acceptance; verify needs actual target/regression tests.
 
-При timeout/обрыве сначала сверить managed job, процесс и сохранившийся session report.
-Не перезапускать сервис/приложение автоматически. Cleanup после SIGKILL не гарантирован.
+After timeout/interruption, reconcile the managed job, process and saved session
+report first. Do not automatically restart the service/app. Cleanup after SIGKILL
+is not guaranteed.

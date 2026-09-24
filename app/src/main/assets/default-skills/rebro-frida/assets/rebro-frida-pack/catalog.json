@@ -2,7 +2,7 @@
   {
     "id": "native_probe",
     "java": false,
-    "description": "Среда GumJS, ABI и доступные API",
+    "description": "GumJS environment, ABI and available APIs",
     "required": [],
     "validation": "syntax + mocked API; needs device smoke",
     "experimental": false
@@ -10,7 +10,7 @@
   {
     "id": "native_modules",
     "java": false,
-    "description": "Загруженные ELF-модули и адреса",
+    "description": "Loaded ELF modules and addresses",
     "required": [],
     "validation": "syntax + mocked API; needs device smoke",
     "experimental": false
@@ -18,7 +18,7 @@
   {
     "id": "native_module_watch",
     "java": false,
-    "description": "Загрузка новых ELF-модулей",
+    "description": "New ELF module loads",
     "required": [],
     "validation": "syntax + mocked API; needs device smoke",
     "experimental": false
@@ -26,7 +26,7 @@
   {
     "id": "native_threads",
     "java": false,
-    "description": "Снимок потоков",
+    "description": "Thread snapshot",
     "required": [],
     "validation": "syntax + mocked API; needs device smoke",
     "experimental": false
@@ -34,7 +34,7 @@
   {
     "id": "native_thread_watch",
     "java": false,
-    "description": "События новых и завершающихся потоков",
+    "description": "Thread creation and exit events",
     "required": [],
     "validation": "syntax + mocked API; needs device smoke",
     "experimental": false
@@ -42,7 +42,7 @@
   {
     "id": "native_exports",
     "java": false,
-    "description": "Экспортированные символы выбранных модулей",
+    "description": "Exports from selected modules",
     "required": [],
     "validation": "syntax + mocked API; needs device smoke",
     "experimental": false
@@ -50,7 +50,7 @@
   {
     "id": "native_imports",
     "java": false,
-    "description": "Импорты выбранных модулей",
+    "description": "Imports from selected modules",
     "required": [],
     "validation": "syntax + mocked API; needs device smoke",
     "experimental": false
@@ -58,7 +58,7 @@
   {
     "id": "native_symbols",
     "java": false,
-    "description": "ELF symbol table, если она доступна",
+    "description": "ELF symbol table when available",
     "required": [],
     "validation": "syntax + mocked API; needs device smoke",
     "experimental": false
@@ -66,7 +66,7 @@
   {
     "id": "native_trace",
     "java": false,
-    "description": "Точечный hook export/offset с аргументами и возвратом",
+    "description": "Focused export/offset hook with arguments and return",
     "required": [
       "module"
     ],
@@ -76,7 +76,7 @@
   {
     "id": "native_dlopen",
     "java": false,
-    "description": "dlopen/android_dlopen_ext: пути и результат",
+    "description": "dlopen/android_dlopen_ext paths and result",
     "required": [],
     "validation": "syntax + mocked API; needs device smoke",
     "experimental": false
@@ -84,7 +84,7 @@
   {
     "id": "native_files",
     "java": false,
-    "description": "open/openat: имена файлов и флаги, без содержимого",
+    "description": "open/openat filenames and flags, without content",
     "required": [],
     "validation": "syntax + mocked API; needs device smoke",
     "experimental": false
@@ -92,7 +92,7 @@
   {
     "id": "native_network",
     "java": false,
-    "description": "connect/sendto: адрес назначения без payload",
+    "description": "connect/sendto destination without payload",
     "required": [],
     "validation": "syntax + mocked API; needs device smoke",
     "experimental": false
@@ -100,7 +100,7 @@
   {
     "id": "native_pthreads",
     "java": false,
-    "description": "pthread_create: адрес стартовой функции",
+    "description": "pthread_create entry function address",
     "required": [],
     "validation": "syntax + mocked API; needs device smoke",
     "experimental": false
@@ -108,7 +108,7 @@
   {
     "id": "native_memory",
     "java": false,
-    "description": "Ограниченное чтение памяти одного модуля",
+    "description": "Bounded memory read from one module",
     "required": [
       "module",
       "offset"
@@ -119,7 +119,7 @@
   {
     "id": "native_scan",
     "java": false,
-    "description": "Поиск byte pattern в ограниченном читаемом диапазоне",
+    "description": "Byte-pattern scan in a bounded readable range",
     "required": [
       "module",
       "offset",
@@ -131,7 +131,7 @@
   {
     "id": "native_stalker_calls",
     "java": false,
-    "description": "Эксперимент: call summaries одного вызова",
+    "description": "Experimental call summaries for one invocation",
     "required": [
       "module"
     ],
@@ -141,7 +141,7 @@
   {
     "id": "java_probe",
     "java": true,
-    "description": "Java/Android runtime и базовая работоспособность bridge",
+    "description": "Java/Android runtime and basic bridge readiness",
     "required": [],
     "validation": "syntax + mocked API; needs device smoke",
     "experimental": false
@@ -149,7 +149,7 @@
   {
     "id": "java_classes",
     "java": true,
-    "description": "Загруженные классы с regex-фильтром",
+    "description": "Loaded classes with a regex filter",
     "required": [],
     "validation": "syntax + mocked API; needs device smoke",
     "experimental": false
@@ -157,7 +157,7 @@
   {
     "id": "java_methods",
     "java": true,
-    "description": "Declared methods выбранного класса",
+    "description": "Declared methods of a selected class",
     "required": [
       "class_name"
     ],
@@ -167,7 +167,7 @@
   {
     "id": "java_loaders",
     "java": true,
-    "description": "Инвентаризация ClassLoader без смены default loader",
+    "description": "ClassLoader inventory without changing the default loader",
     "required": [],
     "validation": "syntax + mocked API; needs device smoke",
     "experimental": false
@@ -175,7 +175,7 @@
   {
     "id": "java_classload",
     "java": true,
-    "description": "Наблюдение ClassLoader.loadClass",
+    "description": "Observe ClassLoader.loadClass",
     "required": [],
     "validation": "syntax + mocked API; needs device smoke",
     "experimental": false
@@ -183,7 +183,7 @@
   {
     "id": "java_trace",
     "java": true,
-    "description": "Точный Java method tracer, overloads и custom ClassLoader",
+    "description": "Exact Java method tracer, overloads and custom ClassLoader",
     "required": [
       "class_name",
       "method"
@@ -194,7 +194,7 @@
   {
     "id": "java_reflection",
     "java": true,
-    "description": "Method.invoke для выбранного package",
+    "description": "Method.invoke for a selected package",
     "required": [],
     "validation": "syntax + mocked API; needs device smoke",
     "experimental": false
@@ -210,7 +210,7 @@
   {
     "id": "java_threads",
     "java": true,
-    "description": "Thread.start: имена создаваемых Java-потоков",
+    "description": "Thread.start names of created Java threads",
     "required": [],
     "validation": "syntax + mocked API; needs device smoke",
     "experimental": false
@@ -226,7 +226,7 @@
   {
     "id": "android_intents",
     "java": true,
-    "description": "Запуски Activity/Service/Broadcast, без extras values",
+    "description": "Activity/Service/Broadcast launches without extra values",
     "required": [],
     "validation": "syntax + mocked API; needs device smoke",
     "experimental": false
@@ -234,7 +234,7 @@
   {
     "id": "android_webview",
     "java": true,
-    "description": "WebView URLs и JS-interface inventory",
+    "description": "WebView URLs and JS-interface inventory",
     "required": [],
     "validation": "syntax + mocked API; needs device smoke",
     "experimental": false
@@ -242,7 +242,7 @@
   {
     "id": "android_prefs",
     "java": true,
-    "description": "SharedPreferences keys и типы операций",
+    "description": "SharedPreferences keys and operation types",
     "required": [],
     "validation": "syntax + mocked API; needs device smoke",
     "experimental": false
@@ -250,7 +250,7 @@
   {
     "id": "android_sqlite",
     "java": true,
-    "description": "SQLite SQL metadata; текст только при capture_strings",
+    "description": "SQLite SQL metadata; text only with capture_strings",
     "required": [],
     "validation": "syntax + mocked API; needs device smoke",
     "experimental": false
@@ -282,7 +282,7 @@
   {
     "id": "android_crypto",
     "java": true,
-    "description": "Cipher transformation, режим и размеры; без ключей",
+    "description": "Cipher transformation, mode and sizes; no keys",
     "required": [],
     "validation": "syntax + mocked API; needs device smoke",
     "experimental": false
@@ -290,7 +290,7 @@
   {
     "id": "android_digest",
     "java": true,
-    "description": "MessageDigest/Mac: алгоритмы и размеры",
+    "description": "MessageDigest/Mac algorithms and sizes",
     "required": [],
     "validation": "syntax + mocked API; needs device smoke",
     "experimental": false
@@ -298,7 +298,7 @@
   {
     "id": "android_binder",
     "java": true,
-    "description": "BinderProxy.transact codes/flags, без Parcel content",
+    "description": "BinderProxy.transact codes/flags without Parcel content",
     "required": [],
     "validation": "syntax + mocked API; needs device smoke",
     "experimental": false
@@ -306,7 +306,7 @@
   {
     "id": "android_assets",
     "java": true,
-    "description": "AssetManager.open имена assets",
+    "description": "AssetManager.open asset names",
     "required": [],
     "validation": "syntax + mocked API; needs device smoke",
     "experimental": false
@@ -314,7 +314,7 @@
   {
     "id": "jni_register",
     "java": true,
-    "description": "RegisterNatives: имена, JNI signatures и адреса",
+    "description": "RegisterNatives names, JNI signatures and addresses",
     "required": [],
     "validation": "syntax + mocked API; needs device smoke",
     "experimental": false

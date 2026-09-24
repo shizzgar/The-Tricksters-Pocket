@@ -1,40 +1,40 @@
 ---
 name: netbro-workflow
-description: "Вести сетевое исследование NetBro: определить scope, выбрать BBOT/Nmap/Nuclei/Legba, сопоставить evidence, разобрать результаты и продолжить работу после обрыва."
+description: "Conduct a NetBro network investigation: define scope, select BBOT/Nmap/Nuclei/Legba, correlate evidence, interpret results and resume interrupted work."
 ---
 
-# Сетевое исследование
+# Network investigation
 
-Выбрать минимальный маршрут под задачу. Для вопроса не запускать сканирование.
-Использовать текущие полномочия и ограничения пользователя; найденные узлы
-не становятся новыми целями автоматически. Не требовать повторного согласования
-уже разрешённой работы.
+Choose the smallest useful workflow for the task. Do not start a scan to answer
+an ordinary question. Use the user's established authorization and constraints;
+discovered assets do not automatically become new targets. Do not ask again for
+stages already authorized.
 
-1. Записать цель, хосты/сети/URL, исключения, допустимые проверки, лимит времени
-   и нагрузки. Для проверки аутентификации отдельно зафиксировать сервис,
-   предоставленные входы и ограничения учётных записей.
-2. Через netbro-environment проверить нужный инструмент в выбранной среде.
-   Не проверять весь стек при каждой короткой операции.
-3. Выбрать BBOT для разведки, Nmap для портов/сервисов, Nuclei для конкретных
-   шаблонов, Legba для заданного протокола и конечных входных данных.
-   Этапы независимы: не запускать четыре программы по инерции.
-4. Создать отдельный run в приватном case-каталоге. Сохранить версии,
-   параметры без секретов и исходные результаты.
-5. Длительную работу вести через termux_job_start с конечным сроком,
-   operation_id и job_id. Сначала согласовать состояние старого job, потом
-   повторять запрос. timeout ожидания не равен остановке процесса.
-6. Проверить завершение producer и полноту файлов. Сопоставить находку с целью
-   и доказательством; сформулировать результат и ограничения покрытия.
+1. Record the objective, hosts/networks/URLs, exclusions, allowed checks, time
+   budget and traffic budget. For authentication checks, separately record the
+   service, supplied inputs and account constraints.
+2. Use netbro-environment to check the required tool in the selected environment.
+   Do not recheck the entire stack for every short operation.
+3. Select BBOT for reconnaissance, Nmap for ports/services, Nuclei for selected
+   templates, or Legba for a specified protocol and finite inputs. These stages
+   are independent; do not run all four programs by habit.
+4. Create a separate run in a private case directory. Save versions, parameters
+   without secrets and original results.
+5. Run long operations through termux_job_start with a finite deadline,
+   operation_id and job_id. Reconcile the previous job before repeating a request.
+   A wait timeout does not mean the process stopped.
+6. Verify producer completion and file completeness. Relate each finding to the
+   objective and its evidence; report the result and coverage limitations.
 
-## Пакет и evidence
+## Package and evidence
 
-Получить этот пакет через use_skill/termux_skill_sync. Использовать только
-возвращённый skill_root как working_dir; результаты писать вне пакета.
-Читать [контракт результатов](references/evidence.md).
-Для большого дела скопировать [шаблон состояния](assets/STATE.template.md)
-в case и заполнить реальными данными.
+Obtain this package through use_skill/termux_skill_sync. Use only the returned
+skill_root as working_dir; write results outside the package.
+Read the [results contract](references/evidence.md).
+For a substantial case, copy the [state template](assets/STATE.template.md) into
+the case directory and fill it with real observations.
 
-Локальный helper только разбирает сохранённые файлы; сеть и сканеры не запускает:
+The local helper only parses saved files; it does not access the network or run scanners:
 
 ~~~sh
 python3 -B scripts/summarize.py --help
@@ -44,9 +44,9 @@ python3 -B scripts/summarize.py nuclei /absolute/case/run/findings.jsonl --limit
 python3 -B scripts/summarize.py legba /absolute/case/run/matches.jsonl --limit 20
 ~~~
 
-Helper считает все записи в пределах заданных лимитов, ограничивает только
-превью и не выводит содержимое credential data Legba или raw HTTP Nuclei.
-Пустой JSONL допускается: это ноль записей, а не доказательство успешного
-завершения сканирования. Повреждённые/слишком большие данные дают exit 2.
-Для scope использовать [scope_filter.py](scripts/scope_filter.py):
-он отбирает host/IP/URL из файла по явным правилам без DNS и без запуска команд.
+The helper counts all records within the configured input limits and limits only
+the preview. It omits Legba credential data and Nuclei raw HTTP content.
+Empty JSONL is valid: it means zero records, not successful scan completion.
+Malformed or oversized data returns exit 2.
+Use [scope_filter.py](scripts/scope_filter.py) for scope filtering: it selects
+hosts/IPs/URLs from a file using explicit rules, without DNS or command execution.

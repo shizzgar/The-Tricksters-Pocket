@@ -1,26 +1,26 @@
-# Evidence и передача между этапами
+# Evidence and handoff between stages
 
-- Case: цель, scope, исключения, среда (native Termux / конкретный Linux),
-  версии и пути программ, бюджет, активный operation_id/job_id.
-- Run: конкретная команда без секретов, входные файлы и их SHA-256, старт/финиш,
-  фактический exit code, причина остановки и пути stdout/stderr/results.
-- Находка: исходный scanner record, узел/сервис, проверенный факт, гипотеза,
-  проверка/опровержение, границы уверенности.
-- JSONL содержит находки, но обычно не сообщает, успешно ли завершился весь
-  процесс. Пустой файл и exit 0 не заменяют сведения о покрытии.
-- Nmap XML может быть оборван при отмене. Использовать только валидный XML,
-  finished exit и exit code самого процесса; отсутствие finished оставить unknown.
-- BBOT 2.x/3.x: структурированный event бывает в data или data_json.
-  Сохранять исходный event и scope_distance; событие вне scope не включать
-  автоматически в следующий скан.
-- Nuclei: сохранить template-id, matcher, timestamp, endpoint и точную версию
-  шаблона. Не публиковать raw HTTP, токены или extracted credentials.
-- Legba: partial=true считать частичным наблюдением. Output и session могут
-  содержать пароли; для чата использовать агрегаты и приватный путь.
+- Case: objective, scope, exclusions, environment (native Termux / specific Linux),
+  program versions and paths, budget, active operation_id/job_id.
+- Run: exact command without secrets, input files and their SHA-256, start/end,
+  actual exit code, stop reason and stdout/stderr/results paths.
+- Finding: original scanner record, host/service, observed fact, hypothesis,
+  verification/refutation and limits of confidence.
+- JSONL contains findings but usually does not establish whether the whole process
+  completed successfully. An empty file and exit 0 do not establish coverage.
+- Nmap XML may be cut off on cancellation. Require valid XML, finished exit and
+  the producer's exit code; leave completion unknown when finished is absent.
+- BBOT 2.x/3.x: structured events may use data or data_json. Preserve the original
+  event and scope_distance; do not automatically pass an out-of-scope event to
+  the next scanner.
+- Nuclei: preserve template-id, matcher, timestamp, endpoint and exact template
+  version. Do not publish raw HTTP, tokens or extracted credentials.
+- Legba: treat partial=true as a partial observation. Output and sessions may
+  contain passwords; use aggregates and a private evidence path in chat.
 
-## Scope без расширения прав
+## Scope without expanding authorization
 
-Пример файла scope.txt:
+Example scope.txt:
 ~~~text
 app.example.test
 *.lab.example.test
@@ -28,10 +28,10 @@ app.example.test
 2001:db8::/126
 ~~~
 
-Точное имя разрешает только этот host. Правило *.lab.example.test разрешает
-его поддомены, но не сам lab.example.test; при необходимости добавить apex
-отдельной строкой. CIDR проверяется только для буквального IP; helper не
-резолвит домены и не доказывает принадлежность IP домену.
+An exact name permits only that host. *.lab.example.test permits subdomains,
+but not lab.example.test itself; add the apex on a separate line if needed.
+CIDRs apply only to literal IPs; the helper does not resolve domains or prove
+that an IP belongs to a domain.
 
 ~~~sh
 python3 -B scripts/scope_filter.py --scope /absolute/case/scope.txt \
@@ -39,13 +39,13 @@ python3 -B scripts/scope_filter.py --scope /absolute/case/scope.txt \
   --exclude /absolute/case/excluded.txt
 ~~~
 
---exclude необязателен и имеет приоритет. Output создаётся только если ещё
-не существует; helper не перезаписывает case-файлы. Неверная строка прерывает
-обработку до записи. Входы — только host/IP/HTTP(S) URL, не флаги сканера.
-Совпадение по host не ограничивает путь URL, порт или DNS-переадресацию:
-такие ограничения проверять отдельно перед каждым этапом.
+--exclude is optional and takes precedence. Output is created only when it does
+not already exist; the helper never overwrites case files. An invalid line aborts
+processing before writing. Inputs are hosts/IPs/HTTP(S) URLs, not scanner flags.
+A host match does not constrain URL paths, ports or DNS redirects: check those
+constraints separately before each stage.
 
-После потери ответа сначала прочитать STATE и существующий job. Для Legba
-дополнительно сверить session и отпечатки wordlist. BBOT с тем же именем
-может дописывать старый output — новое выполнение обычно требует нового
-имени, а не смешивания результатов.
+After a lost response, read STATE and reconcile the existing job first. For Legba,
+also check the session and wordlist fingerprints. Reusing a BBOT scan name may
+append to old output; a new execution usually needs a new name rather than
+mixing results.

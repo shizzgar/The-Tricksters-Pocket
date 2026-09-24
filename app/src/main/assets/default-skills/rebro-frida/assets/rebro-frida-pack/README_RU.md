@@ -1,21 +1,34 @@
 # Rebro Frida Pack 1.0.0
 
-Переносимый комплект для существующего рабочего Frida в Termux: **38 агентов, 16 профилей, Python-контроллер без сторонних зависимостей кроме уже установленного frida**. Дата сборки: 2026-09-22.
+Portable tools for an existing working Frida in Termux: **38 agents, 16 profiles,
+a Python controller with no external dependency except the already installed frida**.
+Original build date: 2026-09-22. Instructions are now English; historical filenames
+ending in _RU are retained for existing links.
 
-Целевой baseline: Android 16 / API 36 / arm64; KernelSU; SELinux Enforcing; rebro endpoint `127.0.0.1:27044`; пользовательский core 17.18.0, binding 17.2.14-4+rebro.compiler1, внешний patched `bridge-final.js`. Эти версии взяты из предоставленной сводки. Код не устанавливает, не обновляет и не перезапускает Frida.
+Supplied baseline: Android 16 / API 36 / arm64; KernelSU; SELinux Enforcing; endpoint
+`127.0.0.1:27044`; custom core 17.18.0, binding 17.2.14-4+rebro.compiler1, external
+patched `bridge-final.js`. These versions came from the supplied report. The code
+does not install, update or restart Frida.
 
-**Проверено здесь:** синтаксис, сборка, контракты контроллера и агентов на моках. **Проверка на вашем телефоне ещё не выполнена.** Работающий сервер не гарантирует поддержку каждого хука в каждом приложении. `native_stalker_calls` — экспериментальный модуль.
+**Original validation:** syntax, builds and controller/agent contracts using mocks.
+**Validation on the user's phone was not performed by the pack authors.** A working
+server does not establish every hook in every app. `native_stalker_calls` is experimental.
 
-## Быстрый старт в Termux
+## Termux quick start
 
-Распакуйте архив в отдельную папку внутри Termux home. Для работы достаточно вашего baseline Python + frida; Node нужен только для офлайн-тестов. Команды ниже выполняются из корня пакета, без `su`.
+For a standalone copy, unpack into its own directory under Termux home. The baseline
+Python + frida suffice; Node is needed only for offline tests. Run the following
+from the package root without `su`. In a synchronized RikkaHub skill, use the outer
+`scripts/frida_pack.py` adapter and external config/output as described by that
+skill's procedure; standalone local.json/runs defaults would modify the skill package.
 
 ```sh
 python tools/verify.py
 python tools/find_bridge.py "$HOME/rebro"
 ```
 
-Из результатов поиска выберите **тот bridge, который используется рабочим baseline**, не просто первый файл. Следующая команда использует явный placeholder: замените путь на найденный реальный абсолютный путь.
+Select **the bridge actually used by the working baseline**, not the first result.
+Replace the explicit placeholder below with its real absolute path:
 
 ```sh
 python rebro.py configure --bridge /absolute/path/to/bridge-final.js
@@ -23,9 +36,12 @@ python rebro.py doctor --online
 python rebro.py ps
 ```
 
-`configure` сохраняет полные SHA-256 загруженного Python binding и выбранного bridge в `local.json`. Это фиксация текущих файлов, а не независимая проверка их происхождения. Для дополнительной фиксации файла сервера укажите `--server-binary /absolute/path/to/rebro-frida`; это не проверяет executable живого PID. При обнаружении изменившегося хеша дальнейший запуск прерывается.
+`configure` records full hashes of the loaded Python binding and selected bridge
+in `local.json`. This records current files, not independent provenance. To also
+record the server file, use `--server-binary /absolute/path/to/rebro-frida`; that does
+not check a live PID's executable. A later hash mismatch blocks execution.
 
-Выберите PID уже запущенного тестового приложения из `ps`. Ниже `12345` — **пример**, замените его актуальным PID:
+Select a running test app's PID from `ps`. **12345 is an example**, not a live PID:
 
 ```sh
 python rebro.py smoke --pid 12345
@@ -33,61 +49,76 @@ python rebro.py run --pid 12345 --profile native-survey --duration 10
 python rebro.py run --pid 12345 --profile java-survey --duration 10
 ```
 
-`smoke` последовательно создаёт две короткие сессии: native и Java. Без настроенного bridge выполняется только native-фаза с явным сообщением. Проверка Java читает сведения runtime; она не доказывает совместимость всех Java-хуков.
+`smoke` creates two short sessions sequentially: native, then Java. Without a configured
+bridge, only the native phase runs, with an explicit message. Java smoke reads runtime
+information; it does not establish compatibility of every Java hook.
 
-Каждый запуск создаёт `runs/<time>-<id>/session.json`, `events.jsonl`, `summary.json`. Контроллер печатает абсолютный путь. Итог можно обработать:
+Each run creates `runs/<time>-<id>/session.json`, `events.jsonl`, `summary.json`.
+The controller prints the absolute path. Summarize with:
 
 ```sh
 python tools/summarize.py runs/ACTUAL_SESSION_DIRECTORY
 ```
 
-Код возврата `0`: выбранные агенты инициализировались и контроллер не обнаружил ошибок; `2`: ошибка конфигурации/загрузки/наблюдателя/очистки. Остановка по квоте или Ctrl-C может завершиться кодом 0: всегда читайте `reason`, `agent_counters.dropped` и события покрытия. `active` означает «инициализирован», а не «интересующий метод был вызван».
+Exit `0`: selected agents initialized and no controller-detected errors; `2`:
+configuration/load/observer/cleanup error. Quota or Ctrl-C may still exit 0: always
+inspect `reason`, `agent_counters.dropped` and coverage events. `active` means
+initialized, not that the relevant method was called.
 
-## Что запускать
+## Profiles
 
-| Профиль | Назначение |
+| Profile | Purpose |
 |---|---|
-| native-smoke / java-smoke | Минимальная проверка среды |
-| native-survey | ABI, модули, потоки |
-| java-survey | Runtime, классы, ClassLoader |
-| modules | Загрузка ELF и dlopen |
-| exports | Фильтр экспортов libc |
-| native-io | open/openat и connect/sendto |
+| native-smoke / java-smoke | Minimal environment check |
+| native-survey | ABI, modules, threads |
+| java-survey | Runtime, classes, ClassLoader |
+| modules | ELF loading and dlopen |
+| exports | Filtered libc exports |
+| native-io | open/openat and connect/sendto |
 | app-observe | Activity, Intent, WebView, assets |
 | storage | SharedPreferences, SQLite, Java files |
 | network | Native destinations + java.net.URL |
-| okhttp | Отдельный optional OkHttp hook |
-| crypto-metadata | Алгоритмы, режимы, размеры Cipher/Digest/Mac |
+| okhttp | Separate optional OkHttp hook |
+| crypto-metadata | Cipher/Digest/Mac algorithms, modes, sizes |
 | dynamic-code | DEX loaders, loadClass, ELF |
-| threads | Java/native создание потоков |
-| jni | RegisterNatives и модули |
-| binder | Коды/флаги BinderProxy.transact |
+| threads | Java/native thread creation |
+| jni | RegisterNatives and modules |
+| binder | BinderProxy.transact codes/flags |
 
-Один профиль за прогон; не запускайте все 38 модулей одновременно. Профили с Java требуют bridge и подходящий Java-процесс. OkHttp может отсутствовать или быть переименован. Observer API проверяются при запуске.
+Use one profile per run, not all 38 modules at once. Java profiles need the bridge
+and a suitable Java process. OkHttp may be absent/renamed. Observer APIs are checked
+at runtime.
 
-## Точные трассировки
+## Focused tracing
 
 ```sh
 python rebro.py run --pid 12345 --agents native_trace --options examples/native-trace.options.json --duration 15
 python rebro.py build --profile native-survey --out "$TMPDIR/rebro-native-survey.js"
 ```
 
-Первый пример наблюдает `libc.so!openat`. Для Java сначала замените пример класса/метода в копии `examples/java-trace.options.json`, затем используйте `--agents java_trace --options <file>`. Сборка `build` создаёт самостоятельный JS для вашего existing loader; live-контроллер предпочтительнее, потому что обеспечивает срок сессии и сохранение отчёта. `build` никогда не перезаписывает существующий файл. В Termux вместо `/tmp` используйте `$TMPDIR` или путь внутри home.
+The first example observes `libc.so!openat`. For Java, replace class/method in a copy
+of `examples/java-trace.options.json`, then use `--agents java_trace --options <file>`.
+`build` produces standalone JS for an existing loader; the live controller provides
+session deadlines/reporting. `build` never overwrites an existing file. In Termux,
+use `$TMPDIR` or a home path instead of `/tmp`.
 
-По умолчанию: 30 секунд, 64 хука, 2000 событий, 2 MB JSONL на сессию, 100 событий/секунду, строки до 256 символов, коллекции до 100 элементов. Общий объём папки runs не ограничен автоматически. Метаданные могут содержать пути, адреса, URL без query и имена preference keys. Политика `capture_strings=false` относится к значениям generic Java tracer / SQL, не ко всем текстовым полям.
+Defaults: 30 seconds, 64 hooks, 2000 events, 2 MB JSONL per session, 100 events/second,
+256-character strings, 100-element collections. Total runs-directory size is not
+automatically bounded. Metadata may contain paths, addresses, URLs without queries
+and preference-key names. `capture_strings=false` governs generic Java tracer/SQL
+values, not every text field.
 
-## Для агента-исполнителя
+## Executor guidance
 
-Начать с [AGENTS.md](AGENTS.md), затем [docs/HANDOFF_PROMPT_RU.md](docs/HANDOFF_PROMPT_RU.md). Этот пак не требует npm/pip install, APK-пересборки, ADB-транспорта или изменений SELinux.
+Read [AGENTS.md](AGENTS.md), then [docs/HANDOFF_PROMPT_RU.md](docs/HANDOFF_PROMPT_RU.md).
+The pack does not require npm/pip install, APK rebuild, ADB transport or SELinux changes.
 
-Полезные файлы:
-
-- [docs/CATALOG.md](docs/CATALOG.md): 38 модулей и параметры.
-- [docs/API17_CHEATSHEET.md](docs/API17_CHEATSHEET.md): используемый API и шаблоны.
-- [docs/BRIDGE.md](docs/BRIDGE.md): поддержанные формы bridge и диагностика.
-- [docs/RECIPES.md](docs/RECIPES.md): готовые сценарии.
-- [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md): ограничения покрытия и среды.
-- [docs/TESTING.md](docs/TESTING.md): что именно проверено.
-- [docs/GITHUB_RESEARCH_RU.md](docs/GITHUB_RESEARCH_RU.md): предыдущее исследование 59 репозиториев; внешние проекты не являются установленными компонентами этого пака.
-- `catalog.json`, `options.json`, `profiles/*.json`: машиночитаемые справочники.
-- `SHA256SUMS`: целостность поставки; не цифровая подпись.
+- [docs/CATALOG.md](docs/CATALOG.md): 38 modules and options.
+- [docs/API17_CHEATSHEET.md](docs/API17_CHEATSHEET.md): APIs and patterns.
+- [docs/BRIDGE.md](docs/BRIDGE.md): supported bridge forms and diagnosis.
+- [docs/RECIPES.md](docs/RECIPES.md): task recipes.
+- [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md): coverage/environment limits.
+- [docs/TESTING.md](docs/TESTING.md): exact validation scope.
+- [docs/GITHUB_RESEARCH_RU.md](docs/GITHUB_RESEARCH_RU.md): historical research on 59 repositories; these external projects are not installed pack components.
+- `catalog.json`, `options.json`, `profiles/*.json`: machine-readable references.
+- `SHA256SUMS`: distribution integrity, not a digital signature; regenerated for the English adaptation.

@@ -1,6 +1,6 @@
-# Legba: inputs и session
+# Legba: inputs and sessions
 
-Опираться на установленную версию:
+Use the installed version as the reference:
 
 ~~~sh
 legba --version
@@ -8,8 +8,8 @@ legba --list-plugins
 legba ssh --help
 ~~~
 
-Пример для собственного лабораторного SSH на loopback, по уже подготовленному
-конечному файлу username:password. Это форма команды, не default target:
+Example for an owned lab SSH service on loopback, using a prepared finite
+username:password file. This shows command structure, not a default target:
 
 ~~~sh
 legba ssh --target 127.0.0.1:2222 \
@@ -19,37 +19,37 @@ legba ssh --target 127.0.0.1:2222 \
   --output /absolute/private/case/run/matches.jsonl --output-format jsonl
 ~~~
 
-Сначала проверить наличие этих flags у установленной версии.
---timeout и --wait измеряются в миллисекундах; --rate-limit — запросы/сек.
---concurrency — число workers, не предел общего числа попыток.
-Срок всей операции задавать также в termux_job_start.
---single-match подходит только когда пользователь просит закончить после
-первого совпадения; иначе он уменьшает покрытие.
+Verify these flags in the installed version first.
+--timeout and --wait use milliseconds; --rate-limit uses requests/second.
+--concurrency is the number of workers, not a cap on total attempts.
+Also set the operation's overall deadline in termux_job_start.
+--single-match is appropriate only when the user wants to stop at the first
+match; otherwise it reduces coverage.
 
-Явные --username/--password поддерживают literal, files и специальные выражения;
-отсутствующие значения могут использовать генератор. Не печатать password
-в команде, tool call, STATE или диагностическом логе. Перед чтением файла
-проверить, что это существующий непустой ожидаемый файл, а не опечатка.
-Файл combinations ограничивает пары; две wordlist могут создать произведение.
+Explicit --username/--password support literals, files and special expressions;
+omitted values may select a generator. Do not print passwords in commands,
+tool calls, STATE or diagnostic logs. Before reading a file, verify that it is
+the intended existing nonempty file, not a typo. A combinations file bounds
+pairs; two wordlists may produce a Cartesian product.
 
-Session автоматически возобновляет прогресс и хранит options/результаты,
-включая credentials. Не менять inputs между resume: сохранить hashes файлов.
-Не запускать два процесса с одной session. После изменения scope или
-credential set начать новый run/session. Не обещать, что локальная отмена
-SSH-wrapper остановила удалённый процесс.
+A session automatically resumes progress and stores options/results, including
+credentials. Do not change inputs between resumes: record file hashes.
+Do not run two processes with one session. Start a new run/session after changes
+to scope or the credential set. Do not claim that cancelling a local SSH wrapper
+stopped the remote process.
 
-JSONL записи содержат plugin, target, data и partial.
-partial=true не является полным подтверждением credentials. Даже full match
-нужно интерпретировать по контракту plugin. Не считать ошибку соединения
-неверным паролем и не превращать отсутствие matches в proof of coverage.
+JSONL records contain plugin, target, data and partial.
+partial=true does not fully confirm credentials. Interpret even a full match
+according to the plugin contract. Do not treat a connection error as a wrong
+password or absence of matches as proof of coverage.
 
-Для HTTP использовать конкретный http.* plugin из текущего --list-plugins,
-изучить его body/auth/matcher параметры; не угадывать шаблон формы.
-Для enumeration plugins задавать конечный payload set и scope отдельно.
-Не включать REST/MCP server Legba для обычного запуска через Termux.
+For HTTP, select a specific http.* plugin from current --list-plugins and inspect
+its body/auth/matcher options; do not guess the form structure.
+Set finite payload sets and scope separately for enumeration plugins.
+Do not enable Legba's REST/MCP server for an ordinary Termux execution.
 
-## Источники
+## Sources
 
-- [CLI, inputs, session и output](https://legba.evilsocket.net/usage/)
-- [Plugins HTTP](https://legba.evilsocket.net/plugins/http/)
-- [Исходники и installation](https://github.com/evilsocket/legba/tree/dab974b910d52babc4767d06e093b7b86e259604)
+- [CLI, inputs, sessions and output](https://legba.evilsocket.net/usage/)
+- [HTTP plugins](https://legba.evilsocket.net/plugins/http/)
+- [Source and installation](https://github.com/evilsocket/legba/tree/dab974b910d52babc4767d06e093b7b86e259604)

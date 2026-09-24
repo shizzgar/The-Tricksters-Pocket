@@ -1,39 +1,47 @@
 ---
 name: rebro-environment
-description: "Проверять и доподготавливать Termux RE-окружение, собирать актуальный device report, память, место, tools и pinned Frida baseline. Использовать перед кейсом и при проблеме среды."
+description: "Check and prepare the Termux RE environment, collect a current device report, memory, storage, tools and pinned Frida baseline. Use before a case or to diagnose an environment issue."
 ---
 
-# Среда и baseline
+# Environment and baseline
 
-RikkaHub skill, release 2.3. Включить отдельно. Получить собственный skill_root
-из успешного use_skill/termux_skill_sync; использовать как working_dir.
-Читать [контракт](references/contract.md), [правила агента](references/agent-contract.md),
-затем [процедуру](references/procedure.md). По работе tools/sync читать [harness](references/harness.md).
-Уже прочитанные общие references той же версии не перечитывать без причины.
-Пути других skills не вычислять. Выходы писать в case, исходники skill не изменять.
+RikkaHub skill, kit 2.3 with English instructions. Enable this skill separately.
+Obtain its own skill_root from a successful use_skill/termux_skill_sync response
+and use it as working_dir. Read the [contract](references/contract.md),
+[agent rules](references/agent-contract.md), then the [procedure](references/procedure.md).
+For tools and synchronization, read the [harness contract](references/harness.md).
+Do not reread shared references of the same version without a reason. Never infer
+another skill's path. Write outputs into the case; keep package sources unchanged.
 
-## Вход и результат
+Use the procedure as the starting point, local checks as evidence of the current
+environment, and focused Local search for missing or changed APIs/practices.
+Follow the primary-source links in references/sources.md and match documentation
+to the installed version. Historical pins and reports are not fresh observations;
+a newer webpage alone is not a reason to replace a working baseline.
 
-- Вход: Профиль устройства, доверенный baseline.
-- Выход: doctor.json; inventory ZIP, hashes и отмеченные ограничения.
-- Этап и predecessor указаны в общем контракте; sign также обслуживает intake режима sign-only.
-- Для перехода между этапами использовать caseflow receipt с explicit parent.
-- Проверить фактическую доступность tools и смысл результата, а не только exit 0.
-- Учитывать текущие разрешения пользователя; не вводить повторное подтверждение
-  уже разрешённого действия и не расширять его на удаление/другие профили.
+## Inputs and result
 
-## Выполнение
+- Input: Device profile and trusted baseline.
+- Output: doctor.json; inventory ZIP, hashes and stated limitations.
+- Stage and predecessor are defined in the shared contract; sign also handles sign-only intake.
+- Use a caseflow receipt with an explicit parent between stages.
+- Check actual tool availability and the meaning of results, not just exit 0.
+- Honor established user authorization. Do not add repeat confirmation for an
+  already authorized action or extend its scope to deletion/other profiles.
 
-1. Прочитать нужную процедуру полностью, проверить идентичность target и входов.
-2. Проверить квитанцию предшествующего этапа и hashes. Для узкого запроса выбрать
-   соответствующий маршрут, не требовать ненужные этапы.
-3. Для этапа создать новый attempt, для helper использовать текущий; завести отдельный data/output каталог. Полезные shell-переменные
-   подставлять явно в каждом tool call; environment может не сохраняться.
-4. Выполнить скрипты с ограничениями ресурсов. Долгие команды — managed Termux job.
-5. Проверить gates из процедуры, сохранить evidence и закончить receipt.
-6. Отчитаться о доказанном результате и оставшейся границе проверки.
+## Execution
 
-## Скрипты этого пакета
+1. Read the needed procedure fully; verify target and input identities.
+2. Verify the preceding receipt and hashes. For a narrow request, select the
+   corresponding route without requiring unnecessary stages.
+3. Start a new attempt for a stage; helpers use the current attempt. Create a
+   separate data/output directory. Supply shell variables explicitly in every
+   tool call; the shell environment may not persist between calls.
+4. Execute scripts with resource limits. Use managed Termux jobs for long commands.
+5. Check the procedure's gates, preserve evidence and finish the receipt.
+6. Report the evidenced result and remaining verification boundary.
+
+## Package scripts
 
 - `scripts/apkset.py`
 - `scripts/caseflow.py`
@@ -42,21 +50,21 @@ RikkaHub skill, release 2.3. Включить отдельно. Получить
 - `scripts/pins.py`
 - `scripts/rebro_collect.py`
 
-Вызов `python3 scripts/<name>.py --help` описывает фактический CLI.
-caseflow фиксирует целостность и структуру, но не подтверждает вручную заявленное
-поведение приложения. Для специализированных операций следовать процедуре.
+`python3 scripts/<name>.py --help` describes the actual CLI.
+caseflow records integrity and structure; it cannot validate manually asserted
+application behavior. Follow the procedure for specialist operations.
 
-## Ошибка и восстановление
+## Failure and recovery
 
-Записать failed/blocked/unknown с конкретной причиной. Не превращать отсутствие
-ответа в успех или в доказательство отсутствия side effect. Не перезапускать PM
-commit после обрыва; перейти к reconcile. Новое изменение файлов — новая попытка.
-Не заменять pinned Frida, ключ или ожидаемые hashes ради прохождения проверки.
+Record failed/blocked/unknown with a specific reason. A missing response does not
+establish success or absence of side effects. Do not repeat PM commit after an
+interruption; reconcile first. A new file change requires a new attempt.
+Do not replace pinned Frida, a signing key or expected hashes merely to pass a check.
 
-## Дополнительные материалы
+## Further reading
 
-- [Источники](references/sources.md)
-- [Проверки и ограничения релиза](references/validation.md)
+- [Sources](references/sources.md)
+- [Release checks and limitations](references/validation.md)
 - [environment](references/environment.md)
 - [troubleshooting](references/troubleshooting.md)
 - [collection](references/collection.md)

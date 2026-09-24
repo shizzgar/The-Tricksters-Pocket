@@ -1,82 +1,86 @@
-# Использование системного промпта в Rebro kit 2.3
+# System-prompt evidence integrated into Rebro kit 2.3
 
-Принят `REBRO-SYSTEM-PROMPT-20260922(1).md`, SHA-256
+Accepted source: `REBRO-SYSTEM-PROMPT-20260922(1).md`, SHA-256
 `fafcecdbc2e9079ccb047e8b91c8a7171f693bfe289af54181084aaf6029145f`.
-Исходник сохранён без изменений в source/reference-inputs. Пользователь сам адаптирует
-системный промпт; kit переносит его конкретные контракты в профильные инструкции.
+The original kit preserved it unchanged under source/reference-inputs. The kit
+transferred concrete contracts into specialist instructions. The app's English
+adaptation now keeps a shorter coordinating system prompt and loads details through
+skills, supplemented by local evidence and current version-matched Local search.
 
-## Что закрылось
+## Resolved gaps
 
-Sections 10–11 дают канонические пути и полные expected hashes сервиса, Python
-extension и bridge, а также flat loader recipe. Создан
-`config/pins.rebro-known-good-20260922.json` в environment/frida. Его trust основан
-на явно предоставленном пользовательском baseline, не на автоматическом принятии
-байтов из inventory. Перед использованием adapter сверяет реальные файлы.
+Sections 10–11 supplied canonical paths and full expected service, Python extension
+and bridge hashes, plus the flat-loader recipe. A separate
+`config/pins.rebro-known-good-20260922.json` was created in environment/frida.
+Trust derives from the explicitly supplied baseline, not automatic acceptance of
+inventory bytes. The adapter checks actual files before use.
 
-Канонический bridge:
+Canonical bridge:
 
 ```text
 /data/data/com.termux/files/home/rebro/cases/frida-repair/bridge-src-20260921/build/bridge-final.js
 6be272a9e37d5c8e230a922e95a3ac3f803053ea11236fe0bff0e251b00429ad
 ```
 
-Его экспорт **frida_java_bridge_default** не распознавался generic auto adapter
-исходного Frida Pack. В kit добавлен режим **rebro-flat**: прочитать bytes, проверить
-полный pin/формат, сохранить flat source в начале того же Script и после него
-присвоить `globalThis.Java = frida_java_bridge_default` для модулей пака. Bridge на
-диске и все 85 vendor files остаются исходными. Если expected export отсутствует,
-агент получает явную ошибку; stock bridge автоматически не подставляется.
+Its **frida_java_bridge_default** export was not recognized by the original Frida
+Pack's generic auto adapter. Kit mode **rebro-flat** reads bytes, verifies the full
+pin/format, preserves flat source at the beginning of the same Script, then assigns
+`globalThis.Java = frida_java_bridge_default` for pack modules. The device's bridge
+is unchanged. The original integration retained all 85 vendor files; this app
+adaptation translates documentation/catalog text without changing vendor runtime code.
+A missing expected export is an explicit error; stock bridge is never substituted.
 
-Flat assembly и Compiler — разные пути. Готовый Compiler bundle передавать
-create_script неизменным, не дописывать к нему bridge, не снимать package header.
-Встроенный pack controller использует QJS; новый adapter ещё не исполнялся на телефоне.
+Flat assembly and Compiler are different routes. Pass a completed Compiler bundle
+to create_script unchanged; do not append a bridge or strip its package header.
+The pack controller uses QJS; the new adapter had not yet run on the phone in the
+supplied evidence.
 
-**Повторный широкий collector для путей/pins больше не нужен.** Старое требование
-из релизов 2.1/2.2 закрыто этим промптом. При mismatch проверять конкретный артефакт,
-не запускать поиск всех build trees и не делать reconfigure ради нового hash.
+**Another broad collector for paths/pins is unnecessary.** The earlier 2.1/2.2
+requirement was resolved by the prompt. On mismatch, inspect the specific artifact;
+do not search every build tree or reconfigure merely to accept a new hash.
 
-## Как учитывать приведённый отчёт агента
+## Interpreting the supplied agent report
 
-| Возможность | Что предоставлено | Что можно утверждать |
+| Capability | Supplied evidence | Supported claim |
 |---|---|---|
-| Transport/list | Инвентаризация с выводом и более поздний текстовый отчёт | Endpoint отвечал; число процессов — снимок, не постоянная метрика |
-| Native spawn/attach/load/RPC/cleanup | Отчёт: disposable sh, точное echo nonce, PID 29180, unload/detach/kill | Reported pass для этой цепочки; исходные event logs здесь не приложены |
-| Compiler TS build | Отчёт об успешном bundle 199 bytes | Reported build pass; выполнение этого bundle в приведённом прогоне не показано |
-| Java ready/hook и short freeze recovery | Указаны в baseline промпта, evidence path известен | Исторический reported pass в ограниченных условиях; свежего Java hook в smoke не было |
-| Native Interceptor / Stalker | Перечислены как возможности | Этот sh/RPC smoke не проверял interception или Stalker |
-| Новый kit adapter | Локальная проверка same-Script alias и ошибок | Phone integration ожидается; старый smoke не проверял новый код kit |
-| APK align/sign/install | Наличие tools | Функциональная цепочка на lab APK ещё не предоставлена |
+| Transport/list | Inventory output and a later text report | Endpoint responded; process count is a snapshot |
+| Native spawn/attach/load/RPC/cleanup | Report: disposable sh, exact echo nonce, PID 29180, unload/detach/kill | Reported pass for that chain; original event logs were not attached |
+| Compiler TS build | Report of a successful 199-byte bundle | Reported build pass; execution of that bundle was not shown |
+| Java ready/hook and short freeze recovery | Prompt baseline and known evidence path | Historical reported pass under bounded conditions; no fresh Java hook in that smoke |
+| Native Interceptor / Stalker | Listed capabilities | The sh/RPC smoke did not test interception or Stalker |
+| New kit adapter | Local same-Script alias/error checks | Phone integration pending; old smoke did not test new kit code |
+| APK align/sign/install | Tools available | Functional lab-APK pipeline not supplied |
 
-Не объявлять весь стек «неизвестным» из-за отсутствия повторного Java hook. Не
-объявлять все Frida API проверенными по RPC ping. Сохранить reported pass и его
-границы; повторять только проверку, нужную текущей задаче или интеграции adapter.
+Do not label the entire stack unknown because no Java hook was repeated. Do not
+label all Frida APIs tested because RPC ping passed. Preserve reported passes and
+their limits; repeat only the check relevant to the task or adapter integration.
 
-## Разделение системного ядра и навыков
+## System core and skills
 
-| Содержание текущего промпта | Размещение в kit / будущая роль |
+| Original prompt content | Placement |
 |---|---|
-| §1–4: scope, честное evidence, UNKNOWN, state | Короткое системное ядро; agent-contract в skills |
-| §5–6: jobs, PTY, quoting, privileges | harness + agent-contract; актуальные tool schemas |
-| §7 и §10–11: hardware/pins/Compiler/bridge | environment profile + frida; в system оставить правило сохранения baseline |
+| §1–4: scope, evidence, UNKNOWN, state | Short system core and skills' agent-contract |
+| §5–6: jobs, PTY, quoting, privileges | harness + agent-contract; live tool schemas |
+| §7 and §10–11: hardware/pins/Compiler/bridge | environment profile + frida; system retains baseline-preservation rule |
 | §8–9: acquisition/static/framework selection | acquire/analyze references |
-| §12–17: identity, hooks, native, freezer, network/data | frida и соответствующие целевые playbooks, загружать по задаче |
-| §18: patch/rebuild/sign/install/verify | Пять самостоятельных skills с output/evidence gates |
-| §19–21: диагностика, cleanup, завершение | Короткие общие правила + case-specific state |
+| §12–17: identity, hooks, native, freezer, network/data | Frida and task-specific references, loaded on demand |
+| §18: patch/rebuild/sign/install/verify | Five specialist skills with output/evidence gates |
+| §19–21: diagnosis, cleanup, completion | Compact shared rules and case state |
 
-При будущей адаптации убрать фразу «No skill ... required» как описание архитектуры
-модульного пайплайна. Простые вопросы и чтения при этом не требуют всей APK-цепочки.
-Исторический harness commit заменить правилом живой схемы и текущей инструкцией
-подключения; rg/jq/signer в inventory уже установлены. PIDs, RAM, listener state и
-короткие результаты smoke хранить в case/evidence, не как вечные system constants.
+The app keeps detailed prior operating guidance in rebro-workflow's
+references/operating-rules.md. Simple questions/reads still do not require the
+whole APK pipeline. Current schemas govern harness behavior; rg/jq/signer were
+already installed in the dated inventory. PIDs, RAM, listener state and short
+smoke results belong in case/evidence, not permanent system constants.
 
-На новом head форка навыки и skill-tools доступны только при подключённых skills;
-skill management включается отдельно. В пакеты добавлено руководство harness.
-Это контракт изученного head, не доказательство, что именно он установлен на телефоне.
+Skills and skill tools require connected skills; management is enabled separately.
+The harness guide describes the reviewed source, not proof that this exact APK
+is installed on the phone.
 
-## Следующий практический шаг
+## Next relevant device check
 
-Импортировать свежий rebro-frida ZIP, подключить его к выбранному ассистенту и получить
-skill_root. Следовать procedure.md: создать внешний config по поставленному baseline,
-проверить файлы и loaded binding, затем на выбранном уже работающем lab target проверить
-Java readiness и один нужный hook. Рестарт сервиса, новый native smoke, Compiler rebuild
-или сбор полного inventory не нужны как автоматические предварительные этапы.
+Enable/sync the current rebro-frida package and obtain skill_root. Follow procedure.md:
+create an external config from the supplied baseline, verify files and the loaded
+binding, then check Java readiness and one relevant hook on a selected running lab
+target. Service restart, another native smoke, Compiler rebuild or full inventory
+are not automatic prerequisites.

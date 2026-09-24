@@ -36,5 +36,7 @@
       "url": "https://github.com/termux/termux-packages/blob/master/packages/nmap/build.sh"
     }
   ],
-  "validation": "Offline helper fixtures and Android package/tool-surface checks. Availability and full external scanner behavior on a particular phone must be checked in its selected execution environment."
+  "validation": "Offline helper fixtures and Android package/tool-surface checks. Availability and full external scanner behavior on a particular phone must be checked in its selected execution environment.",
+  "instruction_language": "en",
+  "system_prompt": "English coordinator: connected skills provide procedures, Local search provides version-matched current sources, local probes establish environment facts; the model reasons, acts and verifies. Replies follow the user language."
 }

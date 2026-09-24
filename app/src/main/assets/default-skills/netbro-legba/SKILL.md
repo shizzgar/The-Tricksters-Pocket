@@ -1,32 +1,30 @@
 ---
 name: netbro-legba
-description: "Работать с Legba: проверка аутентификации и protocol enumeration на заданных сервисах, выбор plugin, конечные credential/payload inputs, контроль нагрузки, session и результаты без утечки паролей."
+description: "Use Legba for authentication checks and protocol enumeration on specified services: select plugins and finite credential/payload inputs, control load, manage sessions and report without leaking passwords."
 ---
 
 # Legba
 
-Проверить legba --version и --list-plugins; прочитать help нужного plugin
-и [процедуры](references/operations.md). Для установки — netbro-environment.
+Check legba --version and --list-plugins; read the selected plugin's help and
+[procedures](references/operations.md). Use netbro-environment for installation.
 
-1. Выбрать конкретный сервис и разрешённую операцию. Проверка портов или
-   баннера не означает задачу на подбор учётных данных.
-2. Проверить существование входных файлов и конечный объём попыток.
-   Пропущенные username/password могут включить генератор комбинаций;
-   несуществующий путь может трактоваться как literal.
-3. Явно задать необходимые inputs или конечный combinations file.
-   Не запускать usernames×passwords автоматически, если нужны только
-   заранее заданные пары.
-4. Установить concurrency/rate, deadline и ограничения lockout из задачи.
-   Начать с малого диагностического run; не увеличивать нагрузку при 429,
-   блокировке, нестабильном сервисе или неоднозначном matcher.
-5. Использовать уникальный session и output в приватном case. Долгую работу
-   вести как managed Termux job; после обрыва проверить старый job прежде,
-   чем возобновлять session.
-6. Отделять partial от полного match и от подтверждённого успешного входа.
-   Для HTTP проверить критерий успеха: одна только страница/статус 200
-   может быть ответом неуспешного входа.
+1. Select the specific service and authorized operation. A port/banner check
+   does not imply a credential-testing task.
+2. Verify input files exist and establish a finite attempt count. Omitted
+   username/password inputs may enable generated combinations; a nonexistent
+   file path may be interpreted as a literal.
+3. Explicitly supply required inputs or a finite combinations file. Do not
+   automatically run usernames×passwords when only specified pairs are needed.
+4. Set concurrency/rate, deadline and the task's lockout constraints. Begin with
+   a small diagnostic run; do not increase load after 429 responses, account
+   lockout, service instability or ambiguous matcher results.
+5. Use a unique session and output in a private case directory. Run long work as
+   a managed Termux job; reconcile the old job before resuming its session.
+6. Distinguish partial matches, full matches and verified successful logins.
+   For HTTP, check the success criterion: a page/status 200 alone may represent
+   a failed login.
 
-Пароли не передавать literal в tool arguments и не выводить в чат.
-Файлы session/output могут содержать credentials даже если stdout quiet.
-Для отчёта загрузить netbro-workflow и использовать summarize.py legba:
-он выводит counts, plugin, target и partial, исключая credential data.
+Do not pass literal passwords in tool arguments or print them in chat.
+Session/output files may contain credentials even when stdout is quiet.
+For reports, load netbro-workflow and use summarize.py legba: it reports counts,
+plugin, target and partial status while excluding credential data.

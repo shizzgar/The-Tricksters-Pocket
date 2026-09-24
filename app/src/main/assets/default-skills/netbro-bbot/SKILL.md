@@ -1,23 +1,23 @@
 ---
 name: netbro-bbot
-description: "Работать с BBOT: разведка доменов и сетевых активов, выбор presets/modules, различия BBOT 2/3, scope, зависимости, JSON events и передача подтверждённых целей следующему инструменту."
+description: "Use BBOT for domain and network asset reconnaissance: select presets/modules, handle BBOT 2/3 differences, scope and dependencies, parse JSON events and hand verified targets to the next tool."
 ---
 
 # BBOT
 
-Проверить версию в выбранной среде и читать
-[CLI и совместимость](references/operations.md).
-Для установки использовать netbro-environment.
+Check the version in the selected environment and read
+[CLI and compatibility](references/operations.md).
+Use netbro-environment for installation.
 
-1. Уточнить заданный scope из case, не из найденного event.
-2. Просмотреть доступные presets/modules и состав выбранного preset.
-3. Выбрать узкий набор: доменная разведка не требует kitchen-sink.
-4. Проверить зависимости и эффективную конфигурацию. Просмотр preset не
-   заменяет проверку side effects отдельных модулей.
-5. Задать новый scan name и явный output-dir в case, конечный job deadline.
-6. Проверить завершение, ошибки/skipped modules и сохранённые events.
-7. Передать следующему этапу только нужные цели после scope-фильтрации.
+1. Take the established scope from the case, not from a discovered event.
+2. Inspect available presets/modules and the selected preset's contents.
+3. Choose a narrow set: domain reconnaissance does not require kitchen-sink.
+4. Check dependencies and effective configuration. Inspecting a preset does not
+   replace checking individual modules' side effects.
+5. Set a new scan name, an explicit output-dir in the case, and a finite job deadline.
+6. Verify completion, errors/skipped modules and saved events.
+7. Pass only relevant, scope-filtered targets to the next stage.
 
-Сохранять output.json и журналы, читать их порциями. Для агрегатов загрузить
-netbro-workflow и запустить его summarize.py bbot по реальному пути.
-Не извлекать структурированные поля regexp по ANSI-выводу терминала.
+Preserve output.json and logs; read them in bounded pages. For aggregates, load
+netbro-workflow and run its summarize.py bbot with the actual file path.
+Do not extract structured fields with regexes over ANSI terminal output.

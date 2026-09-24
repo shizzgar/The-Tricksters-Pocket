@@ -1,40 +1,41 @@
-# Установка и совместимость
+# Installation and compatibility
 
-В APK включены skills и Python helpers, не сторонние сканеры, их wordlist,
-шаблоны, ключи API или контейнеры. Установка программы — отдельная операция
-в выбранном окружении; запуск NetBro сам её не выполняет.
+The APK includes skills and Python helpers, not external scanners, their wordlists,
+templates, API keys or containers. Installing a program is a separate operation
+in the selected environment; opening NetBro does not install it.
 
-| Инструмент | Проверка | Маршрут |
+| Tool | Check | Route |
 |---|---|---|
-| Nmap | nmap --version | В native Termux есть официальный пакет: pkg install nmap |
-| Nuclei | nuclei -version | Проверить пакет своего репозитория или собирать официальным Go toolchain; upstream: go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@VERSION |
-| BBOT | bbot --version | Upstream поддерживает Linux, рекомендует pipx install bbot; native Android не заявлен поддерживаемой платформой |
-| Legba | legba --version | Upstream предоставляет releases и cargo install legba; Android-совместимость бинарника и native-зависимостей проверять отдельно |
+| Nmap | nmap --version | Native Termux has an official package: pkg install nmap |
+| Nuclei | nuclei -version | Check your repository's package or build with the official Go toolchain; upstream: go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@VERSION |
+| BBOT | bbot --version | Upstream supports Linux and recommends pipx install bbot; native Android is not listed as supported |
+| Legba | legba --version | Upstream provides releases and cargo install legba; verify Android compatibility of the binary and native dependencies separately |
 
-VERSION для Nuclei заменить выбранным опубликованным тегом или осознанно latest,
-записать установленную версию. Проверить требования Go выбранного релиза.
-Не запускать загруженный Linux ARM64 ELF как Android ELF без проверки ABI/loader.
-Go/Rust/Python нужны в той среде, где выполняется соответствующая сборка.
+Replace VERSION for Nuclei with a selected published tag, or deliberately choose
+latest, and record the installed version. Check the selected release's Go
+requirements. Do not execute a downloaded Linux ARM64 ELF as an Android ELF
+without checking ABI/loader compatibility. Go/Rust/Python must be available in
+the environment where the corresponding build runs.
 
-Если BBOT/Legba не работают нативно, использовать уже доступный пользователю
-Linux в proot/chroot или согласованный удалённый хост. Новый Linux rootfs,
-контейнер, системный Python и рабочие окружения не заменять автоматически.
-В proot root — не capability для raw sockets. Docker не считать доступным
-только потому, что его команда есть в upstream README.
+If BBOT/Legba do not work natively, use the user's existing Linux in proot/chroot
+or an authorized remote host. Do not automatically replace a Linux rootfs,
+container, system Python or working environment. A proot root identity does not
+grant raw-socket capabilities. Do not assume Docker is available merely because
+an upstream README uses it.
 
-Проверять help и version внутри выбранной среды, запускать scan там же.
-Для передачи case-путей использовать реальные mounts/SSH-пути; приватный
-Termux skill_root не виден в другой среде автоматически. Для обычных
-TCP connect scans и HTTP-запросов root обычно не требуется.
+Check help and version inside the selected environment, and run the scan there.
+Use actual mounts/SSH paths for case files; a private Termux skill_root is not
+automatically visible in another environment. Ordinary TCP connect scans and
+HTTP requests usually do not require root.
 
-BBOT может устанавливать зависимости модулей при подготовке scan. Сначала
-проверить выбор модулей/зависимостей; не делать install-all-deps по умолчанию.
-API keys добавлять только для выбранных источников, из настроек пользователя,
-не выводить конфигурацию с секретами в чат.
+BBOT may install module dependencies during scan preparation. Inspect selected
+modules/dependencies first; do not default to install-all-deps. Add API keys only
+for selected sources using the user's configuration. Do not print configurations
+containing secrets in chat.
 
-## Первичные источники
+## Primary sources
 
-- [Nmap в Termux](https://github.com/termux/termux-packages/blob/master/packages/nmap/build.sh)
-- [BBOT: установка](https://github.com/blacklanternsecurity/bbot/blob/stable/docs/index.md)
-- [Nuclei: установка](https://docs.projectdiscovery.io/opensource/nuclei/install)
-- [Legba: установка](https://legba.evilsocket.net/install/)
+- [Nmap in Termux](https://github.com/termux/termux-packages/blob/master/packages/nmap/build.sh)
+- [BBOT installation](https://github.com/blacklanternsecurity/bbot/blob/stable/docs/index.md)
+- [Nuclei installation](https://docs.projectdiscovery.io/opensource/nuclei/install)
+- [Legba installation](https://legba.evilsocket.net/install/)

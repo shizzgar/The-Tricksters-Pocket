@@ -609,19 +609,19 @@ def write_report(out, report):
               'bridges':report['observations'].get('bridges',[]),
               'service_candidates':report['observations'].get('service_candidates',{})}
     (out/'observed-artifacts.json').write_text(json.dumps(observed,ensure_ascii=False,indent=2)+'\n')
-    summary=['# Rebro: отчёт для настройки kit','',f"Сборщик {VERSION}; время: {report.get('finished_at',utc())}.",
-             '', 'В архиве метаданные среды, результаты ограниченных проверок и наблюдаемые hashes.',
-             'Исходники bridge/loader, ключи, пароли, app data и shell history не копируются.',
-             'Наблюдаемые hashes не становятся доверенным baseline автоматически.',
-             '', '## Что ещё не подтверждено','']
+    summary=['# Rebro: kit environment report','',f"Collector {VERSION}; time: {report.get('finished_at',utc())}.",
+             '', 'The archive contains environment metadata, bounded probe results and observed hashes.',
+             'Bridge/loader source, keys, passwords, app data and shell history are not copied.',
+             'Observed hashes do not automatically become a trusted baseline.',
+             '', '## Not yet established','']
     summary += ['- '+x for x in sorted(set(report.get('missing',[])))]
-    summary += ['', '## Следующий шаг','',
-                'Передать этот ZIP для настройки kit. Точечный досбор: `python3 rebro_collect.py --focus frida`.',
-                'Если пути уже известны, сузить поиск через --search-root или указать их явно:',
+    summary += ['', '## Next step','',
+                'Provide this ZIP for kit configuration. Focused follow-up: `python3 rebro_collect.py --focus frida`.',
+                'If paths are already known, narrow search with --search-root or supply them explicitly:',
                 '`--bridge /absolute/path/bridge-final.js --loader /absolute/path/existing-launcher.py`.',
-                'Доверенный pin manifest можно указать через `--baseline /absolute/path/pins.json`.',
-                'Ни один кандидат из поиска не выбирается автоматически. Live attach/Java hooks и',
-                'реальная подпись/установка лабораторного APK остаются отдельной приёмкой.','']
+                'Supply a trusted pin manifest with `--baseline /absolute/path/pins.json`.',
+                'No search candidate is selected automatically. Live attach/Java hooks and',
+                'actual lab-APK signing/installation remain separate acceptance checks.','']
     (out/'SUMMARY.ru.md').write_text('\n'.join(summary))
     files=sorted(p for p in out.iterdir() if p.is_file())
     (out/'SHA256SUMS').write_text(''.join(digest(p)+'  '+p.name+'\n' for p in files))
