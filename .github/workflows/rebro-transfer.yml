@@ -1,0 +1,129 @@
+name: Transfer verified ReBro release
+
+on:
+  push:
+    branches: [ops/rebro-release-transfer]
+    paths: ['.github/workflows/rebro-transfer.yml']
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  transfer:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Require the verified source run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request
+          url = 'https://api.github.com/repos/shizzgar/rikkahub-agent/actions/runs/36057905938'
+          request = urllib.request.Request(url, headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'})
+          with urllib.request.urlopen(request) as response:
+              run = json.load(response)
+          assert run['conclusion'] == 'success'
+          assert run['head_sha'] == '3bf0436a13b36438a277a8d920cdcc5dc71a4d66'
+          PY
+      - uses: actions/download-artifact@v8
+        with:
+          name: rebro-arm64-release-unsigned
+          run-id: 36057905938
+          github-token: ${{ github.token }}
+          path: incoming/unsigned
+      - uses: actions/download-artifact@v8
+        with:
+          name: rebro-release-build-reports
+          run-id: 36057905938
+          github-token: ${{ github.token }}
+          path: incoming/reports
+      - name: Package lossless transfer parts under 32 MiB
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, json, shutil, zipfile
+          commit = '3bf0436a13b36438a277a8d920cdcc5dc71a4d66'
+          assert Path('incoming/unsigned/COMMIT.txt').read_text().strip() == commit
+          for line in Path('incoming/unsigned/SHA256SUMS').read_text().splitlines():
+              digest, name = line.split(maxsplit=1)
+              assert '/' not in name and name not in ('.', '..')
+              assert hashlib.sha256((Path('incoming/unsigned') / name).read_bytes()).hexdigest() == digest
+          manifest = {'source_commit': commit, 'source_run': 36057905938, 'bundles': [], 'parts': []}
+          for name in ['unsigned', 'reports']:
+              root = Path('incoming') / name
+              archive = Path(name + '.zip')
+              with zipfile.ZipFile(archive, 'w', compression=zipfile.ZIP_DEFLATED) as output:
+                  for path in sorted(root.rglob('*')):
+                      if path.is_file(): output.write(path, path.relative_to(root).as_posix())
+              manifest['bundles'].append({'name': archive.name, 'bytes': archive.stat().st_size,
+                                          'sha256': hashlib.sha256(archive.read_bytes()).hexdigest()})
+              with archive.open('rb') as stream:
+                  offset = 0
+                  while True:
+                      data = stream.read(24 * 1024 * 1024)
+                      if not data: break
+                      index = len(manifest['parts']) + 1
+                      folder = Path('transfer') / str(index)
+                      folder.mkdir(parents=True)
+                      (folder / 'part.bin').write_bytes(data)
+                      manifest['parts'].append({'index': index, 'bundle': archive.name, 'offset': offset,
+                                                'bytes': len(data), 'sha256': hashlib.sha256(data).hexdigest()})
+                      offset += len(data)
+          assert len(manifest['parts']) <= 8
+          for part in manifest['parts']:
+              (Path('transfer') / str(part['index']) / 'manifest.json').write_text(json.dumps(manifest, indent=2))
+          print(json.dumps({'source_commit': commit, 'parts': len(manifest['parts']), 'bundles': manifest['bundles']}))
+          PY
+      - uses: actions/upload-artifact@v7
+        with:
+          name: rebro-transfer-1
+          path: transfer/1/
+          compression-level: 0
+          retention-days: 7
+      - uses: actions/upload-artifact@v7
+        with:
+          name: rebro-transfer-2
+          path: transfer/2/
+          compression-level: 0
+          retention-days: 7
+      - uses: actions/upload-artifact@v7
+        with:
+          name: rebro-transfer-3
+          path: transfer/3/
+          compression-level: 0
+          retention-days: 7
+      - uses: actions/upload-artifact@v7
+        with:
+          name: rebro-transfer-4
+          path: transfer/4/
+          compression-level: 0
+          retention-days: 7
+      - uses: actions/upload-artifact@v7
+        with:
+          name: rebro-transfer-5
+          path: transfer/5/
+          compression-level: 0
+          retention-days: 7
+      - uses: actions/upload-artifact@v7
+        with:
+          name: rebro-transfer-6
+          path: transfer/6/
+          if-no-files-found: ignore
+          compression-level: 0
+          retention-days: 7
+      - uses: actions/upload-artifact@v7
+        with:
+          name: rebro-transfer-7
+          path: transfer/7/
+          if-no-files-found: ignore
+          compression-level: 0
+          retention-days: 7
+      - uses: actions/upload-artifact@v7
+        with:
+          name: rebro-transfer-8
+          path: transfer/8/
+          if-no-files-found: ignore
+          compression-level: 0
+          retention-days: 7
