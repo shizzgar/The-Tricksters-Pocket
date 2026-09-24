@@ -10,6 +10,8 @@
 | Посмотреть новые экраны | [Галерея с пояснениями](screenshots.md) |
 | Понять отличия форка | [Обзор изменений](../README.md#changes) и [CHANGELOG](../CHANGELOG.md) |
 | Начать с комплектом ReBro | [Встроенный ассистент ReBro](agent-runtime/rebro-assistant.ru.md) |
+| Работать с BBOT, Nmap, Nuclei и Legba | [Встроенный ассистент NetBro](agent-runtime/netbro-assistant.ru.md) |
+| Понять роль skills, поиска и обновления промптов | [Источники и принятие решений Bro](agent-runtime/bro-skills-and-evidence.ru.md) |
 
 [ReBro Blue и маскот](branding/README.md) · [Разбор трёх трасс](trace-review-2026-09-24.md) · [Обзор upstream от 24 сентября](upstream-review-2026-09-24.md)
 

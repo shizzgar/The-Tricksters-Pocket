@@ -7,7 +7,7 @@
 **Long tasks. Visible traces. Complete skills in Termux.**
 
 An Android assistant with checkpointed agent tasks, a visual trajectory inspector,<br />
-a skill workspace, and the bundled ReBro assistant.
+a skill workspace, and the bundled ReBro and NetBro assistants.
 
 [![Android 8+](https://img.shields.io/badge/Android-8%2B-3DDC84?style=flat-square&logo=android&logoColor=white)](docs/getting-started.md)
 [![Runtime CI](https://github.com/shizzgar/rikkahub-agent/actions/workflows/compaction-debug.yml/badge.svg?branch=master)](https://github.com/shizzgar/rikkahub-agent/actions/workflows/compaction-debug.yml)
@@ -57,6 +57,7 @@ These are changes in our development line relative to the ExTV base we started f
 | **Skills → Termux** | Versioned full-package transfer with hashes and a returned `skill_root` | Run scripts alongside their assets and references |
 | **Tool access** | Independent TTS/Whisper settings, individual exclusions, optional skill editing tools | Control the tool definitions each assistant actually receives |
 | **ReBro** | Built-in assistant, adapted system prompt, ten kit 2.3 skills, Termux and Local search | Start with a configured Android analysis and modification workflow |
+| **NetBro** | Separate network profile, six BBOT/Nmap/Nuclei/Legba skills, Termux and Local search | Run scoped investigations with bounded load and inspect saved evidence |
 
 ## Inspect the agent's work
 
@@ -104,17 +105,27 @@ ReBro ships with **Termux**, **Local search** and ten skills from kit 2.3:
 | Signing, installation and verification | `rebro-sign`, `rebro-install`, `rebro-verify` |
 | Dynamic analysis | `rebro-frida` |
 
-All **253 original package files** are included, with scripts, references, assets and Frida Pack. The prompt preserves the supplied profile's 21 sections and adapts its skill/Termux instructions. It uses the app's configured model and search provider.
+The full kit 2.3 is included with English instructions: **254 files** covering scripts, references, assets and Frida Pack. The former prompt's 21 detailed sections live in an on-demand `rebro-workflow` reference; the shorter system prompt coordinates **skills + Local search + current local evidence**. It uses the app's configured model and search provider.
 
 The environment profile is a **September 22, 2026 snapshot of an SM-S928B running Android 16**. Adapt it for another device. Bundled skills do not install dependencies or establish that Frida is ready on your phone.
 
 [ReBro setup and migration behavior, RU →](docs/agent-runtime/rebro-assistant.ru.md)
 
+## Meet NetBro
+
+**NetBro 🛰️** ships as a separate assistant with Termux, Local search and six skills: **BBOT, Nmap, Nuclei, Legba**, environment checks and investigation workflow. Its packages include references, a case template and Python helpers for bounded version checks, host/CIDR scope filtering and XML/JSONL summaries. Long operations use the existing Termux jobs and Trajectory.
+
+The APK bundles skills; external scanner binaries are installed separately in the selected environment. The profile accounts for native Termux/Linux differences, uses live device context and preserves saved profile settings across upgrades.
+
+[NetBro setup, packages and controls, RU →](docs/agent-runtime/netbro-assistant.ru.md)
+
+**All bundled skill instructions are English; replies follow the user's language.** Skills supply procedures, scripts and checks, while Local search supplies current, version-matched documentation. The model compares evidence, chooses actions and verifies outcomes. Applicable loaded skills and verified sources are reused. Upgrades replace only recognized factory ReBro/NetBro prompts; custom edits remain intact. [Source policy and upgrades, RU →](docs/agent-runtime/bro-skills-and-evidence.ru.md)
+
 ## Get started
 
 1. **Install this repository's build.** [ARM64 APK and installation guide](docs/getting-started.md#install). Distribution currently uses CI debug artifacts.
 2. **Configure a provider and model.**
-3. **Choose an assistant and its local tool groups.** ReBro already has its kit skills and Termux enabled.
+3. **Choose an assistant and its local tool groups.** ReBro and NetBro already have their respective skills and Termux enabled.
 4. **Set up Termux** for commands/scripts: RUN_COMMAND, `allow-external-apps=true`, Python and skill transfer.
 5. **Open Trajectory** from “+” to inspect a run.
 
@@ -126,7 +137,7 @@ RikkaHub and ExTV provide the multi-provider chat client, MCP, subagents, schedu
 
 ## Validation and current boundaries
 
-The [successful run for `8ded6be`](https://github.com/shizzgar/rikkahub-agent/actions/runs/36005633948) passed **799 JVM, 21 Python and 30 Android tests**. It checked restored-database migration, native QuickJS interruption, applying ReBro Blue, live steering and Stop, full-trace export, installed ReBro package manifests, tool availability, phone/wide emulator UI and the ARM64 APK signature. These counts describe that revision; see [Actions](https://github.com/shizzgar/rikkahub-agent/actions/workflows/compaction-debug.yml) for current runs.
+The [successful run for `92451a6`](https://github.com/shizzgar/rikkahub-agent/actions/runs/36023590276) passed **808 JVM, 46 Python and 32 Android tests**. It checked factory-prompt migration while preserving custom edits, English instructions and both Bro package manifests, NetBro helpers, restored-database migration, native QuickJS interruption, ReBro Blue, live steering and Stop, full-trace export, tool availability, phone/wide emulator UI and the ARM64 APK signature. These counts describe that revision; see [Actions](https://github.com/shizzgar/rikkahub-agent/actions/workflows/compaction-debug.yml) for current runs.
 
 - Traces are local and may contain private prompts, commands and results. Inspect exports before sharing.
 - Only provider-returned reasoning can be recorded. Deterministic replay and reconstruction of previously unrecorded events are not implemented.

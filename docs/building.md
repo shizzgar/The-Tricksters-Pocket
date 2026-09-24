@@ -59,7 +59,18 @@ bash ./gradlew --no-daemon --max-workers=2 :app:testDebugUnitTest \
 
 # Durable jobs and full skill-package transfer
 python3 -m unittest discover -s tests -p 'test_termux_*runtime.py' -v
+
+# NetBro package integrity, offline result parsing and environment helpers
+python3 -B scripts/update_netbro_catalog.py --check
+python3 -B -m unittest discover -s tests -p 'test_netbro_skills.py' -v
+
+# English instructions, adapted manifests and original provenance
+python3 -B scripts/update_rebro_catalog.py --check
+python3 -B -m unittest discover -s tests -p 'test_bro_skill_packages.py' -v
+python3 -B app/src/main/assets/default-skills/rebro-frida/assets/rebro-frida-pack/tools/verify.py
 ```
+
+After intentionally editing bundled Bro packages, regenerate the corresponding manifest with `scripts/update_rebro_catalog.py` or `scripts/update_netbro_catalog.py` without `--check`. The ReBro generator also updates the nested Frida Pack checksum file; original source ZIP hashes remain in provenance.
 
 UI checks use an Android API 35 x86_64 emulator. The workflow runs phone tests, changes the display to 1920×1200 at density 160 for the wide-layout test, captures 14 screens, then verifies the ARM64 APK signature. See the workflow for the exact instrumentation class list and emulator commands.
 
