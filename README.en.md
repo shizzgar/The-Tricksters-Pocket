@@ -2,7 +2,7 @@
 
 <img src="docs/icon.png" width="104" height="104" alt="ReBro ninja anteater" />
 
-# RikkaHub Agent · ReBro
+# ReBro Agent
 
 **Long tasks. Visible traces. Complete skills in Termux.**
 
@@ -18,6 +18,8 @@ a skill workspace, and the bundled ReBro and NetBro assistants.
 [Install](docs/getting-started.md#install) · [What's different](#changes) · [Screenshots](docs/screenshots.md) · [Documentation](docs/README.md) · [Build](docs/building.md)
 
 </div>
+
+**2.5.1-rebro.4:** workspaces linked to real Termux directories, ReBro/NetBro assistant-backed subagent profiles, the green NetBro avatar and a separate ReBro Agent release build. [Setup, data migration and APK signing](docs/termux-workspaces-and-release.md).
 
 This is a development fork of [ExTV/RikkaHub Agent](https://github.com/ExTV/rikkahub-agent), built on [RikkaHub](https://github.com/rikkahub/rikkahub). It brings together our work on long agent tasks, inspection of model/tool activity, and skills that include executable scripts and resources. The native chat client, model providers, and device integrations remain its foundation.
 
@@ -123,7 +125,7 @@ The APK bundles skills; external scanner binaries are installed separately in th
 
 ## Get started
 
-1. **Install this repository's build.** [ARM64 APK and installation guide](docs/getting-started.md#install). Distribution currently uses CI debug artifacts.
+1. **Install this repository's build.** [ARM64 APK and installation guide](docs/getting-started.md#install). ReBro Agent also provides an optimized release variant; the debug CI channel remains available. [Migration and signing](docs/termux-workspaces-and-release.md#release-identity-and-signing).
 2. **Configure a provider and model.**
 3. **Choose an assistant and its local tool groups.** ReBro and NetBro already have their respective skills and Termux enabled.
 4. **Set up Termux** for commands/scripts: RUN_COMMAND, `allow-external-apps=true`, Python and skill transfer.

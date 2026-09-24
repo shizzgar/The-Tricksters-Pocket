@@ -6,6 +6,7 @@ import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.platform.app.InstrumentationRegistry
+import com.dokar.sonner.rememberToasterState
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -15,6 +16,7 @@ import me.rerere.rikkahub.data.ai.mcp.McpManager
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.subagent.defaultBroSubAgents
 import me.rerere.rikkahub.ui.context.LocalNavController
+import me.rerere.rikkahub.ui.context.LocalToaster
 import me.rerere.rikkahub.ui.context.Navigator
 import me.rerere.rikkahub.ui.pages.setting.SettingSubAgentsPage
 import me.rerere.rikkahub.ui.pages.setting.SettingVM
@@ -53,7 +55,10 @@ class TermuxWorkspaceUiInstrumentedTest {
         runBlocking { store.update { it.copy(subAgents = defaultBroSubAgents(), broSubAgentsSeeded = true) } }
         try {
             compose.setContent {
-                CompositionLocalProvider(LocalNavController provides Navigator(mutableListOf())) {
+                CompositionLocalProvider(
+                    LocalNavController provides Navigator(mutableListOf()),
+                    LocalToaster provides rememberToasterState(),
+                ) {
                     RikkahubTheme(colorMode = ColorMode.DARK) { SettingSubAgentsPage(vm) }
                 }
             }

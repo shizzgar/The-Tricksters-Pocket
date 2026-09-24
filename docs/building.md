@@ -42,7 +42,7 @@ adb install -r app/build/outputs/apk/debug/*arm64-v8a*.apk
 
 An update requires the same application ID and signing certificate. A local debug key can differ from the key used by CI. Preserve an app backup before any installation migration; do not delete another app instance to resolve a signing mismatch.
 
-Release signing is configured separately through `local.properties` (`storeFile`, `storePassword`, `keyAlias`, `keyPassword`). Keep the keystore and credentials out of Git. The current CI workflow publishes debug APKs and does not use a release signing key.
+Release signing is configured separately through the `REBRO_*` environment variables described below or `local.properties` (`storeFile`, `storePassword`, `keyAlias`, `keyPassword`). Keep the keystore and credentials out of Git. The runtime workflow publishes debug APKs; the ReBro release workflow produces optimized unsigned APKs after the same validation gate. Sign release artifacts with the permanent owner-held key before installation.
 
 ## Tests
 
@@ -72,7 +72,7 @@ python3 -B app/src/main/assets/default-skills/rebro-frida/assets/rebro-frida-pac
 
 After intentionally editing bundled Bro packages, regenerate the corresponding manifest with `scripts/update_rebro_catalog.py` or `scripts/update_netbro_catalog.py` without `--check`. The ReBro generator also updates the nested Frida Pack checksum file; original source ZIP hashes remain in provenance.
 
-UI checks use an Android API 35 x86_64 emulator. The workflow runs phone tests, changes the display to 1920×1200 at density 160 for the wide-layout test, captures 14 screens, then verifies the ARM64 APK signature. See the workflow for the exact instrumentation class list and emulator commands.
+UI checks use an Android API 35 x86_64 emulator. The workflow runs phone tests, changes the display to 1920×1200 at density 160 for the wide-layout test, captures 16 screens, then verifies the ARM64 APK signature. See the workflow for the exact instrumentation class list and emulator commands.
 
 ## CI artifacts
 
@@ -89,3 +89,8 @@ The workflow runs on `master` and the existing runtime feature branches, and sup
 ## What CI does not establish
 
 JVM and Python tests exercise runtime contracts; emulator tests exercise Android integration and UI. They do not verify the user's physical Termux installation, live Frida setup, inference server or OEM background-process behavior. Reports of those checks should identify the device, configuration and tested commit separately.
+
+
+## ReBro release
+
+Starting with 2.5.1-rebro.4, a separate release workflow builds optimized APKs for signing with the permanent owner-held key. See [application IDs, migration and signing](termux-workspaces-and-release.md#release-identity-and-signing). The unsigned CI artifact must be signed before installation. Release artifacts are retained for 30 days.

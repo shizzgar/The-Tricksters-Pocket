@@ -2,7 +2,7 @@
 
 <img src="docs/icon.png" width="104" height="104" alt="ReBro ninja anteater" />
 
-# RikkaHub Agent · ReBro
+# ReBro Agent
 
 **Долгие задачи. Видимая трасса. Полные skills в Termux.**
 
@@ -18,6 +18,8 @@ Android-ассистент с управляемым агентским цикл
 [Установка](docs/getting-started.md#install) · [Отличия](#changes) · [Скриншоты](docs/screenshots.md) · [Документация](docs/README.md) · [Сборка](docs/building.md)
 
 </div>
+
+**2.5.1-rebro.4:** workspace с привязкой к настоящей папке Termux, ReBro и NetBro как связанные профили подагентов, зелёный аватар NetBro и отдельная release-сборка ReBro Agent. [Настройка, перенос данных и подпись APK](docs/termux-workspaces-and-release.md).
 
 Это развиваемый форк [ExTV/RikkaHub Agent](https://github.com/ExTV/rikkahub-agent), основанного на [RikkaHub](https://github.com/rikkahub/rikkahub). Здесь собраны наши изменения для длительной работы агента, разбора его действий и работы со skills как с полноценными пакетами файлов. Чат, провайдеры моделей и возможности управления устройством остаются основой приложения.
 
@@ -133,7 +135,7 @@ Android-ассистент с управляемым агентским цикл
 
 ## Начать работу
 
-1. **Установите сборку этого репозитория.** [Инструкция и ARM64 APK](docs/getting-started.md#install). Сейчас используется канал CI debug-сборок.
+1. **Установите сборку этого репозитория.** [Инструкция и ARM64 APK](docs/getting-started.md#install). Для новой установки доступна release-сборка ReBro Agent; прежний CI debug-канал сохранён. [Перенос данных](docs/termux-workspaces-and-release.md#release-identity-and-signing).
 2. **Настройте провайдера и модель** в настройках приложения.
 3. **Выберите ассистента** и включите нужные группы локальных инструментов. ReBro и NetBro уже содержат свои наборы skills и Termux.
 4. **Настройте Termux**, если нужны команды и скрипты: RUN_COMMAND, `allow-external-apps=true`, Python и передача навыков.

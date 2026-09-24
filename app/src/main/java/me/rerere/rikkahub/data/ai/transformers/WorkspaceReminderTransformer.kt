@@ -122,7 +122,7 @@ internal fun buildWorkspaceReminder(
         appendLine("Workspace ${workspace.name} is linked to the real Termux directory `${workspace.termuxPath}`. This is Termux's Android environment, not a proot rootfs.")
         appendLine("Use real absolute paths under this directory for workspace file tools and commands. File tools do not follow symbolic links or allow paths outside the linked root. Shell commands run as Termux UID and are not confined to that root.")
         appendLine("The workspace tools can read, write, edit, create folders, list trees, run commands and manage background jobs. Long commands should use workspace_run_background; preserve its job ID and inspect status instead of relaunching.")
-        appendLine("Your connected skills remain available through skills tools. Use termux_skill_sync/read_skill and their returned skill_root paths for Termux scripts. There is no /skills or /upload mount here. External tools and dependencies must already be installed in Termux.")
+        appendLine("Your connected skills remain available through skills tools. Read the selected skill with use_skill, then use termux_skill_sync and its returned skill_root paths for Termux scripts. There is no /skills or /upload mount here. External tools and dependencies must already be installed in Termux.")
         appendLine("Current directory: ${cwd ?: workspace.termuxPath}. A console command uses a fresh shell; cd and environment changes do not persist to the next command. Deleting the workspace unlinks it and keeps the real directory.")
         appendLine("If RUN_COMMAND or Python is unavailable, report the observed error and direct the user to Settings > Termux. Do not claim a successful operation without its result.")
         append("</workspace>")
