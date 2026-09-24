@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="docs/icon.png" width="88" height="88" alt="RikkaHub Agent" />
+<img src="docs/icon.png" width="104" height="104" alt="ReBro ninja anteater" />
 
-# RikkaHub Agent
+# RikkaHub Agent · ReBro
 
 **Long tasks. Visible traces. Complete skills in Termux.**
 
@@ -11,7 +11,7 @@ a skill workspace, and the bundled ReBro assistant.
 
 [![Android 8+](https://img.shields.io/badge/Android-8%2B-3DDC84?style=flat-square&logo=android&logoColor=white)](docs/getting-started.md)
 [![Runtime CI](https://github.com/shizzgar/rikkahub-agent/actions/workflows/compaction-debug.yml/badge.svg?branch=master)](https://github.com/shizzgar/rikkahub-agent/actions/workflows/compaction-debug.yml)
-[![AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-6750A4?style=flat-square)](LICENSE)
+[![AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-528FDC?style=flat-square)](LICENSE)
 
 [Русский](README.md) · **English**
 
@@ -20,6 +20,8 @@ a skill workspace, and the bundled ReBro assistant.
 </div>
 
 This is a development fork of [ExTV/RikkaHub Agent](https://github.com/ExTV/rikkahub-agent), built on [RikkaHub](https://github.com/rikkahub/rikkahub). It brings together our work on long agent tasks, inspection of model/tool activity, and skills that include executable scripts and resources. The native chat client, model providers, and device integrations remain its foundation.
+
+**ReBro Blue:** midnight-navy surfaces, blue actions, steel text and a ninja anteater mascot, with matching light/dark palettes. Existing installations can select **Theme settings → ReBro Blue → Apply**. [New screens](docs/screenshots.md#rebro-blue) · [Trace findings](docs/trace-review-2026-09-24.md) · [Upstream integration review](docs/upstream-review-2026-09-24.md).
 
 ## See the changes
 
@@ -32,7 +34,7 @@ This is a development fork of [ExTV/RikkaHub Agent](https://github.com/ExTV/rikk
   </tr>
 </table>
 
-Actual Android UI captures using test fixtures. Click an image for full resolution. [Explore all 12 screens →](docs/screenshots.md)
+Actual Android UI captures using test fixtures. Click an image for full resolution. [Explore all 14 screens →](docs/screenshots.md)
 
 <a id="changes"></a>
 
@@ -42,12 +44,14 @@ These are changes in our development line relative to the ExTV base we started f
 
 | Area | Change | What it enables |
 |---|---|---|
+| **ReBro Blue** | Navy/blue/steel light and dark palettes, adaptive/themed icons and a mascot | A consistent identity while preserving saved theme choices |
 | **Dialogue trajectory** | Waterfall, flow, filters, search, inspector, operation JSON and full-trace ZIP export | Follow requests, tool calls and time spent |
 | **Readable payloads** | Tool names and descriptions, message roles and excerpts, field previews before expansion | Find an operation without opening numbered cards one by one |
 | **Agent runtime** | Checkpoints, continuation across loop limits, cancellable waits for transient network failures | Keep a long task moving without repeated “continue” prompts |
 | **Live steering** | Queued updates enter the same task after its current operation | Adjust work without Stop or waiting for the task’s final answer |
 | **Compaction** | Configurable deadlines and concurrency, retained evidence, source validation when saving | Compress long histories without committing stale summaries |
 | **Metrics** | Measured content-receiving TPS and expandable details below the message | Separate model response speed from command execution and waiting |
+| **Termux diagnostics** | Specific failure hints, per-call preview limits and archived full output | Repair the failing step and keep repeated requests smaller |
 | **Termux jobs** | Persistent background jobs, stdout/stderr pages, read cursors, cancellation and job manager | Inspect long commands directly from chat |
 | **Skill workspace** | File operations, code editor, Markdown/image preview, HEX, imports/exports and drafts | Manage skill instructions, scripts and resources inside the app |
 | **Skills → Termux** | Versioned full-package transfer with hashes and a returned `skill_root` | Run scripts alongside their assets and references |
@@ -122,7 +126,7 @@ RikkaHub and ExTV provide the multi-provider chat client, MCP, subagents, schedu
 
 ## Validation and current boundaries
 
-The [successful run for `81fea68`](https://github.com/shizzgar/rikkahub-agent/actions/runs/35875085640) passed **718 JVM, 21 Python and 20 Android tests**. It checked live steering and Stop, full-trace export, installed ReBro package manifests, tool availability, phone/wide emulator UI and the ARM64 APK signature. These counts describe that revision; see [Actions](https://github.com/shizzgar/rikkahub-agent/actions/workflows/compaction-debug.yml) for current runs.
+The [successful run for `8ded6be`](https://github.com/shizzgar/rikkahub-agent/actions/runs/36005633948) passed **799 JVM, 21 Python and 30 Android tests**. It checked restored-database migration, native QuickJS interruption, applying ReBro Blue, live steering and Stop, full-trace export, installed ReBro package manifests, tool availability, phone/wide emulator UI and the ARM64 APK signature. These counts describe that revision; see [Actions](https://github.com/shizzgar/rikkahub-agent/actions/workflows/compaction-debug.yml) for current runs.
 
 - Traces are local and may contain private prompts, commands and results. Inspect exports before sharing.
 - Only provider-returned reasoning can be recorded. Deterministic replay and reconstruction of previously unrecorded events are not implemented.

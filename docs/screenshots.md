@@ -86,8 +86,22 @@
 
 <a href="media/screenshots/trajectory-full-export.png"><img src="media/screenshots/trajectory-full-export.png" width="360" alt="Экспорт завершён: 12 событий и одна сессия, хотя поиск не нашёл операций" /></a>
 
+<a id="rebro-blue"></a>
+
+## 09 · ReBro Blue
+
+Настоящий экран настроек после нажатия **«Применить»**. Тёмная палитра использует navy-поверхности, голубые акценты и стальной текст; светлая — холодные светлые поверхности. Маскот встроен в приложение и launcher. Эти снимки сняты с production Compose-экрана; это не сгенерированные макеты.
+
+<table>
+  <tr><th>Тёмная тема</th><th>Светлая тема</th></tr>
+  <tr>
+    <td><a href="media/screenshots/rebro-theme-dark.png"><img src="media/screenshots/rebro-theme-dark.png" width="360" alt="Настройки ReBro Blue в тёмно-синей палитре" /></a></td>
+    <td><a href="media/screenshots/rebro-theme-light.png"><img src="media/screenshots/rebro-theme-light.png" width="360" alt="Настройки ReBro Blue в светлой стальной палитре" /></a></td>
+  </tr>
+</table>
+
 ## Происхождение снимков
 
-Снимки получены в [успешном CI-прогоне](https://github.com/shizzgar/rikkahub-agent/actions/runs/35861320725) для ревизии `a8c800b67ae1b2890682466af44d5b85c450ff55`, Android API 35. Они хранятся в репозитории и не зависят от срока жизни Actions artifacts. Размеры и SHA-256 каждого файла указаны в [provenance.json](media/screenshots/provenance.json).
+Снимки получены в [успешном CI-прогоне](https://github.com/shizzgar/rikkahub-agent/actions/runs/36005633948) для ревизии `8ded6be9b14f34b6bae92c5fc161a1aa36b18189`, Android API 35. Они хранятся в репозитории и не зависят от срока жизни Actions artifacts. Размеры и SHA-256 каждого файла указаны в [provenance.json](media/screenshots/provenance.json).
 
-Сценарии: [Trajectory](../app/src/androidTest/java/me/rerere/rikkahub/ui/pages/chat/TrajectoryInstrumentedTest.kt), [payload](../app/src/androidTest/java/me/rerere/rikkahub/ui/pages/chat/TracePayloadInstrumentedTest.kt), [skill workspace](../app/src/androidTest/java/me/rerere/rikkahub/ui/pages/extensions/skills/SkillWorkbenchInstrumentedTest.kt), [tool access](../app/src/androidTest/java/me/rerere/rikkahub/ui/pages/assistant/detail/ToolAccessInstrumentedTest.kt).
+Сценарии: [Trajectory](../app/src/androidTest/java/me/rerere/rikkahub/ui/pages/chat/TrajectoryInstrumentedTest.kt), [payload](../app/src/androidTest/java/me/rerere/rikkahub/ui/pages/chat/TracePayloadInstrumentedTest.kt), [skill workspace](../app/src/androidTest/java/me/rerere/rikkahub/ui/pages/extensions/skills/SkillWorkbenchInstrumentedTest.kt), [tool access](../app/src/androidTest/java/me/rerere/rikkahub/ui/pages/assistant/detail/ToolAccessInstrumentedTest.kt), [ReBro Blue и launcher](../app/src/androidTest/java/me/rerere/rikkahub/ui/theme/RebroBrandInstrumentedTest.kt).

@@ -51,7 +51,7 @@ Run the tests relevant to your change. The full app test selection is maintained
 ```sh
 # HTTP and provider behavior
 bash ./gradlew --no-daemon --max-workers=2 \
-  :common:testDebugUnitTest :ai:testDebugUnitTest
+  :common:testDebugUnitTest :ai:testDebugUnitTest :search:testDebugUnitTest
 
 # Example: ReBro preset, migration and prompt contracts
 bash ./gradlew --no-daemon --max-workers=2 :app:testDebugUnitTest \
@@ -61,7 +61,7 @@ bash ./gradlew --no-daemon --max-workers=2 :app:testDebugUnitTest \
 python3 -m unittest discover -s tests -p 'test_termux_*runtime.py' -v
 ```
 
-UI checks use an Android API 35 x86_64 emulator. The workflow runs phone tests, changes the display to 1920×1200 at density 160 for the wide-layout test, captures 12 screens, then verifies the ARM64 APK signature. See the workflow for the exact instrumentation class list and emulator commands.
+UI checks use an Android API 35 x86_64 emulator. The workflow runs phone tests, changes the display to 1920×1200 at density 160 for the wide-layout test, captures 14 screens, then verifies the ARM64 APK signature. See the workflow for the exact instrumentation class list and emulator commands.
 
 ## CI artifacts
 

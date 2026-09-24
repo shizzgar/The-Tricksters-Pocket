@@ -4,7 +4,7 @@ The generated ninja anteater is the app's new mascot. The original transparent P
 
 Adaptive icons have separate midnight-navy background, padded foreground and alpha-derived monochrome layers. The debug variant retains its existing debug badge. Existing package IDs and signing configuration are unchanged. The mascot is the avatar for newly created default ReBro profiles; saved custom profiles are preserved.
 
-The `rebro-blue` Material palette uses navy surfaces, blue actions, steel secondary text and matching light surfaces. Error colors retain their semantic role. New installations default to this preset with wallpaper colors disabled. On an upgrade, use **Settings → Appearance → Theme → ReBro Blue → Apply** to select it; previously saved theme choices are not overwritten. Apply also disables pure-black AMOLED surfaces so the navy palette is visible.
+The `rebro-blue` Material palette uses navy surfaces, blue actions, steel secondary text and matching light surfaces. Error colors retain their semantic role. New installations default to this preset with wallpaper colors disabled. On an upgrade, use **Theme settings → ReBro Blue → Apply** to select it; previously saved theme choices are not overwritten. Apply also disables pure-black AMOLED surfaces so the navy palette is visible.
 
 Text and important controls have automated contrast checks. Android tests exercise the actual settings action in both light and dark modes, load the installed adaptive launcher and decode the bundled avatar.
 

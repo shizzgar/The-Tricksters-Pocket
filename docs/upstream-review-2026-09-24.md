@@ -1,6 +1,6 @@
 # Upstream review — 24 September 2026
 
-Compared our `d51d1a5c` baseline with two pinned upstreams. These are selective integrations, not an assertion that the fork has merged every upstream feature.
+Compared our `d51d1a5c` baseline with two pinned upstreams. The four fully integrated ExTV commits are also retained in Git ancestry; RikkaHub changes remain selectively ported. These are selective integrations, not an assertion that the fork has merged every upstream feature.
 
 | Source | Reviewed range | Decision |
 |---|---|---|
@@ -24,7 +24,7 @@ The QuickJS adaptation deliberately retains the fork's **30-second HTTP deadline
 
 Integrated missing pieces of line-number-free code copying ([`324b337b`](https://github.com/rikkahub/rikkahub/commit/324b337b)), JPEG output for the existing `.jpg` crop path ([`7c1629d0`](https://github.com/rikkahub/rikkahub/commit/7c1629d0)), and segmented reasoning timelines without opaque blocks or a large offscreen compositing layer ([`b7f06db1`](https://github.com/rikkahub/rikkahub/commit/b7f06db1), [`2cf09d2a`](https://github.com/rikkahub/rikkahub/commit/2cf09d2a)). Pending tool approvals still force their containing chain open.
 
-Reviewed generic reasoning OFF / DashScope effort parameters ([`40426e93`](https://github.com/rikkahub/rikkahub/commit/40426e93), [`94504b5c`](https://github.com/rikkahub/rikkahub/commit/94504b5c)), omission of `name` from tool-role messages ([`6e98691c`](https://github.com/rikkahub/rikkahub/commit/6e98691c)), inline-code ligatures ([`a7850967`](https://github.com/rikkahub/rikkahub/commit/a7850967)), favorites undo ([`445341e9`](https://github.com/rikkahub/rikkahub/commit/445341e9)) and numbered conversation forks ([`458c16df`](https://github.com/rikkahub/rikkahub/commit/458c16df)). Existing equivalent changes are retained rather than counted again as new features.
+Integrated generic reasoning OFF / DashScope effort parameters ([`40426e93`](https://github.com/rikkahub/rikkahub/commit/40426e93), [`94504b5c`](https://github.com/rikkahub/rikkahub/commit/94504b5c)). Reviewed omission of `name` from tool-role messages ([`6e98691c`](https://github.com/rikkahub/rikkahub/commit/6e98691c)), inline-code ligatures ([`a7850967`](https://github.com/rikkahub/rikkahub/commit/a7850967)), favorites undo ([`445341e9`](https://github.com/rikkahub/rikkahub/commit/445341e9)) and numbered conversation forks ([`458c16df`](https://github.com/rikkahub/rikkahub/commit/458c16df)). Existing equivalent changes are retained rather than counted again as new features.
 
 Gemini `propertyNames` removal ([`4391d5a5`](https://github.com/rikkahub/rikkahub/commit/4391d5a5)) is already covered by our recursive schema allowlist. Replacing it with upstream's smaller blacklist would regress validation of other unsupported keywords.
 
