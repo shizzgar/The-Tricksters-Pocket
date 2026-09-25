@@ -526,7 +526,7 @@ private fun WorkspaceToolApprovalCard(
     onToolApprovalChange: (String, Boolean) -> Unit,
 ) {
     val overrides = workspace?.toolApprovalOverrides().orEmpty()
-    val tools = workspaceToolApprovalItems()
+    val tools = if (workspace?.termuxPath != null) me.rerere.rikkahub.data.ai.tools.TermuxWorkspaceTools.map { it to it.removePrefix("termux_").replace('_', ' ') } else workspaceToolApprovalItems()
 
     CardGroup(
         title = {

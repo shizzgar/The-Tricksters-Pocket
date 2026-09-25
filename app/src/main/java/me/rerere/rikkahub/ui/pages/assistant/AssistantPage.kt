@@ -103,7 +103,7 @@ fun AssistantPage(vm: AssistantVM = koinViewModel()) {
     val filteredAssistants = remember(settings.assistants, selectedTagIds, searchQuery) {
         settings.assistants.filter { assistant ->
             val matchesSearch = searchQuery.isBlank() ||
-                assistant.name.contains(searchQuery, ignoreCase = true)
+                (assistant.name.contains(searchQuery, ignoreCase = true) || assistant.description.contains(searchQuery, ignoreCase = true))
             val matchesTags = selectedTagIds.isEmpty() ||
                 assistant.tags.any { tagId -> tagId in selectedTagIds }
             matchesSearch && matchesTags
@@ -431,6 +431,11 @@ private fun AssistantItem(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+
+                if (assistant.description.isNotBlank()) {
+                    Text(assistant.description, style = MaterialTheme.typography.bodySmall,
+                        maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
 
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),

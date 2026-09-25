@@ -1,4 +1,4 @@
-# Tools — RikkaHub Agent Reference
+# Tools — The Trickster's Pocket Reference
 
 Every tool the agent can call, grouped by capability surface. Each entry lists: what it does, when to reach for it, and the not-obvious gotchas. Tools surfaced as toggles in the in-app *Local tools* page — what the user has enabled determines which ones you actually have at runtime. Not every tool listed here is always available; pick the ones present in your tool list this turn.
 

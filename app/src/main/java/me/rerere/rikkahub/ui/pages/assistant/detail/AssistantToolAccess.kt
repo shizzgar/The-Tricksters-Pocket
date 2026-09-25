@@ -15,6 +15,8 @@ import kotlinx.coroutines.withContext
 import me.rerere.ai.core.Tool
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.ai.tools.LocalTools
+import me.rerere.rikkahub.data.ai.tools.termuxContext
+import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import me.rerere.rikkahub.data.ai.tools.ToolInvocationContext
 import me.rerere.rikkahub.data.ai.tools.filterLocalTools
 import me.rerere.rikkahub.data.model.Assistant
@@ -23,17 +25,19 @@ import org.koin.compose.koinInject
 @Composable
 internal fun AssistantToolAccess(assistant: Assistant, onUpdate: ((Assistant) -> Assistant) -> Unit) {
     val factory = koinInject<LocalTools>()
+    val workspaces = koinInject<WorkspaceRepository>()
     var open by remember { mutableStateOf(false) }
     var catalog by remember { mutableStateOf<List<Tool>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf(false) }
-    LaunchedEffect(open, assistant.id, assistant.localTools, assistant.enabledSkills) {
+    LaunchedEffect(open, assistant.id, assistant.localTools, assistant.enabledSkills, assistant.workspaceId) {
         if (open) {
             loading = true
             failed = false
             try {
                 catalog = withContext(Dispatchers.IO) {
-                    factory.getTools(assistant.localTools, ToolInvocationContext(callerAssistantId = assistant.id.toString()), includeDisabled = true)
+                    factory.getTools(assistant.localTools, ToolInvocationContext(callerAssistantId = assistant.id.toString(),
+                        termuxWorkspace = assistant.workspaceId?.let { workspaces.getById(it.toString()) }?.termuxContext()), includeDisabled = true)
                         .sortedBy { it.name }
                 }
             } catch (e: kotlinx.coroutines.CancellationException) { throw e

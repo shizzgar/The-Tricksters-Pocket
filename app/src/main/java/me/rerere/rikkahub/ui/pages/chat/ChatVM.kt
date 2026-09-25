@@ -29,6 +29,7 @@ import me.rerere.ai.ui.isEmptyInputMessage
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.SettingsStore
+import me.rerere.rikkahub.data.datastore.getAssistantById
 import me.rerere.rikkahub.data.datastore.getCurrentAssistant
 import me.rerere.rikkahub.data.datastore.getCurrentChatModel
 import me.rerere.rikkahub.data.files.FilesManager
@@ -78,7 +79,10 @@ class ChatVM(
             .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     internal val termuxJobs = TermuxJobsController(viewModelScope, request = { request ->
-        me.rerere.rikkahub.data.ai.tools.local.termuxJobRequest(context, _conversationId.toString(), request)
+        val bound = settingsStore.settingsFlow.value.getAssistantById(conversation.value.assistantId)?.workspaceId
+        val workspace = bound?.let { org.koin.java.KoinJavaComponent.getKoin().get<me.rerere.rikkahub.data.repository.WorkspaceRepository>().getById(it.toString()) }
+        val owner = if (workspace?.termuxPath != null) "workspace:${workspace.id}" else _conversationId.toString()
+        me.rerere.rikkahub.data.ai.tools.local.termuxJobRequest(context, owner, request)
     })
     fun resumeAgentTask() = chatService.resumeAgentTask(_conversationId)
     val generationProgress = chatService.getGenerationProgressFlow(_conversationId)

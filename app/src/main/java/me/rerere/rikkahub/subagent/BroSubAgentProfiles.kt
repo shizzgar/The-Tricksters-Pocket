@@ -2,6 +2,8 @@ package me.rerere.rikkahub.subagent
 
 import me.rerere.rikkahub.data.datastore.REBRO_ASSISTANT_ID
 import me.rerere.rikkahub.data.datastore.NETBRO_ASSISTANT_ID
+import me.rerere.rikkahub.data.datastore.DEFAULT_ASSISTANT_ID
+import me.rerere.rikkahub.data.datastore.THINKBRO_ASSISTANT_ID
 import me.rerere.rikkahub.data.model.Assistant
 import kotlin.uuid.Uuid
 
@@ -24,3 +26,13 @@ internal fun resolveSubAgentAssistant(
     parentId: Uuid, profile: SubAgentProfile?, assistants: List<Assistant>,
 ): Assistant = assistants.firstOrNull { it.id == (profile?.assistantId ?: parentId) }
     ?: error("The assistant linked to this sub-agent profile is missing. Select an existing assistant in Settings > Sub-agents.")
+
+internal fun seedPocketSubAgents(saved: List<SubAgentProfile>): List<SubAgentProfile> {
+    val additions = listOf(
+        SubAgentProfile(id = Uuid.parse("cb3f9297-d8fd-41c5-9867-e327c1876553"), name = "PocketBro",
+            description = "Everyday writing, planning and practical tasks.", assistantId = DEFAULT_ASSISTANT_ID),
+        SubAgentProfile(id = Uuid.parse("5445d039-4b1d-4429-af30-956473f59ee4"), name = "ThinkBro",
+            description = "Explanations, comparisons, learning and testing ideas.", assistantId = THINKBRO_ASSISTANT_ID),
+    )
+    return saved + additions.filter { preset -> saved.none { it.id == preset.id || it.name.equals(preset.name, true) } }
+}

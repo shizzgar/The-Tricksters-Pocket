@@ -96,6 +96,27 @@ class ToolAccessInstrumentedTest {
         }
     }
 
+    @Test fun termuxWorkspaceUsesTermuxCatalogAndKeepsExclusions() = runBlocking {
+        val store = GlobalContext.get().get<SettingsStore>()
+        val factory = GlobalContext.get().get<LocalTools>()
+        val before = withTimeout(15_000) { store.settingsFlow.first { !it.init } }
+        val assistant = Assistant(name = "Workspace fixture", localTools = emptyList(), disabledLocalTools = setOf("termux_job_forget"))
+        try {
+            store.update { it.copy(assistants = it.assistants + assistant) }
+            withTimeout(15_000) { store.settingsFlow.first { it.assistants.any { a -> a.id == assistant.id } } }
+            val scope = TermuxWorkspaceContext("fixture", "/tmp/project", "/tmp/project", mapOf("termux_run_command" to false, "termux_job_read" to true))
+            val invocation = ToolInvocationContext(callerAssistantId = assistant.id.toString(), callerConversationId = "chat", termuxWorkspace = scope)
+            val tools = factory.getTools(emptyList(), invocation)
+            assertTrue(tools.any { it.name == "termux_run_command" })
+            assertTrue(tools.none { it.name.startsWith("workspace_") || it.name == "termux_job_forget" })
+            assertFalse(tools.first { it.name == "termux_run_command" }.needsApproval(buildJsonObject {}))
+            assertTrue(tools.first { it.name == "termux_job_read" }.needsApproval(buildJsonObject {}))
+            val other = factory.getTools(emptyList(), invocation.copy(termuxWorkspace = scope.copy(id = "other", approvals = emptyMap())))
+            assertTrue(other.first { it.name == "termux_run_command" }.needsApproval(buildJsonObject {}))
+            assertTrue(factory.getTools(emptyList(), invocation.copy(termuxWorkspace = null)).none { it.name.startsWith("termux_") })
+        } finally { store.update { before } }
+    }
+
     @Test fun russianToolPickerSearchAndIndependentToggles() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val localized = context.createConfigurationContext(Configuration(context.resources.configuration).apply { setLocale(Locale.forLanguageTag("ru")) })

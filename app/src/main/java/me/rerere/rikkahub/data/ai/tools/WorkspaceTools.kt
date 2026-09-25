@@ -39,7 +39,7 @@ val WorkspaceToolDefaultApprovals: Map<String, Boolean> = mapOf(
 )
 
 fun resolveWorkspaceToolApproval(name: String, overrides: Map<String, Boolean>): Boolean =
-    overrides[name] ?: WorkspaceToolDefaultApprovals[name] ?: false
+    overrides[name] ?: WorkspaceToolDefaultApprovals[name] ?: ToolApprovalDefaults.requiresApproval(name)
 
 suspend fun createWorkspaceTools(
     workspaceId: String?,
@@ -48,6 +48,7 @@ suspend fun createWorkspaceTools(
 ): List<Tool> {
     if (workspaceId.isNullOrBlank()) return emptyList()
     val workspace = workspaceRepository.getById(workspaceId)
+    if (workspace?.termuxPath != null) return emptyList()
     val approvalOverrides = workspace?.toolApprovalOverrides().orEmpty()
     fun needsApproval(name: String) = resolveWorkspaceToolApproval(name, approvalOverrides)
 

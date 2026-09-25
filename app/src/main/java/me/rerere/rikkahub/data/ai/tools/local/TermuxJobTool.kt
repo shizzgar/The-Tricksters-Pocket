@@ -58,7 +58,7 @@ internal suspend fun termuxJobRequest(context: Context, owner: String, request: 
     }
 }
 
-fun termuxJobTools(context: Context, owner: String?): List<Tool> =
+fun termuxJobTools(context: Context, owner: String?, defaultWorkingDir: String? = null): List<Tool> =
     listOf("start", "read", "wait", "cancel", "list", "forget").map { action ->
         Tool(
             name = "termux_job_$action",
@@ -102,7 +102,8 @@ fun termuxJobTools(context: Context, owner: String?): List<Tool> =
                 }
                 val request = buildJsonObject {
                     input.jsonObject.forEach { (k,v) -> put(k,v) }; put("action", action)
-                    if (action == "start" && "working_dir" !in input.jsonObject) put("working_dir", TermuxRuntime.defaultWorkingDir)
+                    if (action == "start") put("working_dir", me.rerere.rikkahub.data.ai.tools.resolveTermuxWorkingDirectory(
+                        input.jsonObject["working_dir"]?.jsonPrimitive?.contentOrNull, defaultWorkingDir))
                 }
                 // Cancellation propagates to the agent loop; the external job remains observable.
                 val result = termuxJobRequest(context, owner, request)

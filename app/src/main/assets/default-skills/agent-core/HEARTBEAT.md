@@ -39,7 +39,7 @@ Tools return structured `{error, recovery, ...}` envelopes when state is degrade
 | `error: "screenshot_unavailable", reason: "secure_surface"` | DRM / banking / password — never recoverable this session | Don't keep retrying. Tell the user what surface you can see instead. |
 | `error: "rate_limited"` | OS throttle on screenshot (~1/sec) | Wait, then retry. |
 | `recovery: "Enable RikkaHub in Settings ..."` | Some grant flow is missing | Surface the recovery hint to the user verbatim — it tells them exactly what to enable. |
-| `error: "notification_listener_not_bound"` | Listener service unbound | Surface the recovery hint verbatim. The user must enable RikkaHub in Settings → Notification access. |
+| `error: "notification_listener_not_bound"` | Listener service unbound | Surface the recovery hint verbatim. The user must enable The Trickster's Pocket in Settings → Notification access. |
 | `error: "requires_input"` (from notification_action_click) | The action needs typed input (RemoteInput) | Fall back to launch_app + set_text + click_node via screen automation. |
 | `error: "loop_detected"` (from any tool) | The host app blocked your call because you repeated this exact tool with identical args 3+ times in this turn without progress | STOP retrying. Either change args meaningfully, switch to a different tool, or reply to the user with what you have. The `recovery` field tells you exactly what to try. |
 | `error: "whisper_not_installed"` (from `transcribe_audio_file`) | whisper.cpp isn't in PATH or any known build location | Show the user the install commands from `hint`, ask for confirmation, run them, then retry. Do NOT silently install — the build takes ~5 minutes and downloads ~75 MB. |

@@ -20,4 +20,5 @@
     <string name="workspace_source_path">Исходный путь внутри workspace</string>
     <string name="workspace_target_path">Новый путь внутри workspace</string>
     <string name="workspace_folder_name">Имя папки</string>
+    <string name="assistant_description">Назначение и специализация</string>
 </resources>

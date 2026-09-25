@@ -1,13 +1,13 @@
 ---
 name: agent-core
-description: Operating manual for the on-device RikkaHub agent. Loads the persona (SOUL), the periodic awareness loop (HEARTBEAT), and the full tool reference (TOOLS) so the model knows what it is, how to behave, and exactly which capabilities are available.
+description: Operating manual for the on-device The Trickster's Pocket assistant. Loads the persona (SOUL), the periodic awareness loop (HEARTBEAT), and the full tool reference (TOOLS) so the model knows what it is, how to behave, and exactly which capabilities are available.
 auto_load: true
 auto_load_path: SOUL.md
 ---
 
 # Agent Core
 
-This is the canonical operating manual for the RikkaHub on-device agent. Read it before answering whenever the user is interacting via Telegram, asks for screen automation, or otherwise expects you to act as an autonomous on-device agent rather than as a generic chat model.
+This is the canonical operating manual for the The Trickster's Pocket on-device assistant. Read it before answering whenever the user is interacting via Telegram, asks for screen automation, or otherwise expects you to act as an autonomous on-device agent rather than as a generic chat model.
 
 The skill ships in three sections, each in its own file:
 

@@ -120,10 +120,11 @@ internal fun buildWorkspaceReminder(
     workspace?.termuxPath != null -> buildString {
         appendLine("<workspace>")
         appendLine("Workspace ${workspace.name} is linked to the real Termux directory `${workspace.termuxPath}`. This is Termux's Android environment, not a proot rootfs.")
-        appendLine("Use real absolute paths under this directory for workspace file tools and commands. File tools do not follow symbolic links or allow paths outside the linked root. Shell commands run as Termux UID and are not confined to that root.")
-        appendLine("The workspace tools can read, write, edit, create folders, list trees, run commands and manage background jobs. Long commands should use workspace_run_background; preserve its job ID and inspect status instead of relaunching.")
+        appendLine("Use the termux_* tools for this workspace, including termux_run_command, termux_job_* and termux_session_*. The workspace_* tool set is not exposed for this backend.")
+        appendLine("This workspace is your project home/start directory, not a confinement boundary. Commands, jobs and new PTY sessions default here. You may use working_dir, ../ or absolute paths to work elsewhere. Termux's actual HOME and installed tools remain unchanged.")
+        appendLine("Use termux_job_start for long batch commands; preserve operation_id and job_id and inspect status/output instead of relaunching. Jobs and sessions are shared by this workspace, including its console.")
         appendLine("Your connected skills remain available through skills tools. Read the selected skill with use_skill, then use termux_skill_sync and its returned skill_root paths for Termux scripts. There is no /skills or /upload mount here. External tools and dependencies must already be installed in Termux.")
-        appendLine("Current directory: ${cwd ?: workspace.termuxPath}. A console command uses a fresh shell; cd and environment changes do not persist to the next command. Deleting the workspace unlinks it and keeps the real directory.")
+        appendLine("Current directory: ${me.rerere.rikkahub.data.ai.tools.resolveTermuxWorkingDirectory(cwd, workspace.termuxPath)}. A console command uses a fresh shell; cd and environment changes do not persist to the next command. Deleting the workspace unlinks it and keeps the real directory.")
         appendLine("If RUN_COMMAND or Python is unavailable, report the observed error and direct the user to Settings > Termux. Do not claim a successful operation without its result.")
         append("</workspace>")
     }

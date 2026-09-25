@@ -17,6 +17,7 @@ internal val REBRO_SKILLS = setOf(
 internal fun createRebroAssistant() = Assistant(
     id = REBRO_ASSISTANT_ID,
     name = "ReBro",
+    description = "Android specialist: inspect, modify, build and verify apps using skills and Termux.",
     avatar = Avatar.Image("file:///android_asset/branding/rebro-avatar.webp"),
     useAssistantAvatar = true,
     systemPrompt = REBRO_SYSTEM_PROMPT,
@@ -36,7 +37,7 @@ private fun migrateBundledBroPrompt(assistant: Assistant, default: Assistant?): 
     val hash = MessageDigest.getInstance("SHA-256")
         .digest(assistant.systemPrompt.toByteArray(Charsets.UTF_8))
         .joinToString("") { "%02x".format(it) }
-    return if (hash == legacyHash) assistant.copy(systemPrompt = default.systemPrompt) else assistant
+    return if (hash == legacyHash || assistant.systemPrompt == default.systemPrompt.replace("The Trickster's Pocket", "RikkaHub Agent")) assistant.copy(systemPrompt = default.systemPrompt) else assistant
 }
 
 /** Add missing built-ins without replacing user edits or mixing their skill sets. */
@@ -48,9 +49,10 @@ internal fun mergeDefaultAssistants(
     val present = saved.map { it.id }.toSet()
     return (saved + DEFAULT_ASSISTANTS.filter { it.id !in present }).map { assistant ->
         val additions = skillsToSeed intersect defaults[assistant.id]?.enabledSkills.orEmpty()
-        val branded = if (assistant.id == NETBRO_ASSISTANT_ID && assistant.avatar == Avatar.Emoji("🛰️")) {
-            assistant.copy(avatar = createNetbroAssistant().avatar)
-        } else assistant
-        seedDefaultAssistantSkills(migrateBundledBroPrompt(branded, defaults[assistant.id]), additions)
+        val described = if (assistant.description.isBlank()) assistant.copy(description = defaults[assistant.id]?.description.orEmpty()) else assistant
+        val branded = if (assistant.id == NETBRO_ASSISTANT_ID && assistant.avatar in setOf(Avatar.Emoji("🛰️"), Avatar.Image("file:///android_asset/branding/netbro-avatar.webp"))) {
+            described.copy(avatar = createNetbroAssistant().avatar)
+        } else described
+        seedDefaultAssistantSkills(migratePocketAssistant(migrateBundledBroPrompt(branded, defaults[assistant.id]), defaults[assistant.id]), additions)
     }
 }

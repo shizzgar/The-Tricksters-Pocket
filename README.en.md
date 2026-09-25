@@ -2,12 +2,12 @@
 
 <img src="docs/icon.png" width="104" height="104" alt="ReBro ninja anteater" />
 
-# ReBro Agent
+# The Trickster's Pocket
 
 **Long tasks. Visible traces. Complete skills in Termux.**
 
 An Android assistant with checkpointed agent tasks, a visual trajectory inspector,<br />
-a skill workspace, and the bundled ReBro and NetBro assistants.
+a skill workspace, and the PocketBro, ThinkBro, ReBro, NetBro and OrchBro crew.
 
 [![Android 8+](https://img.shields.io/badge/Android-8%2B-3DDC84?style=flat-square&logo=android&logoColor=white)](docs/getting-started.md)
 [![Runtime CI](https://github.com/shizzgar/rikkahub-agent/actions/workflows/compaction-debug.yml/badge.svg?branch=master)](https://github.com/shizzgar/rikkahub-agent/actions/workflows/compaction-debug.yml)
@@ -19,7 +19,7 @@ a skill workspace, and the bundled ReBro and NetBro assistants.
 
 </div>
 
-**2.5.1-rebro.4:** workspaces linked to real Termux directories, ReBro/NetBro assistant-backed subagent profiles, the green NetBro avatar and a separate ReBro Agent release build. [Setup, data migration and APK signing](docs/termux-workspaces-and-release.md).
+**2.5.1-pocket.1:** the new app name, normal `termux_*` tools in Termux workspaces, NetBro as a green ninja spider and OrchBro as a purple octopus coordinator. PocketBro and ThinkBro have names and editable descriptions. The ARM64 APK is signed with the previous ReBro key for updates to existing installations. [Changes and compatibility](docs/tricksters-pocket.md).
 
 This is a development fork of [ExTV/RikkaHub Agent](https://github.com/ExTV/rikkahub-agent), built on [RikkaHub](https://github.com/rikkahub/rikkahub). It brings together our work on long agent tasks, inspection of model/tool activity, and skills that include executable scripts and resources. The native chat client, model providers, and device integrations remain its foundation.
 
@@ -55,7 +55,7 @@ These are changes in our development line relative to the ExTV base we started f
 | **Metrics** | Measured content-receiving TPS and expandable details below the message | Separate model response speed from command execution and waiting |
 | **Termux diagnostics** | Specific failure hints, per-call preview limits and archived full output | Repair the failing step and keep repeated requests smaller |
 | **Termux workspace** | A linked real directory, editor, import/export and command console | Work with original project files and durable jobs from the app |
-| **Bro subagents** | ReBro and NetBro profiles link to their saved assistants | Dispatch with their own skills, tools, search and workspace |
+| **Bro subagents** | ReBro, NetBro, PocketBro and ThinkBro profiles link to saved assistants; OrchBro uses the current enabled roster | Coordinate specialists with their own skills, tools, search and workspace |
 | **Termux jobs** | Persistent background jobs, stdout/stderr pages, read cursors, cancellation and job manager | Inspect long commands directly from chat |
 | **Skill workspace** | File operations, code editor, Markdown/image preview, HEX, imports/exports and drafts | Manage skill instructions, scripts and resources inside the app |
 | **Skills → Termux** | Versioned full-package transfer with hashes and a returned `skill_root` | Run scripts alongside their assets and references |

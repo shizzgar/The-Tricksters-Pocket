@@ -205,6 +205,7 @@ class SettingsStore(
 
         // 子代理
         val SUB_AGENTS = stringPreferencesKey("sub_agents")
+        val POCKET_SUB_AGENTS_SEEDED = booleanPreferencesKey("pocket_sub_agents_seeded")
         val BRO_SUB_AGENTS_SEEDED = booleanPreferencesKey("bro_sub_agents_seeded")
 
         // WebDAV
@@ -321,6 +322,7 @@ class SettingsStore(
                 preferences[MCP_SERVERS] = JsonInstant.encodeToString(settings.mcpServers)
                 preferences[SUB_AGENTS] = JsonInstant.encodeToString(settings.subAgents)
                 preferences[BRO_SUB_AGENTS_SEEDED] = settings.broSubAgentsSeeded
+                preferences[POCKET_SUB_AGENTS_SEEDED] = settings.pocketSubAgentsSeeded
                 preferences[WEBDAV_CONFIG] = JsonInstant.encodeToString(settings.webDavConfig)
                 preferences[S3_CONFIG] = JsonInstant.encodeToString(settings.s3Config)
                 preferences[TTS_PROVIDERS] = JsonInstant.encodeToString(settings.ttsProviders)
@@ -477,6 +479,7 @@ class SettingsStore(
                 // #36: key absent -> emptyList(), exactly like mcpServers above - the
                 // whole migration for an existing install that predates this field.
                 broSubAgentsSeeded = preferences[BRO_SUB_AGENTS_SEEDED] ?: false,
+                pocketSubAgentsSeeded = preferences[POCKET_SUB_AGENTS_SEEDED] ?: false,
                 subAgents = preferences[SUB_AGENTS]?.let { raw ->
                     runCatching { JsonInstant.decodeFromString<List<SubAgentProfile>>(raw) }.getOrElse {
                         Log.w(TAG, "Failed to decode subAgents, using default", it)
@@ -612,7 +615,10 @@ class SettingsStore(
                 providers = providers,
                 assistants = assistants,
                 autoEnabledDefaultSkills = newAutoEnabled,
-                subAgents = if (it.broSubAgentsSeeded) it.subAgents else me.rerere.rikkahub.subagent.seedBroSubAgents(it.subAgents),
+                subAgents = (if (it.broSubAgentsSeeded) it.subAgents else me.rerere.rikkahub.subagent.seedBroSubAgents(it.subAgents)).let { profiles ->
+                    if (it.pocketSubAgentsSeeded) profiles else me.rerere.rikkahub.subagent.seedPocketSubAgents(profiles)
+                },
+                pocketSubAgentsSeeded = true,
                 broSubAgentsSeeded = true,
                 ttsProviders = ttsProviders,
             )
@@ -910,6 +916,7 @@ data class Settings(
      */
     val subAgents: List<SubAgentProfile> = emptyList(),
     val broSubAgentsSeeded: Boolean = false,
+    val pocketSubAgentsSeeded: Boolean = false,
     val webDavConfig: WebDavConfig = WebDavConfig(),
     val s3Config: S3Config = S3Config(),
     val ttsProviders: List<TTSProviderSetting> = DEFAULT_TTS_PROVIDERS,
@@ -1151,38 +1158,8 @@ internal val DEFAULT_ASSISTANT_ID = Uuid.parse("0950e2dc-9bd5-4801-afa3-aa887aa3
 internal val DEFAULT_AUTO_ENABLED_SKILLS = setOf("autonomous-agent", "openclaw-converter")
 
 internal val DEFAULT_ASSISTANTS = listOf(
-    Assistant(
-        id = DEFAULT_ASSISTANT_ID,
-        name = "",
-        systemPrompt = "",
-        // The agent-core skill bundle (SOUL/HEARTBEAT/TOOLS) ships with the app and is what
-        // teaches every model "you are running on RikkaHub, here are the tools, here is how
-        // to avoid loops". Auto-enabling it on default assistants means new users get an
-        // agent-aware model out of the box without having to discover the skill toggle.
-        enabledSkills = setOf("agent-core") + DEFAULT_AUTO_ENABLED_SKILLS,
-    ),
-    Assistant(
-        id = Uuid.parse("3d47790c-c415-4b90-9388-751128adb0a0"),
-        name = "",
-        systemPrompt = """
-            You are a helpful assistant, called {{char}}, based on model {{model_name}}.
-
-            ## Info
-            - Date: {{cur_date}}
-            - Locale: {{locale}}
-            - Timezone: {{timezone}}
-            - Device Info: {{device_info}}
-            - System Version: {{system_version}}
-            - User Nickname: {{user}}
-
-            ## Hint
-            - If the user does not specify a language, reply in the user's primary language.
-            - Remember to use Markdown syntax for formatting, and use latex for mathematical expressions.
-        """.trimIndent(),
-        enabledSkills = setOf("agent-core") + DEFAULT_AUTO_ENABLED_SKILLS,
-    ),
-    createRebroAssistant(),
-    createNetbroAssistant(),
+    createPocketbroAssistant(), createThinkbroAssistant(),
+    createRebroAssistant(), createNetbroAssistant(), createOrchbroAssistant(),
 )
 
 val DEFAULT_SYSTEM_TTS_ID = Uuid.parse("026a01a2-c3a0-4fd5-8075-80e03bdef200")
