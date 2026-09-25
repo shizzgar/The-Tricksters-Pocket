@@ -109,6 +109,7 @@ class LiveSteeringInstrumentedTest {
         val executed = mutableListOf<String>()
         val provider = FixtureProvider().apply { response = { listOf(call("first"), call("second")) } }
         val tools = listOf("first", "second").map { name -> Tool(name = name, description = "fixture", parameters = { InputSchema.Obj(buildJsonObject {}) }, execute = {
+            assertEquals(name, currentCoroutineContext()[me.rerere.rikkahub.data.ai.tools.ExecutingToolCall]?.id)
             executed += name
             queue.enqueue(text("use a different destination"), steerActiveTask = true)
             yield()
@@ -228,6 +229,32 @@ class LiveSteeringInstrumentedTest {
             assertEquals(1, trace.count { it.source == "task.started" })
             assertEquals(1, trace.count { it.source == "input.applied" })
             assertEquals("completed", service.agentTaskState(id)?.status)
+        }
+    }
+
+    @Test fun openingActiveChildPreservesStreamAndBackgroundInitializationKeepsSelectedAssistant() = runBlocking {
+        withChatFixture { service, provider, id, repo ->
+            val store = GlobalContext.get().get<SettingsStore>()
+            val selected = store.settingsFlow.value.assistantId
+            val parent = Uuid.random()
+            service.updateConversationState(id) { it.copy(parentConversationId = parent, subAgentRunId = id.toString()) }
+            service.saveConversation(id, service.getConversationFlow(id).value)
+            service.initializeConversation(id, selectAssistant = false)
+            assertEquals(selected, store.settingsFlow.value.assistantId)
+            provider.stream = {
+                emit(StreamChunk.TextStart("text"))
+                emit(StreamChunk.TextDelta("text", "Live child progress"))
+                val before = service.getConversationFlow(id).value
+                service.initializeConversation(id)
+                assertEquals(before, service.getConversationFlow(id).value)
+                assertEquals(parent, service.getConversationFlow(id).value.parentConversationId)
+                emit(StreamChunk.TextEnd("text"))
+                emit(StreamChunk.Finish("stop"))
+            }
+            service.sendMessage(id, text("Child task"))
+            service.getGenerationJobStateFlow(id).first { it == null }
+            assertEquals("Live child progress", repo.getConversationById(id)!!.currentMessages.last().toText())
+            assertTrue(service.errors.value.none { it.conversationId == id })
         }
     }
 

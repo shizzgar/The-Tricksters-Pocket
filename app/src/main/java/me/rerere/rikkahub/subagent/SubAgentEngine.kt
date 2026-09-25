@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.*
 import kotlinx.serialization.json.put
 import me.rerere.ai.provider.Model
 import me.rerere.ai.provider.ModelType
@@ -330,7 +330,13 @@ class SubAgentEngine(
         ledgerIds[runId] = ledgerId
 
         val executionJob = appScope.launch(Dispatchers.IO) {
-            executeRun(runId, parentAssistantId, parentChatId, cleaned)
+            try { executeRun(runId, parentAssistantId, parentChatId, cleaned) }
+            catch (failure: Throwable) {
+                withContext(kotlinx.coroutines.NonCancellable) {
+                    markTerminal(runId, if (failure is kotlinx.coroutines.CancellationException) SubAgentStatus.CANCELLED else SubAgentStatus.FAILED,
+                        failure.message ?: "Child chat initialization failed")
+                }
+            } finally { registry.clearJob(runId) }
         }
         registry.setJob(runId, executionJob)
 
@@ -352,11 +358,11 @@ class SubAgentEngine(
     /** Durable chat lookup is the authority for follow-ups, including after process restart. */
     suspend fun sendToChild(runId: String, parentChatId: String?, message: String): kotlinx.serialization.json.JsonObject {
         val child = conversationRepo.getConversationForSubAgent(runId)
-        if (parentChatId == null || child?.parentConversationId?.toString() != parentChatId) {
+        if (child == null || parentChatId == null || child.parentConversationId?.toString() != parentChatId) {
             return buildJsonObject { put("error", "unknown_child"); put("detail", "No child chat with this id belongs to this conversation") }
         }
         if (message.isBlank() || message.length > 32000) return buildJsonObject { put("error", "invalid_message"); put("detail", "message must contain 1–32000 characters") }
-        chatService.initializeConversation(child.id)
+        chatService.initializeConversation(child.id, selectAssistant = false)
         chatService.sendMessage(child.id, listOf(UIMessagePart.Text(message)))
         return buildJsonObject { put("id", runId); put("conversation_id", child.id.toString()); put("accepted", true) }
     }
@@ -373,10 +379,10 @@ class SubAgentEngine(
             put("parent_conversation_id", parentChatId)
             put("status", original?.status?.name ?: ledger?.status ?: "saved")
             ledger?.lastError?.let { put("error", it) }
-            put("conversation_busy", chatService.getGenerationJobStateFlow(child.id).value != null)
+            put("conversation_busy", chatService.getGenerationJobStateFlow(child.id).first() != null)
             // A follow-up may differ from the original dispatch result; label it explicitly.
             val suppressed = original?.noResult ?: runCatching {
-                kotlinx.serialization.json.Json.parseToJsonElement(ledger?.metadataJson ?: "{}").toString().contains("\"no_result\":true")
+                (Json.parseToJsonElement(ledger?.metadataJson ?: "{}") as? JsonObject)?.get("no_result")?.jsonPrimitive?.booleanOrNull ?: false
             }.getOrDefault(true)
             if (!suppressed) put("latest_reply", harvestFinalText(child.id).take(32000))
         }
@@ -463,7 +469,7 @@ class SubAgentEngine(
         )
         try {
         conversationRepo.insertConversation(conv)
-        chatService.initializeConversation(conv.id)
+        chatService.initializeConversation(conv.id, selectAssistant = false)
         registry.update(runId) { it.copy(conversationId = conv.id.toString()) }
         me.rerere.rikkahub.data.ai.AgentTaskPolicy.setStepLimit(conv.id.toString(), request.maxTrips)
             me.rerere.ai.provider.GenerationTrace.record(parentChatId, "subagent.started", buildJsonObject {
@@ -574,10 +580,8 @@ class SubAgentEngine(
      *    runs. The parent must be a regular interactive (in-app or Telegram-bot) conversation.
      *  - parentChatId / runs missing: defensive.
      *
-     * Cancellation hygiene: ChatService.sendMessage cancels any in-flight generation in the
-     * target conversation. To avoid stomping on a turn the user is engaged with, we wait up
-     * to 5 minutes for the parent to be idle before posting. After 5 minutes we post anyway
-     * — better to interrupt than to silently lose the completion.
+     * Completion is sent through the ordinary queue. An active parent receives it at a
+     * safe steering boundary; no in-flight tool is interrupted.
      */
     private suspend fun notifyParentIfBackground(parentChatId: String?, run: SubAgentRun?) {
         if (parentChatId == null || run == null) return
@@ -602,10 +606,7 @@ class SubAgentEngine(
         }.trimEnd()
 
         runCatching {
-            withTimeoutOrNull(5 * 60_000L) {
-                chatService.getGenerationJobStateFlow(parentUuid).first { it == null }
-                Unit
-            }
+            if (conversationRepo.getConversationById(parentUuid) == null) return
             chatService.sendMessage(parentUuid, listOf(UIMessagePart.Text(message)))
         }.onFailure {
             Log.w(TAG, "failed to notify parent $parentChatId of subagent completion", it)

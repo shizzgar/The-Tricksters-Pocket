@@ -14,6 +14,7 @@ import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.data.repository.ConversationRepository
 import me.rerere.rikkahub.subagent.SubAgentRegistry
+import me.rerere.rikkahub.ui.components.message.tools.childRunStatuses
 import me.rerere.rikkahub.ui.components.message.tools.ChildChatButton
 import me.rerere.rikkahub.ui.components.message.tools.ChildChatCard
 import me.rerere.rikkahub.ui.context.LocalNavController
@@ -22,10 +23,9 @@ import org.koin.compose.koinInject
 @Composable
 internal fun SubAgentChatBar(conversation: Conversation) {
     val repository = koinInject<ConversationRepository>()
-    val registry = koinInject<SubAgentRegistry>()
     val navigator = LocalNavController.current
     val children by remember(conversation.id) { repository.observeChildConversations(conversation.id) }.collectAsState(emptyList())
-    val runs by registry.runs.collectAsState()
+    val statuses = childRunStatuses()
     val parent by produceState<Conversation?>(null, conversation.parentConversationId) {
         value = conversation.parentConversationId?.let { repository.getConversationById(it) }
     }
@@ -41,7 +41,7 @@ internal fun SubAgentChatBar(conversation: Conversation) {
                     }) { Text(if (parent == null) stringResource(R.string.pocket_chat_missing) else stringResource(R.string.pocket_parent_chat, parent!!.title), maxLines = 1, overflow = TextOverflow.Ellipsis) }
                 }
                 if (children.isNotEmpty()) TextButton(onClick = { showChildren = true }) {
-                    val active = children.count { runs[it.subAgentRunId]?.status?.name in setOf("PENDING", "RUNNING") }
+                    val active = children.count { statuses[it.subAgentRunId]?.uppercase() in setOf("PENDING", "QUEUED", "RUNNING") }
                     Text(stringResource(R.string.pocket_child_count, children.size, active))
                 }
             }
@@ -52,7 +52,7 @@ internal fun SubAgentChatBar(conversation: Conversation) {
             item { Text(stringResource(R.string.pocket_child_chats), style = MaterialTheme.typography.titleLarge) }
             item { Text(stringResource(R.string.pocket_child_chat_hint)) }
             items(children, key = { it.id.toString() }) { child ->
-                ChildChatCard(child, runs[child.subAgentRunId]?.status?.name) { ChildChatButton(child) { showChildren = false } }
+                ChildChatCard(child, statuses[child.subAgentRunId]) { ChildChatButton(child) { showChildren = false } }
             }
         }
     }

@@ -28,7 +28,7 @@ import me.rerere.rikkahub.ui.components.richtext.MarkdownBlock
 import me.rerere.rikkahub.ui.components.richtext.HighlightCodeBlock
 import me.rerere.rikkahub.ui.context.LocalNavController
 
-internal val SkillToolUIs = listOf("use_skill", "skill_get_content", "termux_skill_sync", "skill_create",
+internal val SkillToolUIs: List<ToolUIRenderer> = listOf("use_skill", "skill_get_content", "termux_skill_sync", "skill_create",
     "skill_list_files", "skill_read_file", "skill_write_file", "skill_edit_file", "skill_manage_files", "skill_delete",
     "skill_install_from_url", "skill_install_from_text").map { SkillToolUI(it) }
 
@@ -138,7 +138,7 @@ private fun SkillOperationStatus.label() = when (this) {
     SkillOperationStatus.RUNNING -> R.string.termux_preview_running
     SkillOperationStatus.APPROVAL -> R.string.termux_preview_approval
     SkillOperationStatus.DENIED -> R.string.termux_preview_denied
-    SkillOperationStatus.COMPLETED -> R.string.termux_preview_completed
+    SkillOperationStatus.COMPLETED -> R.string.pocket_skill_completed
     SkillOperationStatus.FAILED -> R.string.termux_preview_failed
     SkillOperationStatus.PARTIAL -> R.string.pocket_skill_partial
 }

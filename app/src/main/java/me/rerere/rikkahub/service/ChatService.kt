@@ -757,26 +757,26 @@ class ChatService(
 
     // ---- 初始化对话 ----
 
-    suspend fun initializeConversation(conversationId: Uuid) {
-        getOrCreateSession(conversationId) // 确保 session 存在
-        val conversation = conversationRepo.getConversationById(conversationId)
-        if (conversation != null) {
-            updateConversation(conversationId, conversation)
-            settingsStore.updateAssistant(conversation.assistantId)
+    suspend fun initializeConversation(conversationId: Uuid, selectAssistant: Boolean = true) {
+        val session = getOrCreateSession(conversationId)
+        val before = session.state.value
+        // Opening a live child chat must never replace streamed state with an older DB snapshot.
+        if (session.getJob() != null || before.messageNodes.isNotEmpty()) {
+            if (selectAssistant) settingsStore.updateAssistant(before.assistantId)
+            return
+        }
+        val saved = conversationRepo.getConversationById(conversationId)
+        if (saved != null) {
+            session.state.compareAndSet(before, saved)
+            if (selectAssistant) settingsStore.updateAssistant(session.state.value.assistantId)
         } else {
-            // A send can race this asynchronous initialization for a brand-new conversation.
-            // Once the session already contains a user message, never replace it with the
-            // assistant preset that was computed from the stale empty snapshot.
-            if (getConversationFlow(conversationId).value.messageNodes.isNotEmpty()) return
-            // 新建对话, 并添加预设消息
             val currentSettings = settingsStore.settingsFlowRaw.first()
             val assistant = currentSettings.getCurrentAssistant()
-            val newConversation = Conversation.ofId(
-                id = conversationId,
-                assistantId = assistant.id,
-                newConversation = true
+            val initial = Conversation.ofId(
+                id = conversationId, assistantId = assistant.id, newConversation = true,
             ).updateCurrentMessages(assistant.presetMessages)
-            updateConversation(conversationId, newConversation)
+            // A send or live update that happened during the read wins over initialization.
+            session.state.compareAndSet(before, initial)
         }
     }
 

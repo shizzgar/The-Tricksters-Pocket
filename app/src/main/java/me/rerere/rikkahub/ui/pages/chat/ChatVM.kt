@@ -179,6 +179,11 @@ class ChatVM(
     // 设置聊天模型
     fun setChatModel(assistant: Assistant, model: Model) {
         viewModelScope.launch {
+            if (conversation.value.subAgentRunId != null || conversation.value.chatModelId != null) {
+                chatService.updateConversationState(_conversationId) { it.copy(chatModelId = model.id) }
+                conversationRepo.updateChatModel(_conversationId, model.id)
+                return@launch
+            }
             settingsStore.update { settings ->
                 settings.copy(
                     assistants = settings.assistants.map {

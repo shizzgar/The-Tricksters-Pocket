@@ -68,6 +68,6 @@ internal fun presentSkill(
         loading && started -> SkillOperationStatus.RUNNING
         else -> SkillOperationStatus.PENDING
     }
-    return SkillPresentation(arguments.getStringContent("name") ?: metadata["name"]?.jsonPrimitive?.contentOrNull ?: toolName,
+    return SkillPresentation(arguments.getStringContent("name") ?: (metadata["name"] as? JsonPrimitive)?.contentOrNull ?: toolName,
         requestedPath, status, documents, JsonObject(metadata), errors, binary)
 }

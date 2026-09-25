@@ -19,12 +19,13 @@ import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.data.repository.ConversationRepository
 import me.rerere.rikkahub.subagent.SubAgentRegistry
+import me.rerere.rikkahub.data.agentrun.AgentRunRepository
 import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.components.richtext.MarkdownBlock
 import org.koin.compose.koinInject
 import kotlin.uuid.Uuid
 
-internal val SubAgentToolUIs = listOf("subagent_dispatch", "subagent_get", "subagent_list", "subagent_cancel", "subagent_send")
+internal val SubAgentToolUIs: List<ToolUIRenderer> = listOf("subagent_dispatch", "subagent_get", "subagent_list", "subagent_cancel", "subagent_send")
     .map { SubAgentToolUI(it) }
 
 internal fun subAgentRunIds(arguments: JsonElement, output: JsonElement?): Set<String> = buildSet {
@@ -45,6 +46,18 @@ private fun childChats(context: ToolUIContext): List<Conversation> {
     val ids = remember(context.arguments, context.content) { subAgentRunIds(context.arguments, context.content) }
     return children.filter {
         it.subAgentRunId in ids || (context.tool.toolName == "subagent_dispatch" && it.parentToolCallId == context.tool.toolCallId)
+    }
+}
+
+@Composable
+internal fun childRunStatuses(): Map<String, String> {
+    val registry = koinInject<SubAgentRegistry>()
+    val ledger = koinInject<AgentRunRepository>()
+    val live by registry.runs.collectAsState()
+    val recent by remember(ledger) { ledger.observeRecent(1000) }.collectAsState(emptyList())
+    return remember(live, recent) {
+        recent.filter { it.kind == "subagent" }.associate { it.domainId to it.status } +
+            live.mapValues { it.value.status.name }
     }
 }
 
@@ -99,14 +112,13 @@ private class SubAgentToolUI(override val toolName: String) : ToolUIRenderer {
 
     @Composable override fun Summary(context: ToolUIContext) {
         val chats = childChats(context)
-        val registry = koinInject<SubAgentRegistry>()
-        val runs by registry.runs.collectAsState()
+        val statuses = childRunStatuses()
         if (chats.isEmpty()) {
             Text(context.content.getStringContent("error") ?: context.arguments.getStringContent("task").orEmpty(),
                 maxLines = 3, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
         }
         chats.take(3).forEach { child ->
-            ChildChatCard(child, runs[child.subAgentRunId]?.status?.name ?: context.content.getStringContent("status")) {
+            ChildChatCard(child, statuses[child.subAgentRunId] ?: context.content.getStringContent("status")) {
                 ChildChatButton(child)
             }
         }
@@ -114,20 +126,19 @@ private class SubAgentToolUI(override val toolName: String) : ToolUIRenderer {
 
     @Composable override fun Preview(context: ToolUIContext, onDismissRequest: () -> Unit) {
         val chats = childChats(context)
-        val registry = koinInject<SubAgentRegistry>()
-        val runs by registry.runs.collectAsState()
+        val statuses = childRunStatuses()
         var raw by remember(context.tool.toolCallId) { mutableStateOf(false) }
         if (raw) { DefaultToolPreview(context) { TextButton(onClick = { raw = false }) { Text(stringResource(R.string.pocket_readable)) } }; return }
         LazyColumn(Modifier.fillMaxWidth().fillMaxHeight(.85f), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { Text(title(context), style = MaterialTheme.typography.titleLarge) }
             item { Text(stringResource(R.string.pocket_child_chat_hint), style = MaterialTheme.typography.bodyMedium) }
             items(chats, key = { it.id.toString() }) { child ->
-                ChildChatCard(child, runs[child.subAgentRunId]?.status?.name ?: context.content.getStringContent("status")) {
+                ChildChatCard(child, statuses[child.subAgentRunId] ?: context.content.getStringContent("status")) {
                     ChildChatButton(child, onDismissRequest)
                 }
             }
             context.arguments.getStringContent("task")?.let { task -> item { MarkdownBlock(task.take(30000)) } }
-            context.content.getStringContent("result")?.let { result -> item { MarkdownBlock(result.take(30000)) } }
+            (context.content.getStringContent("latest_reply") ?: context.content.getStringContent("result"))?.let { result -> item { MarkdownBlock(result.take(30000)) } }
             context.content.getStringContent("error")?.let { error -> item { Text(error, color = MaterialTheme.colorScheme.error) } }
             item { TextButton(onClick = { raw = true }) { Text(stringResource(R.string.pocket_raw_response)) } }
         }

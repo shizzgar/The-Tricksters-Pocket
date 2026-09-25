@@ -46,6 +46,8 @@ class ConversationRepository(
         private const val INITIAL_LOAD_SIZE = 40
     }
 
+    suspend fun updateChatModel(id: Uuid, modelId: Uuid) = conversationDAO.updateChatModel(id.toString(), modelId.toString())
+
     fun observeChildConversations(parentId: Uuid): Flow<List<Conversation>> =
         conversationDAO.observeChildren(parentId.toString()).map { rows ->
             rows.map { conversationEntityToConversation(it, emptyList()) }

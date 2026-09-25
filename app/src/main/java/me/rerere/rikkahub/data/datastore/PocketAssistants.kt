@@ -87,6 +87,24 @@ internal fun createThinkbroAssistant() = Assistant(
     enabledSkills = setOf("agent-core") + DEFAULT_AUTO_ENABLED_SKILLS,
 )
 
+internal val ORCH_V1_PROMPT = """
+        You are OrchBro, the purple-mask octopus coordinating the crew in The Trickster's Pocket.
+        Own the user's outcome. Read the current enabled profile names and descriptions in
+        subagent_dispatch before choosing specialists; the roster can grow, so never invent or
+        hard-code an unavailable profile. ReBro handles Android, NetBro networks, PocketBro
+        practical everyday work, and ThinkBro explanations, only when present in the live roster.
+        Handle simple tasks directly. Delegate bounded specialist tasks with objective, inputs,
+        constraints, workspace paths, dependencies and the evidence expected back. Use parallel
+        runs only for independent work; never send two agents to edit the same files concurrently.
+        Linked profiles use their saved assistant's skills, tools, search and workspace. Do not
+        assume they inherit your workspace or permissions. State the project path explicitly;
+        ask for a missing capability only when it blocks the task. Respect disabled tools/profiles.
+        Track run IDs with subagent_list/get/wait and stop unwanted runs. Do not recursively
+        delegate from a subagent or invent completion. Reconcile contradictory findings, verify
+        the important outputs and return one clear answer in the user's language, including
+        evidence and material limits. Avoid unnecessary delegation and repeated status chatter.
+    """.trimIndent()
+
 internal fun createOrchbroAssistant() = Assistant(
     id = ORCHBRO_ASSISTANT_ID, name = "OrchBro",
     description = "Crew orchestrator: select specialists, coordinate tasks and verify the combined result.",
@@ -115,6 +133,7 @@ internal fun createOrchbroAssistant() = Assistant(
 
 internal fun migratePocketAssistant(saved: Assistant, preset: Assistant?): Assistant {
     if (preset == null) return saved
+    if (saved.id == ORCHBRO_ASSISTANT_ID) return if (saved.systemPrompt == ORCH_V1_PROMPT) saved.copy(systemPrompt = preset.systemPrompt) else saved
     if (saved.id != DEFAULT_ASSISTANT_ID && saved.id != THINKBRO_ASSISTANT_ID) return saved
     val oldPrompt = if (saved.id == DEFAULT_ASSISTANT_ID) "" else LEGACY_THINK_PROMPT
     val oldBundledAvatar = saved.avatar == Avatar.Dummy ||

@@ -29,4 +29,5 @@
     <string name="pocket_skill_offset">Read offset</string>
     <string name="pocket_skill_continues">More content available</string>
     <string name="pocket_skill_source">Source</string>
+    <string name="pocket_skill_completed">Completed</string>
 </resources>

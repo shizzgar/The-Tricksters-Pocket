@@ -15,6 +15,9 @@ interface ConversationDAO {
     @Query("SELECT * FROM conversationentity WHERE parent_conversation_id = :parentId ORDER BY create_at ASC")
     fun observeChildren(parentId: String): Flow<List<ConversationEntity>>
 
+    @Query("UPDATE conversationentity SET chat_model_id = :modelId WHERE id = :id")
+    suspend fun updateChatModel(id: String, modelId: String)
+
     @Query("SELECT * FROM conversationentity WHERE subagent_run_id = :runId LIMIT 1")
     suspend fun getBySubAgentRunId(runId: String): ConversationEntity?
 

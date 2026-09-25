@@ -29,4 +29,5 @@
     <string name="pocket_skill_offset">Смещение чтения</string>
     <string name="pocket_skill_continues">Есть продолжение</string>
     <string name="pocket_skill_source">Источник</string>
+    <string name="pocket_skill_completed">Выполнено</string>
 </resources>
