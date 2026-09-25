@@ -20,4 +20,5 @@
     <string name="workspace_source_path">Source path relative to workspace</string>
     <string name="workspace_target_path">Destination path relative to workspace</string>
     <string name="workspace_folder_name">Folder name</string>
+    <string name="assistant_description">Purpose and expertise</string>
 </resources>

@@ -1,9 +1,9 @@
-name: ReBro release APK
+name: Tricksters Pocket release APK
 
 on:
   workflow_dispatch:
   push:
-    branches: [feat/termux-workspaces-release]
+    branches: [feat/termux-workspaces-release, feat/tricksters-pocket]
     tags: ['v*-rebro.*']
     paths-ignore: ['README*.md', 'CHANGELOG.md', 'docs/**']
 
@@ -48,7 +48,7 @@ jobs:
           apks=(app/build/outputs/apk/release/*arm64-v8a*.apk)
           test "${#apks[@]}" -eq 1
           mkdir -p build/rebro-release
-          cp "${apks[0]}" build/rebro-release/rebro-2.5.1-rebro.4-arm64-unsigned.apk
+          cp "${apks[0]}" build/rebro-release/tricksters-pocket-2.5.1-pocket.1-arm64-unsigned.apk
           cp "$ANDROID_HOME/build-tools/37.0.0/lib/apksigner.jar" build/rebro-release/
           "$ANDROID_HOME/build-tools/37.0.0/aapt2" dump badging "${apks[0]}" > build/rebro-release/APK-BADGING.txt
           if grep -q 'application-debuggable' build/rebro-release/APK-BADGING.txt; then exit 1; fi
@@ -86,3 +86,27 @@ jobs:
           path: build/rebro-release/
           if-no-files-found: error
           retention-days: 30
+      - name: Split verified APK for bounded downloads
+        run: |
+          mkdir -p build/transfer
+          cp build/rebro-release/{COMMIT.txt,SHA256SUMS,APK-BADGING.txt,apksigner.jar} build/transfer/
+          split -b 24M -d build/rebro-release/*-unsigned.apk build/transfer/apk.part-
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pocket-release-part-0
+          path: build/transfer/apk.part-00
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pocket-release-part-1
+          path: build/transfer/apk.part-01
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pocket-release-part-2
+          path: build/transfer/apk.part-02
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pocket-release-provenance
+          path: |
+            build/transfer/*.txt
+            build/transfer/SHA256SUMS
+            build/transfer/apksigner.jar

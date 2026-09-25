@@ -1,8 +1,11 @@
+<!-- Pocket release work: see docs/tricksters-pocket.md for current behavior and signing status. -->
+
+[The Trickster's Pocket: crew and Termux workspaces](docs/tricksters-pocket.md)
 <div align="center">
 
 <img src="docs/icon.png" width="104" height="104" alt="ReBro ninja anteater" />
 
-# ReBro Agent
+# The Trickster's Pocket
 
 **Долгие задачи. Видимая трасса. Полные skills в Termux.**
 

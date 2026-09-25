@@ -53,8 +53,9 @@ internal object TmuxOps {
         return if (suffix.isNullOrBlank()) "rk_$id" else "rk_${suffix}_$id"
     }
 
-    fun startArgv(session: String, cols: Int, rows: Int): Array<String> =
-        arrayOf("new-session", "-d", "-s", session, "-x", cols.toString(), "-y", rows.toString())
+    fun startArgv(session: String, cols: Int, rows: Int, workingDir: String? = null): Array<String> =
+        arrayOf("new-session", "-d", "-s", session, "-x", cols.toString(), "-y", rows.toString()) +
+            (workingDir?.let { arrayOf("-c", it) } ?: emptyArray())
 
     // -l sends the text literally (no tmux key-name interpretation); -- ends option parsing.
     fun sendTextArgv(session: String, text: String): Array<String> =
@@ -373,10 +374,11 @@ private fun waitFields() = mapOf(
     "timeout_seconds" to field("integer", "Observation timeout, default 20, maximum 600 seconds. Does not stop the process."),
 )
 
-fun termuxSessionStartTool(context: Context, owner: String? = null): Tool = Tool(
+fun termuxSessionStartTool(context: Context, owner: String? = null, defaultWorkingDir: String? = null): Tool = Tool(
     name = "termux_session_start",
     description = "Create a persistent PTY owned by this conversation. Returns session_id even if reading fails. Sessions are never killed for being quiet. Use jobs for batch work; terminals for interactive programs.",
     parameters = { InputSchema.Obj(properties = buildJsonObject {
+        put("working_dir", field("string", "Start directory; defaults to the bound workspace or Termux settings. Relative paths resolve from there."))
         put("name", field("string", "Friendly purpose/label")); put("command", field("string", "Optional initial command"))
         put("cols", field("integer", "Width, 40–400; default 120")); put("rows", field("integer", "Height, 10–200; default 50"))
         put("pinned", field("boolean", "Mark a long-lived service terminal; default true"))
@@ -394,7 +396,8 @@ fun termuxSessionStartTool(context: Context, owner: String? = null): Tool = Tool
             val live = (listed as? CaptureResult.Success)?.let { parseSessions(it.stdout) }.orEmpty()
             if (live.size >= MAX_SESSIONS) return@withLock sessionErrorEnvelope("too_many_sessions", "Limit $MAX_SESSIONS; explicitly close an owned session. No idle sessions were killed.")
             val name = TmuxOps.sessionName(input.string("name"))
-            val started = tmux(context, TmuxOps.startArgv(name, input.number("cols", 120).coerceIn(40, 400), input.number("rows", 50).coerceIn(10, 200)))
+            val started = tmux(context, TmuxOps.startArgv(name, input.number("cols", 120).coerceIn(40, 400), input.number("rows", 50).coerceIn(10, 200),
+                me.rerere.rikkahub.data.ai.tools.resolveTermuxWorkingDirectory(input.string("working_dir"), defaultWorkingDir)))
             if (started !is CaptureResult.Success) return@withLock sessionErrorEnvelope("session_start_unknown", captureError(started), name)
             val claimed = tmux(context, arrayOf("set-option", "-t", "=$name", "@rk_owner", sessionOwner(owner)))
             if (claimed !is CaptureResult.Success) return@withLock sessionErrorEnvelope("claim_failed", captureError(claimed), name)

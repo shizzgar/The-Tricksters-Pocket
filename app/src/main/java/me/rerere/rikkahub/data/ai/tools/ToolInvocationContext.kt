@@ -33,6 +33,7 @@ data class ToolInvocationContext(
     val callerConversationId: String? = null,
     val isHeadless: Boolean = false,
     val modelCanSeeImages: Boolean = true,
+    val termuxWorkspace: TermuxWorkspaceContext? = null,
 ) {
     companion object {
         /** No-knowledge fallback. Factories that depend on context MUST handle this. */

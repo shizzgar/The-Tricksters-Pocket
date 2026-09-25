@@ -139,6 +139,8 @@ import me.rerere.rikkahub.data.repository.ConversationRepository
 import me.rerere.rikkahub.data.repository.FolderRepository
 import me.rerere.rikkahub.data.repository.MemoryRepository
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
+import me.rerere.rikkahub.data.ai.tools.termuxContext
+import me.rerere.rikkahub.data.ai.tools.isScopedWorkspaceTool
 import me.rerere.workspace.WorkspaceShellStatus
 import me.rerere.rikkahub.web.BadRequestException
 import me.rerere.rikkahub.web.NotFoundException
@@ -1272,12 +1274,11 @@ class ChatService(
      *  (via the conversation's assistant). Fall back to a ChatScope-style grant (this
      *  conversation only) when no workspace is resolvable, never the global set. */
     private suspend fun grantAlwaysScope(conversationId: Uuid, toolName: String) {
-        if (isWorkspaceToolName(toolName)) {
-            val conversation = conversationRepo.getConversationById(conversationId)
-            val assistant = conversation?.let {
-                settingsStore.settingsFlow.first().getAssistantById(it.assistantId)
-            }
-            val workspaceId = assistant?.workspaceId?.toString()
+        val conversation = conversationRepo.getConversationById(conversationId)
+        val assistant = conversation?.let { settingsStore.settingsFlow.first().getAssistantById(it.assistantId) }
+        val workspaceId = assistant?.workspaceId?.toString()
+        val workspace = workspaceId?.let { workspaceRepository.getById(it) }
+        if (isScopedWorkspaceTool(toolName, workspace?.termuxPath != null)) {
             val granted = workspaceId != null &&
                 workspaceRepository.setToolApproval(workspaceId, toolName, needsApproval = false)
             if (!granted) {
@@ -1472,6 +1473,7 @@ class ChatService(
             callerConversationId = conversationId.toString(),
             isHeadless = me.rerere.rikkahub.data.ai.tools.HeadlessConversations.isHeadless(conversationId),
             modelCanSeeImages = Modality.IMAGE in model.inputModalities,
+            termuxWorkspace = assistant.workspaceId?.let { workspaceRepository.getById(it.toString()) }?.termuxContext(conversation.workspaceCwd),
         )
         addAll(localTools.getTools(assistant.localTools, invocationCtx))
         addAll(createWorkspaceToolsIfReady(assistant.workspaceId?.toString(), conversation.workspaceCwd))
@@ -1809,7 +1811,7 @@ class ChatService(
                             // workspace tool (it is per-app, not per-workspace) - this
                             // guard also covers any stale "workspace_" entry left over
                             // from before ToolApprovalPreferences started filtering them.
-                            (!isWorkspaceToolName(toolName) &&
+                            (!isScopedWorkspaceTool(toolName, assistant.workspaceId?.let { workspaceRepository.getById(it.toString()) }?.termuxPath != null) &&
                                 toolApprovalPreferences.current().contains(toolName))
                     }
                 },
@@ -1898,6 +1900,7 @@ class ChatService(
                         // show_image keys its result envelope off this — a text-only model
                         // gets told it cannot see the image instead of confabulating one.
                         modelCanSeeImages = Modality.IMAGE in model.inputModalities,
+                        termuxWorkspace = assistant.workspaceId?.let { workspaceRepository.getById(it.toString()) }?.termuxContext(conversation.workspaceCwd),
                     )
                     addAll(localTools.getTools(assistant.localTools, invocationCtx))
                     addAll(createWorkspaceToolsIfReady(assistant.workspaceId?.toString(), conversation.workspaceCwd))

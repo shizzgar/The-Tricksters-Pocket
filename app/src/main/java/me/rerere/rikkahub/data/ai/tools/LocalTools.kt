@@ -606,7 +606,8 @@ class LocalTools(
         }
         val assistant = caller()
         val installedSkills = if (assistant?.enabledSkills?.isNotEmpty() == true) skillManager.listSkills() else emptyList()
-        val availableOptions = availableLocalOptions(options, assistant?.enabledSkills.orEmpty(), installedSkills.map { it.name }.toSet())
+        val availableOptions = availableLocalOptions(
+            if (invocationContext.termuxWorkspace != null) (options + LocalToolOption.Termux).distinct() else options, assistant?.enabledSkills.orEmpty(), installedSkills.map { it.name }.toSet())
         val tools = mutableListOf<Tool>()
         // The settings catalog also includes session-only tools so they can be excluded before a chat starts.
         if (invocationContext.callerConversationId != null || includeDisabled) {
@@ -770,17 +771,19 @@ class LocalTools(
             tools.add(me.rerere.rikkahub.data.ai.tools.local.openUrlTool(context, invocationContext, interactiveToolStreamer))
         }
         if (availableOptions.contains(LocalToolOption.Termux)) {
-            tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxRunCommandTool(context, invocationContext.callerConversationId))
+            val termuxOwner = invocationContext.termuxWorkspace?.owner ?: invocationContext.callerConversationId
+            val termuxDirectory = invocationContext.termuxWorkspace?.workingDirectory
+            tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxRunCommandTool(context, termuxOwner, termuxDirectory))
             // Persistent interactive (tmux-backed) sessions: ssh-with-prompts, sudo, REPLs,
             // stateful shells. start is approval-gated; send is hardline-guarded per call.
-            tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxSessionStartTool(context, invocationContext.callerConversationId))
-            tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxSessionSendTool(context, invocationContext.callerConversationId))
-            tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxSessionReadTool(context, invocationContext.callerConversationId))
-            tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxSessionKillTool(context, invocationContext.callerConversationId))
-            tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxSessionListTool(context, invocationContext.callerConversationId))
-            tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxSessionManageTool(context, invocationContext.callerConversationId))
-            tools.addAll(me.rerere.rikkahub.data.ai.tools.local.termuxJobTools(context, invocationContext.callerConversationId))
-            tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxOutputReadTool(context, invocationContext.callerConversationId))
+            tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxSessionStartTool(context, termuxOwner, termuxDirectory))
+            tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxSessionSendTool(context, termuxOwner))
+            tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxSessionReadTool(context, termuxOwner))
+            tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxSessionKillTool(context, termuxOwner))
+            tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxSessionListTool(context, termuxOwner))
+            tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxSessionManageTool(context, termuxOwner))
+            tools.addAll(me.rerere.rikkahub.data.ai.tools.local.termuxJobTools(context, termuxOwner, termuxDirectory))
+            tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxOutputReadTool(context, termuxOwner))
         }
         if (availableOptions.contains(LocalToolOption.Whisper)) {
             tools.add(transcribeAudioFileTool(context))
@@ -980,7 +983,10 @@ class LocalTools(
         // whether their op is destructive — ToolApprovalDefaults is the single source of
         // truth, and the GenerationHandler / Telegram/in-app prompt path keys off needsApproval.
         return filterLocalTools(tools, if (includeDisabled) emptySet() else assistant?.disabledLocalTools.orEmpty()).map { t ->
-            val withApproval = if (ToolApprovalDefaults.requiresApproval(t.name)) {
+            val withApproval = if (invocationContext.termuxWorkspace != null && t.name.startsWith("termux_")) {
+                t.copy(needsApproval = { invocationContext.termuxWorkspace.approvals[t.name]
+                    ?: ToolApprovalDefaults.requiresApproval(t.name) })
+            } else if (ToolApprovalDefaults.requiresApproval(t.name)) {
                 t.copy(needsApproval = { true })
             } else {
                 t
@@ -988,7 +994,9 @@ class LocalTools(
             val guarded = if (!verifyAccessBeforeExecution || invocationContext.callerAssistantId == null) withApproval
             else withApproval.copy(execute = { input ->
                 val live = caller()
-                val currentTool = live?.let {
+                val currentTool = live?.takeIf {
+                    invocationContext.termuxWorkspace == null || it.workspaceId?.toString() == invocationContext.termuxWorkspace.id
+                }?.let {
                     getTools(it.localTools, invocationContext, verifyAccessBeforeExecution = false).firstOrNull { it.name == t.name }
                 }
                 if (currentTool == null) {

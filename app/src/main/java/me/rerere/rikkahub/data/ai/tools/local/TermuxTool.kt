@@ -366,7 +366,7 @@ internal suspend fun runCommandCapture(
  * for the legacy "open visible Termux session" mode where the user sees output live but
  * the bot cannot read it.
  */
-fun termuxRunCommandTool(context: Context, owner: String? = null): Tool = Tool(
+fun termuxRunCommandTool(context: Context, owner: String? = null, defaultWorkingDir: String? = null): Tool = Tool(
     name = "termux_run_command",
     description = """
         Execute a shell command in Termux. By default the command runs in the background and
@@ -434,8 +434,8 @@ fun termuxRunCommandTool(context: Context, owner: String? = null): Tool = Tool(
         val rawCommand = input.jsonObject["command"]?.jsonPrimitive?.contentOrNull
         val executable = input.jsonObject["executable"]?.jsonPrimitive?.contentOrNull
         val argumentsArr = input.jsonObject["arguments"]?.jsonArray
-        val workingDir = input.jsonObject["working_dir"]?.jsonPrimitive?.contentOrNull
-            ?: TermuxRuntime.defaultWorkingDir
+        val workingDir = me.rerere.rikkahub.data.ai.tools.resolveTermuxWorkingDirectory(
+            input.jsonObject["working_dir"]?.jsonPrimitive?.contentOrNull, defaultWorkingDir)
         val interactive = input.jsonObject["interactive"]?.jsonPrimitive?.contentOrNull
             ?.toBooleanStrictOrNull() ?: false
         val background = input.jsonObject["background"]?.jsonPrimitive?.contentOrNull

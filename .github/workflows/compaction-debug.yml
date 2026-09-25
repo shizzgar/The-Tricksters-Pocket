@@ -88,6 +88,8 @@ jobs:
           --tests 'me.rerere.rikkahub.data.datastore.PreferencesStoreTest'
           --tests 'me.rerere.rikkahub.data.datastore.RebroAssistantTest'
           --tests 'me.rerere.rikkahub.data.datastore.NetbroAssistantTest'
+          --tests 'me.rerere.rikkahub.data.datastore.PocketAssistantsTest'
+          --tests 'me.rerere.rikkahub.data.ai.tools.TermuxWorkspaceContextTest'
           --tests 'me.rerere.rikkahub.data.preferences.TermuxDefaultsTest'
           --tests 'me.rerere.rikkahub.ui.components.message.tools.TermuxPresentationTest'
           --tests 'me.rerere.rikkahub.ui.components.message.tools.WebFetchPresentationTest'
@@ -134,7 +136,7 @@ jobs:
           mkdir -p build/trajectory-qa
           test_status=0
           adb shell am instrument -w -r -e class me.rerere.rikkahub.ui.pages.chat.TrajectoryInstrumentedTest,me.rerere.rikkahub.ui.pages.extensions.skills.SkillWorkbenchInstrumentedTest,me.rerere.rikkahub.ui.pages.assistant.detail.ToolAccessInstrumentedTest,me.rerere.rikkahub.ui.pages.chat.TracePayloadInstrumentedTest,me.rerere.rikkahub.data.datastore.RebroAssistantInstrumentedTest,me.rerere.rikkahub.data.datastore.NetbroAssistantInstrumentedTest,me.rerere.rikkahub.service.LiveSteeringInstrumentedTest,me.rerere.rikkahub.data.db.ImportedDatabaseReconcilerTest,me.rerere.rikkahub.data.db.migrations.Migration_30_31_Test,me.rerere.rikkahub.data.db.migrations.Migration_31_32_Test,me.rerere.rikkahub.ui.theme.RebroBrandInstrumentedTest,me.rerere.rikkahub.ui.pages.extensions.workspace.TermuxWorkspaceUiInstrumentedTest,me.rerere.rikkahub.data.ai.tools.local.JavascriptInstrumentedTest excp.rikkahub.debug.test/androidx.test.runner.AndroidJUnitRunner | tee build/trajectory-qa/instrumentation.txt || test_status=$?
-          grep -Fq 'OK (35 tests)' build/trajectory-qa/instrumentation.txt || test_status=1
+          grep -Fq 'OK (36 tests)' build/trajectory-qa/instrumentation.txt || test_status=1
           adb shell wm size 1920x1200
           adb shell wm density 160
           adb shell am instrument -w -r -e class me.rerere.rikkahub.ui.pages.extensions.skills.SkillWorkbenchWideInstrumentedTest excp.rikkahub.debug.test/androidx.test.runner.AndroidJUnitRunner | tee build/trajectory-qa/wide-instrumentation.txt || test_status=$?

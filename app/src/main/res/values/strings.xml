@@ -7,7 +7,7 @@
   <string name="about_page_version">Version</string>
   <string name="about_page_website">Website</string>
   <string name="add">Add</string>
-  <string name="app_name">RikkaHub Agent</string>
+  <string name="app_name">The Trickster\'s Pocket</string>
   <string name="asr_button_content_description">Speech Recognition</string>
   <string name="asr_button_stop">Stop</string>
   <string name="assistant_detail_basic_desc">Configure name, avatar, model, and parameters</string>
@@ -897,7 +897,7 @@
   <string name="setting_page_search_web_fetch_tools_desc">Let the assistant fetch and read web page content directly. On by default; turn off to rely only on your configured search provider.</string>
   <string name="setting_page_share">Share</string>
   <string name="setting_page_share_desc">Share this app with friends</string>
-  <string name="setting_page_share_text">RikkaHub - Open Source Android AI Assistant\n\nWebsite: https://rikka-ai.com/</string>
+  <string name="setting_page_share_text">The Trickster\'s Pocket - Open Source Android AI Assistant\n\nGitHub: https://github.com/shizzgar/rikkahub-agent</string>
   <string name="setting_page_sponsor_alert_confirm">Donate</string>
   <string name="setting_page_sponsor_alert_desc">You have launched the app over 100 times! If you enjoy using it, please consider supporting the developer.</string>
   <string name="setting_page_sponsor_alert_dismiss">Not Now</string>
@@ -926,7 +926,7 @@
   <string name="setting_page_web_server">Web Server</string>
   <string name="setting_page_web_server_address_note">Address Notes</string>
   <string name="setting_page_web_server_address_note_desc">LAN Address: Uses device WiFi IP, accessible to other devices on the same network. Unavailable on mobile data.\nLocal Address: Uses localhost, accessible on this device only.\nmDNS Address: Uses .local hostname, accessible by name from other devices on the same network without knowing the IP.</string>
-  <string name="setting_page_web_server_desc">Allow you access RikkaHub via Web</string>
+  <string name="setting_page_web_server_desc">Allow you access The Trickster\'s Pocket via Web</string>
   <string name="setting_page_web_server_error">Error</string>
   <string name="setting_page_web_server_jwt_enable">Enable authentication</string>
   <string name="setting_page_web_server_jwt_enable_desc">Require password verification when accessing the web interface</string>
@@ -1237,7 +1237,7 @@
   <string name="setting_page_telegram_boot_note">When started, the bot also auto-starts on device boot.</string>
   <string name="setting_page_telegram_battery_ok">Battery optimization: whitelisted</string>
   <string name="setting_page_telegram_battery_needed">Battery optimization: not whitelisted - tap to fix</string>
-  <string name="setting_page_telegram_battery_desc">When the screen turns off, aggressive OEM ROMs (Xiaomi, OPPO, OnePlus, Vivo) cut network for non-whitelisted apps. The bot will only deliver during occasional maintenance windows. Tap to whitelist RikkaHub.</string>
+  <string name="setting_page_telegram_battery_desc">When the screen turns off, aggressive OEM ROMs (Xiaomi, OPPO, OnePlus, Vivo) cut network for non-whitelisted apps. The bot will only deliver during occasional maintenance windows. Tap to whitelist The Trickster\'s Pocket.</string>
   <string name="setting_page_telegram_battery_already_ok">Already whitelisted from battery optimization.</string>
   <string name="setting_page_telegram_proxy_enabled">Proxy</string>
   <string name="setting_page_telegram_proxy_enabled_desc">Route the bot\'s own network calls through a proxy. The bot must be stopped to edit.</string>
@@ -1329,7 +1329,7 @@
   <string name="assistant_page_local_tools_speech_to_text_desc">Listen to the microphone and convert spoken words to text.</string>
   <string name="assistant_page_local_tools_fingerprint_title">Fingerprint</string>
   <string name="assistant_page_local_tools_fingerprint_desc">Show the system biometric prompt to verify the user\'s identity.</string>
-  <string name="accessibility_service_summary">Lets RikkaHub tap, swipe, scroll, read screen content, and take screenshots when the LLM uses the Screen automation tools.</string>
+  <string name="accessibility_service_summary">Lets The Trickster\'s Pocket tap, swipe, scroll, read screen content, and take screenshots when the LLM uses the Screen automation tools.</string>
   <string name="assistant_page_local_tools_section_screen_automation">Screen automation</string>
   <string name="assistant_page_local_tools_screen_automation_title">Screen automation</string>
   <string name="assistant_page_local_tools_screen_automation_desc">Let the LLM tap, swipe, scroll, read on-screen content, and take screenshots via Android\'s accessibility service.</string>
@@ -1375,7 +1375,7 @@
   <string name="setting_page_accessibility_status_section">Status</string>
   <string name="setting_page_accessibility_status_running">Service: Running</string>
   <string name="setting_page_accessibility_status_not_running">Service: Not running</string>
-  <string name="setting_page_accessibility_status_help">RikkaHub needs accessibility permission to perform taps, swipes, and read the screen for the LLM. Open Settings → Accessibility → Installed Apps → RikkaHub and turn it on.</string>
+  <string name="setting_page_accessibility_status_help">The Trickster\'s Pocket needs accessibility permission to perform taps, swipes, and read the screen for the LLM. Open Settings → Accessibility → Installed Apps → The Trickster\'s Pocket and turn it on.</string>
   <string name="setting_page_accessibility_open_settings">Open Accessibility settings</string>
   <string name="setting_page_accessibility_diagnostics_section">Diagnostics</string>
   <string name="setting_page_accessibility_capture_diag">Capture diagnostic screenshot</string>
@@ -1392,7 +1392,7 @@
   <string name="setting_page_accessibility_overlay_help">Shows a small \"The agent is working\" pill at the top of the screen while the agent is automating, so you always know when it is driving the UI. Optional but recommended.</string>
   <string name="setting_page_accessibility_overlay_open_settings">Grant Display over other apps</string>
   <string name="setting_page_permissions">Permissions</string>
-  <string name="setting_page_permissions_desc">Auto-discovered list of every permission RikkaHub uses, with a one-tap grant button for each.</string>
+  <string name="setting_page_permissions_desc">Auto-discovered list of every permission The Trickster\'s Pocket uses, with a one-tap grant button for each.</string>
   <string name="setting_page_permissions_group_services">Services and integrations</string>
   <string name="setting_page_permissions_group_special">Special access</string>
   <string name="setting_page_permissions_group_runtime">Runtime permissions</string>
@@ -1405,13 +1405,13 @@
   <string name="setting_provider_delete_confirm">Remove</string>
   <string name="setting_provider_delete_cancel">Cancel</string>
   <string name="setting_provider_aicore_release_stage">Release stage</string>
-  <string name="setting_provider_aicore_status_help">On-device. Requires Pixel 8/9/10 with the AICore app installed AND enrollment in the GenAI Prompt-API early-access program (separate opt-in). If you see ErrorCode 606 / FEATURE_NOT_FOUND on first run, you have AICore installed but not the Prompt-API channel — request access via the GenAI Prompt-API early-access form, then reboot. Tool calling is supported via prompt engineering — Gemini Nano emits &lt;tool_call&gt; markup which RikkaHub parses and dispatches.</string>
+  <string name="setting_provider_aicore_status_help">On-device. Requires Pixel 8/9/10 with the AICore app installed AND enrollment in the GenAI Prompt-API early-access program (separate opt-in). If you see ErrorCode 606 / FEATURE_NOT_FOUND on first run, you have AICore installed but not the Prompt-API channel — request access via the GenAI Prompt-API early-access form, then reboot. Tool calling is supported via prompt engineering — Gemini Nano emits &lt;tool_call&gt; markup which The Trickster\'s Pocket parses and dispatches.</string>
   <string name="setting_page_notifications">Notifications</string>
   <string name="setting_page_notifications_desc">Notification access status, recent activity log, and the per-app whitelist that auto-forwards to Telegram.</string>
   <string name="setting_page_notifications_status_section">Status</string>
   <string name="setting_page_notifications_status_connected">Service: Connected</string>
   <string name="setting_page_notifications_status_not_connected">Service: Not connected</string>
-  <string name="setting_page_notifications_status_help">RikkaHub needs notification access to read incoming notifications. Open Settings → Notification access → Notification access and enable RikkaHub.</string>
+  <string name="setting_page_notifications_status_help">The Trickster\'s Pocket needs notification access to read incoming notifications. Open Settings → Notification access → Notification access and enable The Trickster\'s Pocket.</string>
   <string name="setting_page_notifications_open_settings">Open Notification access settings</string>
   <string name="setting_page_notifications_default_chat_set">Default Telegram chat: %1$s</string>
   <string name="setting_page_notifications_default_chat_unset">Default Telegram chat: not set (auto-route disabled)</string>
@@ -1441,7 +1441,7 @@
   <string name="assistant_page_local_tools_system_intents_title">System intents</string>
   <string name="assistant_page_local_tools_system_intents_desc">Let the assistant pre-fill system apps for you to finalise: Calendar event, new Contact, email composer, SMS composer, WiFi settings, Maps. Nothing is saved or sent without your tap in the destination app.</string>
   <string name="assistant_page_local_tools_workflows_hint_title">Workflows need extra setup</string>
-  <string name="assistant_page_local_tools_workflows_hint_message">Workflows are enabled. Some trigger types need permissions the toggle can\'t request:\n\n• Geofences (you arrive somewhere): Settings → Apps → RikkaHub → Permissions → Location → Allow all the time.\n• Notification arrives: Settings → Apps → Special access → Notification access → enable RikkaHub.\n• App launches/closes: Settings → Accessibility → enable RikkaHub.\n• Bluetooth connect/disconnect: grant BLUETOOTH_CONNECT when the system asks.\n\nSchedule, WiFi, headphones, power, screen on/off, and battery triggers work right out of the box. The assistant will flag any extra setup at the moment you author a workflow that needs it.</string>
+  <string name="assistant_page_local_tools_workflows_hint_message">Workflows are enabled. Some trigger types need permissions the toggle can\'t request:\n\n• Geofences (you arrive somewhere): Settings → Apps → The Trickster\'s Pocket → Permissions → Location → Allow all the time.\n• Notification arrives: Settings → Apps → Special access → Notification access → enable The Trickster\'s Pocket.\n• App launches/closes: Settings → Accessibility → enable The Trickster\'s Pocket.\n• Bluetooth connect/disconnect: grant BLUETOOTH_CONNECT when the system asks.\n\nSchedule, WiFi, headphones, power, screen on/off, and battery triggers work right out of the box. The assistant will flag any extra setup at the moment you author a workflow that needs it.</string>
   <string name="assistant_page_local_tools_workflows_title">Workflows</string>
   <string name="assistant_page_local_tools_workflows_desc">Let the assistant create automations that run on triggers — WiFi connect, schedule, geofence, notification arrival, and more.</string>
   <string name="setting_page_workflows_empty">No workflows yet. Ask your assistant to create one.</string>
@@ -1670,7 +1670,7 @@
   <string name="setting_shizuku_toast_service_not_running">Shizuku service is not running</string>
   <string name="setting_shizuku_section_help">Setup help</string>
   <string name="setting_shizuku_help_title">Setting up Shizuku</string>
-  <string name="setting_shizuku_help_body">Install Shizuku from its GitHub releases page, then start its service: from the Shizuku app on a rooted device, or by pairing wireless debugging on Android 11+ (Developer options → Wireless debugging → Pair device with pairing code, then run the start command Shizuku shows you). Once the service is running, tap Permission above to grant RikkaHub access.</string>
+  <string name="setting_shizuku_help_body">Install Shizuku from its GitHub releases page, then start its service: from the Shizuku app on a rooted device, or by pairing wireless debugging on Android 11+ (Developer options → Wireless debugging → Pair device with pairing code, then run the start command Shizuku shows you). Once the service is running, tap Permission above to grant The Trickster\'s Pocket access.</string>
   <string name="browser_address_bar_close">Close browser</string>
   <string name="browser_address_bar_back">Browser back</string>
   <string name="browser_address_bar_forward">Browser forward</string>
@@ -1695,7 +1695,7 @@
   <string name="local_llm_litert_name">Local · LiteRT</string>
   <string name="local_llm_default_disabled">Run open models on this device. ~1.5 GB download required (Qwen2.5 1.5B Q8).</string>
   <string name="local_llm_download_title">Download default model</string>
-  <string name="local_llm_download_message">RikkaHub needs to download a starter model for this provider. The download is ~1.5 GB (Qwen2.5 1.5B Q8). Continue?</string>
+  <string name="local_llm_download_message">The Trickster\'s Pocket needs to download a starter model for this provider. The download is ~1.5 GB (Qwen2.5 1.5B Q8). Continue?</string>
   <string name="local_llm_download_continue">Download</string>
   <string name="local_llm_download_cancel">Cancel</string>
   <string name="local_llm_downloading_format">Downloading… %1$d%% (%2$s / %3$s)</string>
@@ -2150,7 +2150,7 @@
 
   <!-- Permission inventory labels & descriptions -->
   <string name="perm_label_overlay">Display over other apps</string>
-  <string name="perm_desc_overlay">Lets RikkaHub draw the \"agent is working\" overlay while automation is in progress.</string>
+  <string name="perm_desc_overlay">Lets The Trickster\'s Pocket draw the \"agent is working\" overlay while automation is in progress.</string>
   <string name="perm_label_write_settings">Modify system settings</string>
   <string name="perm_desc_write_settings">Lets the agent change brightness via set_brightness.</string>
   <string name="perm_label_dnd">Do Not Disturb access</string>
@@ -2184,7 +2184,7 @@
   <string name="perm_label_send_sms">Send SMS</string>
   <string name="perm_desc_send_sms">Used by send_sms to send text messages programmatically.</string>
   <string name="perm_label_termux_run">Termux RUN_COMMAND</string>
-  <string name="perm_desc_termux_run">Lets RikkaHub start commands inside Termux for the termux_run_command tool.</string>
+  <string name="perm_desc_termux_run">Lets The Trickster\'s Pocket start commands inside Termux for the termux_run_command tool.</string>
   <string name="perm_desc_runtime_default">Runtime permission required by one or more enabled tools.</string>
 
   <!-- Doctor screen: category names -->
@@ -2441,7 +2441,7 @@
   <string name="doctor_detail_no_llama_models">No llama.cpp models installed.</string>
   <string name="doctor_fix_open_local_llama">Open Local llama.cpp</string>
   <string name="doctor_detail_termux_not_installed_2">Termux not installed. Required by: %1$s.</string>
-  <string name="doctor_detail_termux_run_command_granted">Granted — RikkaHub can dispatch shell commands to Termux.</string>
+  <string name="doctor_detail_termux_run_command_granted">Granted — The Trickster\'s Pocket can dispatch shell commands to Termux.</string>
   <string name="doctor_detail_termux_run_command_not_granted">Not granted. Re-toggle the Termux row in Local Tools to see the post-grant dialog.</string>
   <string name="doctor_detail_shizuku_present">Shizuku (or an equivalent binder provider such as Sui) is present.</string>
   <string name="doctor_detail_shizuku_not_installed_needed">Not installed. Needed by: %1$s.</string>
@@ -2488,7 +2488,7 @@
   <string name="doctor_detail_images_all_ok">%1$d generated image record(s), all backed by a file on disk.</string>
   <string name="doctor_detail_images_orphan">%1$d of %2$d generated image record(s) point at a file that no longer exists on disk.</string>
   <string name="doctor_could_not_open">Could not open: %1$s</string>
-  <string name="doctor_clipboard_label">RikkaHub diagnostic report</string>
+  <string name="doctor_clipboard_label">The Trickster\'s Pocket diagnostic report</string>
   <string name="table">Table</string>
   <string name="chat_page_voice_title">Voice mode</string>
   <string name="chat_page_voice_connecting">Connecting…</string>

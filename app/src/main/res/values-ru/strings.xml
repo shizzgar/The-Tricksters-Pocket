@@ -7,7 +7,7 @@
   <string name="about_page_version">Версия</string>
   <string name="about_page_website">Веб-сайт</string>
   <string name="add">Добавить</string>
-  <string name="app_name">RikkaHub Agent</string>
+  <string name="app_name">The Trickster\'s Pocket</string>
   <string name="asr_button_content_description">Распознавание речи</string>
   <string name="asr_button_stop">Стоп</string>
   <string name="assistant_detail_basic_desc">Настройте имя, аватар, модель и параметры</string>
@@ -823,7 +823,7 @@
   <string name="setting_page_search_title">Служба поиска</string>
   <string name="setting_page_share">Поделиться</string>
   <string name="setting_page_share_desc">Поделиться этим приложением с друзьями</string>
-  <string name="setting_page_share_text">RikkaHub — открытый Android-ассистент с ИИ\n\nСайт: https://rikka-ai.com/</string>
+  <string name="setting_page_share_text">The Trickster\'s Pocket — открытый Android-ассистент с ИИ\n\nGitHub: https://github.com/shizzgar/rikkahub-agent</string>
   <string name="setting_page_sponsor_alert_confirm">Пожертвовать</string>
   <string name="setting_page_sponsor_alert_desc">Вы запустили приложение более 100 раз! Если вам нравится им пользоваться, пожалуйста, поддержите разработчика.</string>
   <string name="setting_page_sponsor_alert_dismiss">Не сейчас</string>
@@ -851,7 +851,7 @@
   <string name="setting_page_web_server_address_note_desc">LAN-адрес: использует IP-адрес устройства в Wi-Fi, доступен другим устройствам в той же сети. Недоступен при использовании мобильных данных.
 Локальный адрес: использует localhost, доступен только на этом устройстве.
 Адрес mDNS: использует имя хоста .local, доступен по имени с других устройств в той же сети без знания IP-адреса.</string>
-  <string name="setting_page_web_server_desc">Разрешить доступ к RikkaHub через веб</string>
+  <string name="setting_page_web_server_desc">Разрешить доступ к The Trickster\'s Pocket через веб</string>
   <string name="setting_page_web_server_error">Ошибка</string>
   <string name="setting_page_web_server_jwt_enable">Включить аутентификацию</string>
   <string name="setting_page_web_server_jwt_enable_desc">Требовать проверку пароля при доступе к веб-интерфейсу</string>
@@ -1130,7 +1130,7 @@
   <!-- fork (agent) strings preserved from merge -->
   <string name="setting_display_page_show_date_below_name_desc">Показывать дату сообщения под ником или названием модели</string>
   <string name="setting_display_page_show_date_below_name_title">Показывать дату под именем</string>
-  <string name="accessibility_service_summary">Позволяет RikkaHub нажимать, проводить, прокручивать, читать содержимое экрана и делать снимки экрана, когда LLM использует инструменты автоматизации экрана.</string>
+  <string name="accessibility_service_summary">Позволяет The Trickster\'s Pocket нажимать, проводить, прокручивать, читать содержимое экрана и делать снимки экрана, когда LLM использует инструменты автоматизации экрана.</string>
   <string name="assistant_page_fast_path_router">Маршрутизатор быстрого пути</string>
   <string name="assistant_page_fast_path_router_desc">Пропуск LLM для высокоуверенных запросов вроде «какой у меня заряд», «который час» или «список рабочих процессов». Подходящий инструмент выполняется напрямую, и вы получаете мгновенный ответ. Консервативно — всё неоднозначное всё равно идёт к модели. Записывается в logcat (тег: FastPathRouter).</string>
   <string name="assistant_page_local_tools_app_launcher_desc">Открытие установленных приложений по имени пакета (например, Termux, Настройки) и список доступных приложений. В сочетании с автоматизацией экрана даёт полное управление интерфейсом.</string>
@@ -1250,7 +1250,7 @@
   <string name="assistant_page_local_tools_wifi_desc">Чтение текущего подключения Wi-Fi (SSID, IP, сигнал). Для SSID требуется разрешение на местоположение.</string>
   <string name="assistant_page_local_tools_wifi_title">Сведения о Wi-Fi</string>
   <string name="assistant_page_local_tools_workflows_desc">Позволяет ассистенту создавать автоматизации, запускаемые по триггерам — подключение WiFi, расписание, геозона, приход уведомления и другое.</string>
-  <string name="assistant_page_local_tools_workflows_hint_message">Рабочие процессы включены. Некоторым типам триггеров нужны разрешения, которые переключатель не может запросить:\n\n• Геозоны (вы куда-то прибываете): Настройки → Приложения → RikkaHub → Разрешения → Местоположение → Разрешить всегда.\n• Приходит уведомление: Настройки → Приложения → Особый доступ → Доступ к уведомлениям → включить RikkaHub.\n• Запуск/закрытие приложений: Настройки → Специальные возможности → включить RikkaHub.\n• Подключение/отключение Bluetooth: предоставьте BLUETOOTH_CONNECT, когда система спросит.\n\nТриггеры расписания, WiFi, наушников, питания, включения/выключения экрана и батареи работают сразу. Ассистент укажет на любую дополнительную настройку в момент, когда вы создаёте рабочий процесс, которому она нужна.</string>
+  <string name="assistant_page_local_tools_workflows_hint_message">Рабочие процессы включены. Некоторым типам триггеров нужны разрешения, которые переключатель не может запросить:\n\n• Геозоны (вы куда-то прибываете): Настройки → Приложения → The Trickster\'s Pocket → Разрешения → Местоположение → Разрешить всегда.\n• Приходит уведомление: Настройки → Приложения → Особый доступ → Доступ к уведомлениям → включить The Trickster\'s Pocket.\n• Запуск/закрытие приложений: Настройки → Специальные возможности → включить The Trickster\'s Pocket.\n• Подключение/отключение Bluetooth: предоставьте BLUETOOTH_CONNECT, когда система спросит.\n\nТриггеры расписания, WiFi, наушников, питания, включения/выключения экрана и батареи работают сразу. Ассистент укажет на любую дополнительную настройку в момент, когда вы создаёте рабочий процесс, которому она нужна.</string>
   <string name="assistant_page_local_tools_workflows_hint_title">Рабочим процессам нужна доп. настройка</string>
   <string name="assistant_page_local_tools_workflows_title">Рабочие процессы</string>
   <string name="browser_address_bar_back">Браузер назад</string>
@@ -1296,7 +1296,7 @@
   <string name="local_llm_download_cancel">Отмена</string>
   <string name="local_llm_download_continue">Загрузить</string>
   <string name="local_llm_download_default">Загрузить модель по умолчанию</string>
-  <string name="local_llm_download_message">RikkaHub нужно загрузить стартовую модель для этого провайдера. Загрузка ~1,5 ГБ (Qwen2.5 1.5B Q8). Продолжить?</string>
+  <string name="local_llm_download_message">The Trickster\'s Pocket нужно загрузить стартовую модель для этого провайдера. Загрузка ~1,5 ГБ (Qwen2.5 1.5B Q8). Продолжить?</string>
   <string name="local_llm_download_progress">Загрузка… %1$d%%</string>
   <string name="local_llm_download_title">Загрузить модель по умолчанию</string>
   <string name="local_llm_downloading_format">Загрузка… %1$d%% (%2$s / %3$s)</string>
@@ -1406,7 +1406,7 @@
   <string name="setting_page_accessibility_overlay_open_settings">Предоставить «Поверх других приложений»</string>
   <string name="setting_page_accessibility_overlay_section">Наложение активности</string>
   <string name="setting_page_accessibility_recent_section">Недавние действия</string>
-  <string name="setting_page_accessibility_status_help">RikkaHub нужно разрешение специальных возможностей для выполнения нажатий, проведений и чтения экрана для LLM. Откройте Настройки → Специальные возможности → Установленные приложения → RikkaHub и включите его.</string>
+  <string name="setting_page_accessibility_status_help">The Trickster\'s Pocket нужно разрешение специальных возможностей для выполнения нажатий, проведений и чтения экрана для LLM. Откройте Настройки → Специальные возможности → Установленные приложения → The Trickster\'s Pocket и включите его.</string>
   <string name="setting_page_accessibility_status_not_running">Служба: не работает</string>
   <string name="setting_page_accessibility_status_running">Служба: работает</string>
   <string name="setting_page_accessibility_status_section">Статус</string>
@@ -1429,7 +1429,7 @@
   <string name="setting_page_notifications_recent_empty">Пока не захвачено ни одного уведомления.</string>
   <string name="setting_page_notifications_recent_section">Недавняя активность</string>
   <string name="setting_page_notifications_status_connected">Служба: подключена</string>
-  <string name="setting_page_notifications_status_help">RikkaHub нужен доступ к уведомлениям для чтения входящих уведомлений. Откройте Настройки → Доступ к уведомлениям → Доступ к уведомлениям и включите RikkaHub.</string>
+  <string name="setting_page_notifications_status_help">The Trickster\'s Pocket нужен доступ к уведомлениям для чтения входящих уведомлений. Откройте Настройки → Доступ к уведомлениям → Доступ к уведомлениям и включите The Trickster\'s Pocket.</string>
   <string name="setting_page_notifications_status_not_connected">Служба: не подключена</string>
   <string name="setting_page_notifications_status_section">Статус</string>
   <string name="setting_page_notifications_whitelist_help">Приложения, уведомления которых автоматически пересылаются в ваш чат Telegram по умолчанию. Пусто = ничего не пересылается. Включайте или выключайте каждое приложение в списке выбора.</string>
@@ -1445,7 +1445,7 @@
   <string name="setting_page_notifications_whitelist_summary_n_plural">%1$d приложений в белом списке</string>
   <string name="setting_page_notifications_whitelist_summary_zero">Нет приложений в белом списке</string>
   <string name="setting_page_permissions">Разрешения</string>
-  <string name="setting_page_permissions_desc">Автоматически обнаруженный список всех разрешений, используемых RikkaHub, с кнопкой предоставления в одно нажатие для каждого.</string>
+  <string name="setting_page_permissions_desc">Автоматически обнаруженный список всех разрешений, используемых The Trickster\'s Pocket, с кнопкой предоставления в одно нажатие для каждого.</string>
   <string name="setting_page_permissions_group_auto">Предоставлены автоматически</string>
   <string name="setting_page_permissions_group_runtime">Разрешения времени выполнения</string>
   <string name="setting_page_permissions_group_services">Службы и интеграции</string>
@@ -1495,7 +1495,7 @@
   <string name="setting_page_scheduled_jobs_subtitle_when">Когда: %1$s</string>
   <string name="setting_page_telegram">Telegram-бот</string>
   <string name="setting_page_telegram_battery_already_ok">Уже в белом списке оптимизации батареи.</string>
-  <string name="setting_page_telegram_battery_desc">При выключении экрана агрессивные OEM-прошивки (Xiaomi, OPPO, OnePlus, Vivo) отключают сеть для приложений не из белого списка. Бот сможет доставлять только во время редких окон обслуживания. Нажмите, чтобы добавить RikkaHub в белый список.</string>
+  <string name="setting_page_telegram_battery_desc">При выключении экрана агрессивные OEM-прошивки (Xiaomi, OPPO, OnePlus, Vivo) отключают сеть для приложений не из белого списка. Бот сможет доставлять только во время редких окон обслуживания. Нажмите, чтобы добавить The Trickster\'s Pocket в белый список.</string>
   <string name="setting_page_telegram_battery_needed">Оптимизация батареи: не в белом списке - нажмите для исправления</string>
   <string name="setting_page_telegram_battery_ok">Оптимизация батареи: в белом списке</string>
   <string name="setting_page_telegram_boot_note">После запуска бот также автоматически запускается при загрузке устройства.</string>
@@ -1562,7 +1562,7 @@
   <string name="setting_page_workflows_subtitle_ran_success">Запущен %1$s • Успех</string>
   <string name="setting_page_workflows_subtitle_when">Когда: %1$s</string>
   <string name="setting_provider_aicore_release_stage">Стадия выпуска</string>
-  <string name="setting_provider_aicore_status_help">На устройстве. Требуется Pixel 8/9/10 с установленным приложением AICore И регистрация в программе раннего доступа GenAI Prompt-API (отдельное согласие). Если при первом запуске вы видите ErrorCode 606 / FEATURE_NOT_FOUND, у вас установлен AICore, но нет канала Prompt-API — запросите доступ через форму раннего доступа GenAI Prompt-API, затем перезагрузитесь. Вызов инструментов поддерживается через инженерию запросов — Gemini Nano выдаёт разметку &lt;tool_call&gt;, которую RikkaHub разбирает и обрабатывает.</string>
+  <string name="setting_provider_aicore_status_help">На устройстве. Требуется Pixel 8/9/10 с установленным приложением AICore И регистрация в программе раннего доступа GenAI Prompt-API (отдельное согласие). Если при первом запуске вы видите ErrorCode 606 / FEATURE_NOT_FOUND, у вас установлен AICore, но нет канала Prompt-API — запросите доступ через форму раннего доступа GenAI Prompt-API, затем перезагрузитесь. Вызов инструментов поддерживается через инженерию запросов — Gemini Nano выдаёт разметку &lt;tool_call&gt;, которую The Trickster\'s Pocket разбирает и обрабатывает.</string>
   <string name="setting_provider_delete_body">Это навсегда удалит %1$s и все его настроенные модели. Вы сможете добавить его снова позже.</string>
   <string name="setting_provider_delete_cancel">Отмена</string>
   <string name="setting_provider_delete_confirm">Удалить</string>

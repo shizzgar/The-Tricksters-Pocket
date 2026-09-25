@@ -73,12 +73,13 @@ class RebroBrandInstrumentedTest {
     }
 
     @Test fun netbroAvatarAndNotificationIconDecode() {
-        context.assets.open("branding/netbro-avatar.webp").use { stream ->
+        context.assets.open("branding/netbro-spider.webp").use { stream ->
             val avatar = requireNotNull(BitmapFactory.decodeStream(stream))
             assertTrue(avatar.width >= 512)
             avatar.recycle()
         }
+        context.assets.open("branding/orchbro-avatar.webp").use { assertNotNull(BitmapFactory.decodeStream(it)) }
         assertNotNull(context.getDrawable(R.drawable.small_icon))
-        assertEquals("ReBro Agent", context.getString(R.string.app_name))
+        assertEquals("The Trickster's Pocket", context.getString(R.string.app_name))
     }
 }

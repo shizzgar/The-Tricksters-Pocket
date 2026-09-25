@@ -142,6 +142,13 @@ internal fun AssistantBasicContent(
             )
         }
 
+        OutlinedTextField(
+            value = assistant.description,
+            onValueChange = { onUpdate(assistant.copy(description = it)) },
+            label = { Text(stringResource(R.string.assistant_description)) },
+            modifier = Modifier.fillMaxWidth(),
+        )
+
         Card(
             colors = CustomColors.cardColorsOnSurfaceContainer
         ) {
