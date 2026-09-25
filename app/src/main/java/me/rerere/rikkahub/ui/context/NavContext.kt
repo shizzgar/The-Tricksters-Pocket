@@ -25,6 +25,13 @@ class Navigator(private val backStack: MutableList<NavKey>) {
         backStack.add(screen)
     }
 
+    fun returnToChat(id: String) {
+        val index = backStack.indexOfLast { it is Screen.Chat && it.id == id }
+        if (index >= 0) {
+            while (backStack.lastIndex > index) backStack.removeLastOrNull()
+        } else navigate(Screen.Chat(id = id)) { launchSingleTop = true }
+    }
+
     fun clearAndNavigate(screen: Screen) {
         backStack.clear()
         backStack.add(screen)

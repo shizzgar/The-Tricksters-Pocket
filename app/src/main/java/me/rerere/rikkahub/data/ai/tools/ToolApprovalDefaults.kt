@@ -164,6 +164,7 @@ object ToolApprovalDefaults {
         // delegation happens. list / get / cancel are read-only or user-controlling and
         // have no entry here.
         "subagent_dispatch",
+        "subagent_send",
 
         // Workflows (Phase 12) — every mutator goes through the existing approval flow
         // with a human-readable summary rendered by WorkflowApprovalRenderer. workflow_run

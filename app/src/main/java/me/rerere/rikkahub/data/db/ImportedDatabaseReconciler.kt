@@ -53,13 +53,10 @@ object ImportedDatabaseReconciler {
     private const val DB_NAME = "rikka_hub"
 
     /**
-     * Room's schema version and identity hash for [AppDatabase]. Both are copied verbatim
-     * from app/schemas/me.rerere.rikkahub.data.db.AppDatabase/32.json (the identity hash also
-     * appears in the generated AppDatabase_Impl RoomOpenDelegate). When the schema version is
-     * bumped, update BOTH constants (and the table DDL below if the fork-only tables changed,
-     * BACKFILL_INDEX_DDL if any entity gained/lost an index, and MODERN_COLUMN_SENTINELS if
-     * newer *shared* conversation columns were added) or this reconciliation will silently stop
-     * matching. `internal` so a JVM test can assert these stay in sync with the schema export.
+     * Fixed import reconciliation baseline, exported in 32.json. Upstream backups are
+     * repaired to this exact schema, then Room applies normal 32 -> current migrations.
+     * Newer fork backups are left untouched. Keep this hash paired with v32; do not stamp
+     * imports directly to future schemas without their corresponding DDL.
      */
     internal const val EXPECTED_VERSION = 32
     internal const val EXPECTED_IDENTITY_HASH = "6edfc9e2b3f5c8e3d5e4f578c2c16faa"

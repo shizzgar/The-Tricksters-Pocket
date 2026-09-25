@@ -32,6 +32,7 @@ data class ToolInvocationContext(
     val callerAssistantId: String? = null,
     val callerConversationId: String? = null,
     val isHeadless: Boolean = false,
+    val isSubAgent: Boolean = false,
     val modelCanSeeImages: Boolean = true,
     val termuxWorkspace: TermuxWorkspaceContext? = null,
 ) {

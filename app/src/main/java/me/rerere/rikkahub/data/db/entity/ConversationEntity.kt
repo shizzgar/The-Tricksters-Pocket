@@ -13,6 +13,8 @@ import androidx.room.PrimaryKey
     indices = [
         Index(value = ["assistant_id", "is_pinned", "update_at"]),
         Index(value = ["is_pinned", "update_at"]),
+        Index(value = ["parent_conversation_id"]),
+        Index(value = ["subagent_run_id"]),
     ]
 )
 data class ConversationEntity(
@@ -44,4 +46,10 @@ data class ConversationEntity(
     val folderId: String = "",
     @ColumnInfo("chat_model_id", defaultValue = "")
     val chatModelId: String = "",
+    @ColumnInfo("parent_conversation_id", defaultValue = "")
+    val parentConversationId: String = "",
+    @ColumnInfo("subagent_run_id", defaultValue = "")
+    val subAgentRunId: String = "",
+    @ColumnInfo("parent_tool_call_id", defaultValue = "")
+    val parentToolCallId: String = "",
 )

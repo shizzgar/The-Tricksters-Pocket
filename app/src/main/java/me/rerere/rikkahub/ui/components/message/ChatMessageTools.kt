@@ -145,12 +145,14 @@ fun ChainOfThoughtScope.ChatMessageToolStep(
     val compressionEvent = me.rerere.rikkahub.data.ai.ContextCompactionPresentation.isDisplayTool(tool)
     val stepLoading = if (compressionEvent) me.rerere.rikkahub.data.ai.ContextCompactionPresentation.isRunning(tool) else loading
     val renderer = remember(tool.toolName) { ToolUIRegistry.resolve(tool.toolName) }
-    val context = remember(tool, stepLoading) {
+    val toolConversationId = me.rerere.rikkahub.ui.context.LocalToolConversationId.current
+    val context = remember(tool, stepLoading, toolConversationId) {
         ToolUIContext(
             tool = tool,
             arguments = tool.inputAsJson(),
             content = parseToolOutputContent(tool),
             loading = stepLoading,
+            conversationId = toolConversationId,
         )
     }
 

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pocket_open_skill">Open skill</string>
+    <string name="pocket_raw_response">Raw data</string>
+    <string name="pocket_readable">Readable view</string>
+    <string name="pocket_skill_binary">Binary file. Its encoded content is available in Raw data.</string>
+    <string name="pocket_skill_more_entries">%1$d more entries in Raw data</string>
+    <string name="pocket_skill_page">%1$d / %2$d</string>
+    <string name="pocket_skill_partial">Instructions loaded · package sync failed</string>
+    <string name="pocket_skill_title">Skill · %1$s</string>
+    <string name="pocket_agent_cancelled">Cancelled</string>
+    <string name="pocket_agent_done">Task completed</string>
+    <string name="pocket_agent_queued">Queued</string>
+    <string name="pocket_agent_running">Working</string>
+    <string name="pocket_agent_saved">Saved conversation</string>
+    <string name="pocket_agent_stopped">Execution stopped</string>
+    <string name="pocket_chat_missing">Conversation unavailable</string>
+    <string name="pocket_child_chat_hint">Open a specialist’s chat to see progress, approve actions or send a follow-up. Your messages join the same conversation.</string>
+    <string name="pocket_open_chat">Open chat</string>
+    <string name="pocket_subagent_title">Sub-agent · %1$s</string>
+    <string name="pocket_child_chats">Specialist chats</string>
+    <string name="pocket_child_count">Chats: %1$d · active: %2$d</string>
+    <string name="pocket_parent_chat">← %1$s</string>
+    <string name="pocket_termux_workspace">Termux is provided by workspace “%1$s”. The separate integration is disabled.</string>
+    <string name="pocket_skill_root">Package location</string>
+    <string name="pocket_skill_revision">Revision</string>
+    <string name="pocket_skill_files">Files</string>
+    <string name="pocket_skill_bytes">Size, bytes</string>
+    <string name="pocket_skill_offset">Read offset</string>
+    <string name="pocket_skill_continues">More content available</string>
+    <string name="pocket_skill_source">Source</string>
+</resources>

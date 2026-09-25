@@ -46,6 +46,14 @@ class ConversationRepository(
         private const val INITIAL_LOAD_SIZE = 40
     }
 
+    fun observeChildConversations(parentId: Uuid): Flow<List<Conversation>> =
+        conversationDAO.observeChildren(parentId.toString()).map { rows ->
+            rows.map { conversationEntityToConversation(it, emptyList()) }
+        }
+
+    suspend fun getConversationForSubAgent(runId: String): Conversation? =
+        conversationDAO.getBySubAgentRunId(runId)?.let { conversationEntityToConversation(it, loadMessageNodes(it.id)) }
+
     suspend fun hasFileReference(fileUrl: String): Boolean =
         messageNodeDAO.hasFileReference(JsonInstant.encodeToString(fileUrl))
 
@@ -441,6 +449,9 @@ class ConversationRepository(
             workspaceCwd = conversation.workspaceCwd ?: "",
             folderId = conversation.folderId?.toString() ?: "",
             chatModelId = encodeChatModelId(conversation.chatModelId),
+            parentConversationId = conversation.parentConversationId?.toString().orEmpty(),
+            subAgentRunId = conversation.subAgentRunId.orEmpty(),
+            parentToolCallId = conversation.parentToolCallId.orEmpty(),
         )
     }
 
@@ -463,6 +474,9 @@ class ConversationRepository(
             workspaceCwd = conversationEntity.workspaceCwd.ifEmpty { null },
             folderId = conversationEntity.folderId.ifEmpty { null }?.let { Uuid.parse(it) },
             chatModelId = decodeChatModelId(conversationEntity.chatModelId),
+            parentConversationId = conversationEntity.parentConversationId.takeIf { it.isNotBlank() }?.let { Uuid.parse(it) },
+            subAgentRunId = conversationEntity.subAgentRunId.ifBlank { null },
+            parentToolCallId = conversationEntity.parentToolCallId.ifBlank { null },
         )
     }
 

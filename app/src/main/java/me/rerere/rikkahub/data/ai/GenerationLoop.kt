@@ -1127,7 +1127,9 @@ class GenerationLoop(
                                     put("detail", JsonPrimitive("turn budget exceeded before tool started"))
                                 })))
                             } else {
-                                withTimeoutOrNull(remainingMs) { toolDef.execute(args) }
+                                withTimeoutOrNull(remainingMs) {
+                                    kotlinx.coroutines.withContext(me.rerere.rikkahub.data.ai.tools.ExecutingToolCall(tool.toolCallId)) { toolDef.execute(args) }
+                                }
                                     ?: run {
                                         Log.w(TAG, "generateText: ${toolDef.name} cancelled — wall-clock budget exhausted mid-execution")
                                         listOf(UIMessagePart.Text(json.encodeToString(buildJsonObject {

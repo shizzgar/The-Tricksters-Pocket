@@ -107,6 +107,18 @@ private fun AssistantLocalToolContent(
     onUpdate: (Assistant) -> Unit,
     onUpdateAssistant: ((Assistant) -> Assistant) -> Unit,
 ) {
+    val workspaceRepository = koinInject<me.rerere.rikkahub.data.repository.WorkspaceRepository>()
+    val workspaces by workspaceRepository.listFlow().collectAsStateWithLifecycle(emptyList())
+    val boundWorkspace = workspaces.firstOrNull { it.id == assistant.workspaceId?.toString() }
+    val workspaceOwnsTermux = boundWorkspace?.termuxPath != null
+    androidx.compose.runtime.LaunchedEffect(assistant.id, workspaceOwnsTermux, assistant.localTools) {
+        if (workspaceOwnsTermux && LocalToolOption.Termux in assistant.localTools) {
+            onUpdateAssistant { current ->
+                if (current.workspaceId == assistant.workspaceId) current.copy(localTools = current.localTools - LocalToolOption.Termux)
+                else current
+            }
+        }
+    }
     fun toggleLocalTool(option: LocalToolOption, enabled: Boolean) {
         // Use the transform path so rapid taps (especially through a permission-grant
         // round-trip to system Settings) all serialise against the actual current state
@@ -354,7 +366,7 @@ private fun AssistantLocalToolContent(
                 trailingContent = { Switch(
                     checked = LocalToolOption.Whisper in assistant.localTools,
                     onCheckedChange = { toggleLocalTool(LocalToolOption.Whisper, it) },
-                    enabled = LocalToolOption.Termux in assistant.localTools || LocalToolOption.Whisper in assistant.localTools,
+                    enabled = workspaceOwnsTermux || LocalToolOption.Termux in assistant.localTools || LocalToolOption.Whisper in assistant.localTools,
                 ) },
             )
         }
@@ -1216,13 +1228,13 @@ private fun AssistantLocalToolContent(
                     Text(stringResource(R.string.assistant_page_local_tools_termux_title))
                 },
                 supportingContent = {
-                    TermuxStatusRowSubtitle(
-                        enabled = assistant.localTools.contains(LocalToolOption.Termux),
-                    )
+                    if (workspaceOwnsTermux) Text(stringResource(R.string.pocket_termux_workspace, boundWorkspace!!.name))
+                    else TermuxStatusRowSubtitle(enabled = assistant.localTools.contains(LocalToolOption.Termux))
                 },
                 trailingContent = {
                     PermissionedSwitch(
-                        checked = assistant.localTools.contains(LocalToolOption.Termux),
+                        checked = !workspaceOwnsTermux && assistant.localTools.contains(LocalToolOption.Termux),
+                        enabled = !workspaceOwnsTermux,
                         onCheckedChange = { newValue ->
                             toggleLocalTool(LocalToolOption.Termux, newValue)
                             if (newValue && !termuxDialogShownThisVisit) {

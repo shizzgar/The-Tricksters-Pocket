@@ -90,7 +90,15 @@ import kotlin.uuid.Uuid
 
 @Composable
 fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
+    androidx.compose.runtime.CompositionLocalProvider(me.rerere.rikkahub.ui.context.LocalToolConversationId provides id.toString()) {
+        ChatPageBody(id, text, files, nodeId)
+    }
+}
+
+@Composable
+private fun ChatPageBody(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid?) {
     val vm: ChatVM = koinViewModel(
+        key = "chat-$id",
         parameters = {
             parametersOf(id.toString())
         }
@@ -316,6 +324,7 @@ private fun ChatPageContent(
         AssistantBackground(setting = setting, modifier = Modifier.hazeSource(hazeState))
         Scaffold(
             topBar = {
+                Column {
                 TopBar(
                     settings = setting,
                     conversation = conversation,
@@ -329,6 +338,8 @@ private fun ChatPageContent(
                         previewMode = !previewMode
                     },
                 )
+                SubAgentChatBar(conversation)
+                }
             },
             bottomBar = {
                 val messageQueue by vm.messageQueue.collectAsStateWithLifecycle()

@@ -972,7 +972,7 @@ class ChatService(
     ): Boolean {
         // Headless paths (cron / sub-agent / external-automation / workflow) must always go
         // through the LLM — the fast-path is a per-user-turn optimisation, not a system-flow.
-        if (me.rerere.rikkahub.data.ai.tools.HeadlessConversations.isHeadless(conversationId)) return false
+        if (afterUserSave.subAgentRunId != null || me.rerere.rikkahub.data.ai.tools.HeadlessConversations.isHeadless(conversationId)) return false
 
         // assistant is resolved from the conversation's own assistantId by the caller — do NOT
         // re-read the global getCurrentAssistant() here or a mid-turn assistant switch makes the
@@ -1472,6 +1472,7 @@ class ChatService(
             callerAssistantId = assistant.id.toString(),
             callerConversationId = conversationId.toString(),
             isHeadless = me.rerere.rikkahub.data.ai.tools.HeadlessConversations.isHeadless(conversationId),
+            isSubAgent = conversation.subAgentRunId != null,
             modelCanSeeImages = Modality.IMAGE in model.inputModalities,
             termuxWorkspace = assistant.workspaceId?.let { workspaceRepository.getById(it.toString()) }?.termuxContext(conversation.workspaceCwd),
         )
@@ -1899,7 +1900,8 @@ class ChatService(
                             .isHeadless(conversationId),
                         // show_image keys its result envelope off this — a text-only model
                         // gets told it cannot see the image instead of confabulating one.
-                        modelCanSeeImages = Modality.IMAGE in model.inputModalities,
+                        isSubAgent = conversation.subAgentRunId != null,
+            modelCanSeeImages = Modality.IMAGE in model.inputModalities,
                         termuxWorkspace = assistant.workspaceId?.let { workspaceRepository.getById(it.toString()) }?.termuxContext(conversation.workspaceCwd),
                     )
                     addAll(localTools.getTools(assistant.localTools, invocationCtx))

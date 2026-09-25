@@ -263,7 +263,7 @@ class SubAgentEngine(
         // workflow / another sub-agent), reject. v1 does not allow nested sub-agents.
         if (parentChatId != null) {
             val parentUuid = runCatching { Uuid.parse(parentChatId) }.getOrNull()
-            if (parentUuid != null && HeadlessConversations.isHeadless(parentUuid)) {
+            if (parentUuid != null && (HeadlessConversations.isHeadless(parentUuid) || conversationRepo.getConversationById(parentUuid)?.subAgentRunId != null)) {
                 return@withContext DispatchResult.Reject(
                     "no_recursion",
                     "sub-agent dispatch is not allowed from inside another headless run"
@@ -307,6 +307,7 @@ class SubAgentEngine(
             maxTrips = cleaned.maxTrips,
             status = SubAgentStatus.PENDING,
             startedAtMs = now,
+            parentToolCallId = kotlin.coroutines.coroutineContext[me.rerere.rikkahub.data.ai.tools.ExecutingToolCall]?.id,
         )
         registry.addPending(initialRun)
 
@@ -323,6 +324,7 @@ class SubAgentEngine(
                 put("label", initialRun.label)
                 put("parent_assistant_id", parentAssistantId)
                 put("run_in_background", cleaned.runInBackground)
+                put("no_result", cleaned.noResult)
             },
         )
         ledgerIds[runId] = ledgerId
@@ -339,10 +341,44 @@ class SubAgentEngine(
             // Foreground — block until terminal.
             try {
                 executionJob.join()
-            } catch (t: Throwable) {
-                Log.w(TAG, "foreground sub-agent join failed for $runId", t)
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                registry.requestCancel(runId)
+                throw cancelled
             }
             DispatchResult.Ok(registry.get(runId) ?: initialRun)
+        }
+    }
+
+    /** Durable chat lookup is the authority for follow-ups, including after process restart. */
+    suspend fun sendToChild(runId: String, parentChatId: String?, message: String): kotlinx.serialization.json.JsonObject {
+        val child = conversationRepo.getConversationForSubAgent(runId)
+        if (parentChatId == null || child?.parentConversationId?.toString() != parentChatId) {
+            return buildJsonObject { put("error", "unknown_child"); put("detail", "No child chat with this id belongs to this conversation") }
+        }
+        if (message.isBlank() || message.length > 32000) return buildJsonObject { put("error", "invalid_message"); put("detail", "message must contain 1–32000 characters") }
+        chatService.initializeConversation(child.id)
+        chatService.sendMessage(child.id, listOf(UIMessagePart.Text(message)))
+        return buildJsonObject { put("id", runId); put("conversation_id", child.id.toString()); put("accepted", true) }
+    }
+
+    suspend fun childSnapshot(runId: String, parentChatId: String?): kotlinx.serialization.json.JsonObject? {
+        val child = conversationRepo.getConversationForSubAgent(runId) ?: return null
+        if (parentChatId == null || child.parentConversationId?.toString() != parentChatId) return null
+        val ledger = agentRunRepo.getByDomainId(AgentRunKind.SubAgent, runId, 1).firstOrNull()
+        val original = registry.get(runId)
+        return buildJsonObject {
+            original?.let { encodeRun(it).forEach { (key, value) -> put(key, value) } }
+            put("id", runId)
+            put("conversation_id", child.id.toString())
+            put("parent_conversation_id", parentChatId)
+            put("status", original?.status?.name ?: ledger?.status ?: "saved")
+            ledger?.lastError?.let { put("error", it) }
+            put("conversation_busy", chatService.getGenerationJobStateFlow(child.id).value != null)
+            // A follow-up may differ from the original dispatch result; label it explicitly.
+            val suppressed = original?.noResult ?: runCatching {
+                kotlinx.serialization.json.Json.parseToJsonElement(ledger?.metadataJson ?: "{}").toString().contains("\"no_result\":true")
+            }.getOrDefault(true)
+            if (!suppressed) put("latest_reply", harvestFinalText(child.id).take(32000))
         }
     }
 
@@ -405,29 +441,31 @@ class SubAgentEngine(
                 return
             }
         }
-        // The profile's system prompt is prepended to the task text itself (same technique as
-        // the wrap-up instruction below) rather than plumbed into Conversation/ChatService -
-        // sub-agent runs don't get a per-run system prompt override today, and wiring one in
-        // is out of scope here (see Non-goals: don't change how runs execute).
+        // Keep the profile task instructions visible in the child chat. An explicit
+        // per-run system override is persisted separately on the conversation.
         val effectiveTask = profile?.systemPrompt?.trim()?.takeIf { it.isNotEmpty() }
             ?.let { "$it\n\n${request.task}" }
             ?: request.task
         val conv = Conversation.ofId(
-            id = Uuid.random(),
+            id = Uuid.parse(runId),
             assistantId = executionAssistant.id,
             newConversation = true,
         ).copy(
             title = "[Sub-agent] ${request.label?.take(40) ?: request.task.take(40)}",
             chatModelId = resolvedChatModelId,
+            parentConversationId = parentConversation?.id,
+            subAgentRunId = runId,
+            parentToolCallId = registry.get(runId)?.parentToolCallId,
+            customSystemPrompt = request.systemPrompt?.takeIf { it.isNotBlank() },
             workspaceCwd = parentConversation?.workspaceCwd?.takeIf {
                 executionAssistant.workspaceId == parentAssistant?.workspaceId
             },
         )
+        try {
         conversationRepo.insertConversation(conv)
         chatService.initializeConversation(conv.id)
-        HeadlessConversations.mark(conv.id)
+        registry.update(runId) { it.copy(conversationId = conv.id.toString()) }
         me.rerere.rikkahub.data.ai.AgentTaskPolicy.setStepLimit(conv.id.toString(), request.maxTrips)
-        try {
             me.rerere.ai.provider.GenerationTrace.record(parentChatId, "subagent.started", buildJsonObject {
                 put("run_id", runId); put("child_conversation", conv.id.toString()); put("task", effectiveTask)
                 put("max_steps", request.maxTrips); put("timeout_seconds", request.timeoutSeconds)
@@ -487,13 +525,17 @@ class SubAgentEngine(
             notifyParentIfBackground(parentChatId, registry.get(runId))
         } catch (t: Throwable) {
             Log.w(TAG, "sub-agent run failed", t)
+            if (t is kotlinx.coroutines.CancellationException) {
+                withContext(kotlinx.coroutines.NonCancellable) { chatService.stopGeneration(conv.id) }
+            }
             // CancellationException → CANCELLED, anything else → FAILED.
             val terminal = if (t is kotlinx.coroutines.CancellationException) SubAgentStatus.CANCELLED else SubAgentStatus.FAILED
-            markTerminal(runId, terminal, "${t::class.simpleName}: ${t.message.orEmpty()}")
-            notifyParentIfBackground(parentChatId, registry.get(runId))
+            withContext(kotlinx.coroutines.NonCancellable) {
+                markTerminal(runId, terminal, "${t::class.simpleName}: ${t.message.orEmpty()}")
+            }
+            if (t !is kotlinx.coroutines.CancellationException) notifyParentIfBackground(parentChatId, registry.get(runId))
         } finally {
             me.rerere.rikkahub.data.ai.AgentTaskPolicy.clear(conv.id.toString())
-            HeadlessConversations.unmark(conv.id)
             registry.clearJob(runId)
         }
     }

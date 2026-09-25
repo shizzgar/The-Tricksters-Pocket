@@ -12,6 +12,12 @@ import me.rerere.rikkahub.data.repository.LightConversationEntity
 
 @Dao
 interface ConversationDAO {
+    @Query("SELECT * FROM conversationentity WHERE parent_conversation_id = :parentId ORDER BY create_at ASC")
+    fun observeChildren(parentId: String): Flow<List<ConversationEntity>>
+
+    @Query("SELECT * FROM conversationentity WHERE subagent_run_id = :runId LIMIT 1")
+    suspend fun getBySubAgentRunId(runId: String): ConversationEntity?
+
     @Query("SELECT * FROM conversationentity ORDER BY is_pinned DESC, update_at DESC")
     fun getAll(): Flow<List<ConversationEntity>>
 
