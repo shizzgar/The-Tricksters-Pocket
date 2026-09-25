@@ -220,7 +220,8 @@ class LiveSteeringInstrumentedTest {
             service.getGenerationJobStateFlow(id).first { it == null }
             assertEquals(2, responses.get())
             assertTrue(service.getMessageQueueFlow(id).value.messages.isEmpty())
-            assertTrue(service.errors.value.none { it.conversationId == id })
+            assertTrue(service.errors.value.filter { it.conversationId == id }.joinToString("\n") { it.error.stackTraceToString() },
+                service.errors.value.none { it.conversationId == id })
             val saved = requireNotNull(repo.getConversationById(id)).currentMessages
             assertEquals(listOf("original goal", "also use Russian", "keep the original goal"), saved.filter { it.role == MessageRole.USER }.map { it.toText() })
             assertEquals(5, saved.size)
@@ -244,9 +245,11 @@ class LiveSteeringInstrumentedTest {
             provider.stream = {
                 emit(StreamChunk.TextStart("text"))
                 emit(StreamChunk.TextDelta("text", "Live child progress"))
-                val before = service.getConversationFlow(id).value
+                // Streaming can advance while DataStore yields. Check a live-only marker,
+                // not equality of two snapshots that may legitimately contain different text.
+                service.updateConversationState(id) { it.copy(parentToolCallId = "live-stream-marker") }
                 service.initializeConversation(id)
-                assertEquals(before, service.getConversationFlow(id).value)
+                assertEquals("live-stream-marker", service.getConversationFlow(id).value.parentToolCallId)
                 assertEquals(parent, service.getConversationFlow(id).value.parentConversationId)
                 emit(StreamChunk.TextEnd("text"))
                 emit(StreamChunk.Finish("stop"))
@@ -254,7 +257,8 @@ class LiveSteeringInstrumentedTest {
             service.sendMessage(id, text("Child task"))
             service.getGenerationJobStateFlow(id).first { it == null }
             assertEquals("Live child progress", repo.getConversationById(id)!!.currentMessages.last().toText())
-            assertTrue(service.errors.value.none { it.conversationId == id })
+            assertTrue(service.errors.value.filter { it.conversationId == id }.joinToString("\n") { it.error.stackTraceToString() },
+                service.errors.value.none { it.conversationId == id })
             val engine = GlobalContext.get().get<me.rerere.rikkahub.subagent.SubAgentEngine>()
             assertEquals("unknown_child", engine.sendToChild(id.toString(), Uuid.random().toString(), "wrong parent")["error"]?.jsonPrimitive?.content)
             assertEquals(id.toString(), engine.listChildren(parent.toString(), false).single()["conversation_id"]?.jsonPrimitive?.content)
