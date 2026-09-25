@@ -848,9 +848,9 @@ class LocalTools(
                     settingsStore.settingsFlow.value.subAgents,
                 )
             )
-            tools.add(me.rerere.rikkahub.subagent.subagentListTool(subAgentRegistry, invocationContext.callerConversationId))
+            tools.add(me.rerere.rikkahub.subagent.subagentListTool(subAgentRegistry, invocationContext.callerConversationId, subAgentEngine))
             tools.add(me.rerere.rikkahub.subagent.subagentGetTool(subAgentRegistry, subAgentEngine, invocationContext.callerConversationId))
-            tools.add(me.rerere.rikkahub.subagent.subagentCancelTool(subAgentRegistry))
+            tools.add(me.rerere.rikkahub.subagent.subagentCancelTool(subAgentRegistry, subAgentEngine, invocationContext.callerConversationId))
             tools.add(me.rerere.rikkahub.subagent.subagentSendTool(subAgentEngine, invocationContext.callerConversationId))
         }
         if (availableOptions.contains(LocalToolOption.CostGuards)) {

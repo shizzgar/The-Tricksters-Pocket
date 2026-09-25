@@ -367,6 +367,33 @@ class SubAgentEngine(
         return buildJsonObject { put("id", runId); put("conversation_id", child.id.toString()); put("accepted", true) }
     }
 
+    suspend fun cancelChild(runId: String, parentChatId: String?): Boolean {
+        if (parentChatId == null) return false
+        val run = registry.get(runId)
+        val child = conversationRepo.getConversationForSubAgent(runId)
+        if (run?.parentChatId != parentChatId && child?.parentConversationId?.toString() != parentChatId) return false
+        val requested = registry.requestCancel(runId)
+        val active = child != null && chatService.getGenerationJobStateFlow(child.id).first() != null
+        if (active) chatService.stopGeneration(child!!.id)
+        if (requested) registry.update(runId) { it.copy(status = SubAgentStatus.CANCELLED, finishedAtMs = System.currentTimeMillis()) }
+        return requested || active
+    }
+
+    suspend fun listChildren(parentChatId: String, activeOnly: Boolean): List<JsonObject> {
+        val parent = runCatching { Uuid.parse(parentChatId) }.getOrNull() ?: return emptyList()
+        return conversationRepo.observeChildConversations(parent).first().takeLast(100).mapNotNull { child ->
+            val id = child.subAgentRunId ?: return@mapNotNull null
+            val run = registry.get(id)
+            val busy = chatService.getGenerationJobStateFlow(child.id).first() != null
+            val status = run?.status?.name ?: agentRunRepo.getByDomainId(AgentRunKind.SubAgent, id, 1).firstOrNull()?.status ?: "saved"
+            if (activeOnly && !busy && status.uppercase() !in setOf("QUEUED", "PENDING", "RUNNING")) return@mapNotNull null
+            buildJsonObject {
+                put("id", id); put("conversation_id", child.id.toString()); put("label", child.title.removePrefix("[Sub-agent] "))
+                put("status", status); put("conversation_busy", busy)
+            }
+        }
+    }
+
     suspend fun childSnapshot(runId: String, parentChatId: String?): kotlinx.serialization.json.JsonObject? {
         val child = conversationRepo.getConversationForSubAgent(runId) ?: return null
         if (parentChatId == null || child.parentConversationId?.toString() != parentChatId) return null

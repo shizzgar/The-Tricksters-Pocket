@@ -255,6 +255,17 @@ class LiveSteeringInstrumentedTest {
             service.getGenerationJobStateFlow(id).first { it == null }
             assertEquals("Live child progress", repo.getConversationById(id)!!.currentMessages.last().toText())
             assertTrue(service.errors.value.none { it.conversationId == id })
+            val engine = GlobalContext.get().get<me.rerere.rikkahub.subagent.SubAgentEngine>()
+            assertEquals("unknown_child", engine.sendToChild(id.toString(), Uuid.random().toString(), "wrong parent")["error"]?.jsonPrimitive?.content)
+            assertEquals(id.toString(), engine.listChildren(parent.toString(), false).single()["conversation_id"]?.jsonPrimitive?.content)
+            assertEquals("Live child progress", engine.childSnapshot(id.toString(), parent.toString())?.get("latest_reply")?.jsonPrimitive?.content)
+            val active = CompletableDeferred<Unit>()
+            provider.stream = { active.complete(Unit); awaitCancellation() }
+            assertEquals(JsonPrimitive(true), engine.sendToChild(id.toString(), parent.toString(), "Follow-up")["accepted"])
+            active.await()
+            assertTrue(engine.cancelChild(id.toString(), parent.toString()))
+            service.getGenerationJobStateFlow(id).first { it == null }
+            assertFalse(engine.cancelChild(id.toString(), parent.toString()))
         }
     }
 

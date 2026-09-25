@@ -302,7 +302,7 @@ private fun ChatPageContent(
         onAttachmentAdded = { showFilesSheet = false },
     )
     val allowAudioVideoAttachments =
-        setting.getCurrentChatModel()?.findProvider(setting.providers) is ProviderSetting.Google
+        currentChatModel?.findProvider(setting.providers) is ProviderSetting.Google
 
     val completionProviders = remember(assistant.workspaceId, conversation.workspaceCwd, workspaceRepository) {
         assistant.workspaceId?.let { workspaceId ->
@@ -351,6 +351,7 @@ private fun ChatPageContent(
                         voiceState = voiceState,
                         onStopVoiceMode = vm.voiceSession::stop,
                         state = inputState,
+                        conversationModelId = conversation.chatModelId,
                         messageQueue = messageQueue,
                         onRemoveQueuedMessage = vm::removeQueuedMessage,
                         onBeginEditQueuedMessage = vm::beginEditQueuedMessage,
@@ -366,7 +367,7 @@ private fun ChatPageContent(
                         enableSearch = enableWebSearch,
                         onUpdateSearchMode = { mode ->
                             val current = setting.getCurrentAssistant()
-                            val model = setting.getCurrentChatModel()
+                            val model = currentChatModel
                             vm.updateSettings(
                                 setting.copy(
                                     assistants = setting.assistants.map { assistant ->

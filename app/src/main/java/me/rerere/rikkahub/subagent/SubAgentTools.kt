@@ -192,7 +192,7 @@ fun subagentDispatchTool(
     )
 }
 
-fun subagentListTool(registry: SubAgentRegistry, parentChatId: String? = null): Tool = Tool(
+fun subagentListTool(registry: SubAgentRegistry, parentChatId: String? = null, engine: SubAgentEngine? = null): Tool = Tool(
     name = "subagent_list",
     description = """
         List sub-agent runs visible to this assistant. Set active_only=true to omit
@@ -209,8 +209,11 @@ fun subagentListTool(registry: SubAgentRegistry, parentChatId: String? = null): 
     execute = { args ->
         val activeOnly = args.jsonObject["active_only"]?.jsonPrimitive?.booleanOrNull ?: false
         val list = registry.list(activeOnly).filter { parentChatId == null || it.parentChatId == parentChatId }
+        val saved = if (engine != null && parentChatId != null) engine.listChildren(parentChatId, activeOnly) else emptyList()
+        val savedIds = saved.mapNotNull { it["id"]?.jsonPrimitive?.contentOrNull }.toSet()
         val arr = buildJsonArray {
-            list.forEach { addJsonObject {
+            saved.forEach { add(it) }
+            list.filter { it.id !in savedIds }.forEach { addJsonObject {
                 put("id", it.id)
                 it.conversationId?.let { conversationId -> put("conversation_id", conversationId) }
                 put("label", it.label)
@@ -254,11 +257,11 @@ fun subagentGetTool(
     },
 )
 
-fun subagentCancelTool(registry: SubAgentRegistry): Tool = Tool(
+fun subagentCancelTool(registry: SubAgentRegistry, engine: SubAgentEngine? = null, parentChatId: String? = null): Tool = Tool(
     name = "subagent_cancel",
     description = """
-        Cancel a running sub-agent by id. Marks the run CANCELLED; safe to call on
-        already-terminal runs (returns ok=false). Read-only from the user's perspective
+        Cancel active work in a child chat by run id, including a later follow-up.
+        Returns ok=false when no active work was found. Read-only from the user's perspective
         — no approval required.
     """.trimIndent().replace("\n", " "),
     parameters = {
@@ -272,8 +275,8 @@ fun subagentCancelTool(registry: SubAgentRegistry): Tool = Tool(
     execute = { args ->
         val id = args.jsonObject["id"]?.jsonPrimitive?.contentOrNull
             ?: return@Tool errEnv("invalid_id", "id is required")
-        val cancelled = registry.requestCancel(id)
-        if (cancelled) {
+        val cancelled = if (engine != null) engine.cancelChild(id, parentChatId) else registry.requestCancel(id)
+        if (cancelled && engine == null) {
             registry.update(id) { it.copy(status = SubAgentStatus.CANCELLED, finishedAtMs = System.currentTimeMillis()) }
         }
         listOf(UIMessagePart.Text(buildJsonObject {

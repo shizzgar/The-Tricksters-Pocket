@@ -12,6 +12,8 @@ import androidx.compose.ui.unit.dp
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.model.Conversation
+import me.rerere.rikkahub.data.datastore.getAssistantById
+import me.rerere.rikkahub.ui.context.LocalSettings
 import me.rerere.rikkahub.data.repository.ConversationRepository
 import me.rerere.rikkahub.subagent.SubAgentRegistry
 import me.rerere.rikkahub.ui.components.message.tools.childRunStatuses
@@ -52,7 +54,7 @@ internal fun SubAgentChatBar(conversation: Conversation) {
             item { Text(stringResource(R.string.pocket_child_chats), style = MaterialTheme.typography.titleLarge) }
             item { Text(stringResource(R.string.pocket_child_chat_hint)) }
             items(children, key = { it.id.toString() }) { child ->
-                ChildChatCard(child, statuses[child.subAgentRunId]) { ChildChatButton(child) { showChildren = false } }
+                ChildChatCard(child, statuses[child.subAgentRunId], LocalSettings.current.getAssistantById(child.assistantId)) { ChildChatButton(child) { showChildren = false } }
             }
         }
     }

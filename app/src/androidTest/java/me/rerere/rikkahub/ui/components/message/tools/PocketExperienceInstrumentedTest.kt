@@ -54,7 +54,7 @@ class PocketExperienceInstrumentedTest {
         val stack = mutableListOf<NavKey>(Screen.Chat("parent", text = "Keep this entry"))
         val navigator = Navigator(stack)
         compose.setContent { RikkahubTheme {
-            ChildChatCard(child, "RUNNING") { TextButton(onClick = { navigator.navigate(Screen.Chat(child.id.toString())) }) { Text("Open specialist") } }
+            ChildChatCard(child, "RUNNING", me.rerere.rikkahub.data.datastore.createThinkbroAssistant()) { TextButton(onClick = { navigator.navigate(Screen.Chat(child.id.toString())) }) { Text("Open specialist") } }
         } }
         compose.onNodeWithText("Open specialist").performClick()
         assertEquals(Screen.Chat(child.id.toString()), stack.last())

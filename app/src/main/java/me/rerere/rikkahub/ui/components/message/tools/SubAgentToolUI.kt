@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -17,6 +18,10 @@ import me.rerere.hugeicons.stroke.Message02
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.model.Conversation
+import me.rerere.rikkahub.data.model.Assistant
+import me.rerere.rikkahub.data.datastore.getAssistantById
+import me.rerere.rikkahub.ui.context.LocalSettings
+import me.rerere.rikkahub.ui.components.ui.UIAvatar
 import me.rerere.rikkahub.data.repository.ConversationRepository
 import me.rerere.rikkahub.subagent.SubAgentRegistry
 import me.rerere.rikkahub.data.agentrun.AgentRunRepository
@@ -53,11 +58,13 @@ private fun childChats(context: ToolUIContext): List<Conversation> {
 internal fun childRunStatuses(): Map<String, String> {
     val registry = koinInject<SubAgentRegistry>()
     val ledger = koinInject<AgentRunRepository>()
+    val service = koinInject<me.rerere.rikkahub.service.ChatService>()
+    val jobs by remember(service) { service.getConversationJobs() }.collectAsState(emptyMap())
     val live by registry.runs.collectAsState()
     val recent by remember(ledger) { ledger.observeRecent(1000) }.collectAsState(emptyList())
-    return remember(live, recent) {
+    return remember(live, recent, jobs) {
         recent.filter { it.kind == "subagent" }.associate { it.domainId to it.status } +
-            live.mapValues { it.value.status.name }
+            live.mapValues { it.value.status.name } + jobs.keys.associate { it.toString() to "RUNNING" }
     }
 }
 
@@ -83,12 +90,18 @@ internal fun ChildChatButton(conversation: Conversation, onOpened: () -> Unit = 
 }
 
 @Composable
-internal fun ChildChatCard(conversation: Conversation, status: String? = null, action: @Composable () -> Unit) {
+internal fun ChildChatCard(conversation: Conversation, status: String? = null, assistant: Assistant? = null, action: @Composable () -> Unit) {
     OutlinedCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(conversation.title.removePrefix("[Sub-agent] "), style = MaterialTheme.typography.titleSmall,
-                maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text(subAgentStatusLabel(status), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (assistant != null) UIAvatar(assistant.name, assistant.avatar, Modifier.size(44.dp))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    if (assistant != null) Text(assistant.name, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    Text(conversation.title.removePrefix("[Sub-agent] "), style = MaterialTheme.typography.titleSmall,
+                        maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(subAgentStatusLabel(status), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
             action()
         }
     }
@@ -118,7 +131,7 @@ private class SubAgentToolUI(override val toolName: String) : ToolUIRenderer {
                 maxLines = 3, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
         }
         chats.take(3).forEach { child ->
-            ChildChatCard(child, statuses[child.subAgentRunId] ?: context.content.getStringContent("status")) {
+            ChildChatCard(child, statuses[child.subAgentRunId] ?: context.content.getStringContent("status"), LocalSettings.current.getAssistantById(child.assistantId)) {
                 ChildChatButton(child)
             }
         }
@@ -133,7 +146,7 @@ private class SubAgentToolUI(override val toolName: String) : ToolUIRenderer {
             item { Text(title(context), style = MaterialTheme.typography.titleLarge) }
             item { Text(stringResource(R.string.pocket_child_chat_hint), style = MaterialTheme.typography.bodyMedium) }
             items(chats, key = { it.id.toString() }) { child ->
-                ChildChatCard(child, statuses[child.subAgentRunId] ?: context.content.getStringContent("status")) {
+                ChildChatCard(child, statuses[child.subAgentRunId] ?: context.content.getStringContent("status"), LocalSettings.current.getAssistantById(child.assistantId)) {
                     ChildChatButton(child, onDismissRequest)
                 }
             }
