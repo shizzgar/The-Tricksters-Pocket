@@ -33,7 +33,8 @@ class PocketExperienceInstrumentedTest {
         val view = presentSkill("use_skill", buildJsonObject { put("name", "Pocket guide") }, listOf(
             "# Working with files\n\nRead the instructions, then verify the result.\n\n- Keep user changes\n- Report the output",
             "Termux skill package: {\"success\":false,\"error\":\"Termux unavailable\",\"recovery\":\"Reconnect and retry sync\"}"))
-        compose.setContent { CompositionLocalProvider(LocalNavController provides Navigator(mutableListOf())) {
+        compose.setContent { CompositionLocalProvider(LocalNavController provides Navigator(mutableListOf()),
+            me.rerere.rikkahub.ui.context.LocalSettings provides me.rerere.rikkahub.data.datastore.Settings()) {
             RikkahubTheme { SkillPreviewContent(view, {}, {}) }
         } }
         compose.onNodeWithText("Pocket guide").assertIsDisplayed()
@@ -43,7 +44,8 @@ class PocketExperienceInstrumentedTest {
     @Test fun scriptPreviewRendersWithoutRunningCode() {
         val view = presentSkill("skill_read_file", buildJsonObject { put("name", "Pocket guide"); put("path", "scripts/check.py") },
             listOf("{\"ok\":true,\"content\":\"print(42)\",\"revision\":\"r1\"}"))
-        compose.setContent { CompositionLocalProvider(LocalNavController provides Navigator(mutableListOf())) {
+        compose.setContent { CompositionLocalProvider(LocalNavController provides Navigator(mutableListOf()),
+            me.rerere.rikkahub.ui.context.LocalSettings provides me.rerere.rikkahub.data.datastore.Settings()) {
             RikkahubTheme { SkillPreviewContent(view, {}, {}) }
         } }
         compose.onNodeWithText("scripts/check.py").assertIsDisplayed()
@@ -53,9 +55,9 @@ class PocketExperienceInstrumentedTest {
         val child = Conversation.ofId(assistantId = kotlin.uuid.Uuid.random(), id = kotlin.uuid.Uuid.random(), newConversation = true).copy(title = "ThinkBro · Compare options")
         val stack = mutableListOf<NavKey>(Screen.Chat("parent", text = "Keep this entry"))
         val navigator = Navigator(stack)
-        compose.setContent { RikkahubTheme {
+        compose.setContent { CompositionLocalProvider(me.rerere.rikkahub.ui.context.LocalToaster provides com.dokar.sonner.rememberToasterState()) { RikkahubTheme {
             ChildChatCard(child, "RUNNING", me.rerere.rikkahub.data.datastore.createThinkbroAssistant()) { TextButton(onClick = { navigator.navigate(Screen.Chat(child.id.toString())) }) { Text("Open specialist") } }
-        } }
+        } } }
         compose.onNodeWithText("Open specialist").performClick()
         assertEquals(Screen.Chat(child.id.toString()), stack.last())
         navigator.returnToChat("parent")
