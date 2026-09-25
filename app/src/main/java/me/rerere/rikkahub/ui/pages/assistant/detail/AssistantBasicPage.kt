@@ -42,6 +42,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.rerere.ai.provider.ModelType
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.db.entity.WorkspaceEntity
+import me.rerere.rikkahub.data.model.bindWorkspace
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.ui.components.ai.ModelSelector
 import me.rerere.rikkahub.ui.components.ai.ReasoningButton
@@ -206,9 +207,7 @@ internal fun AssistantBasicContent(
                     selectedOption = selectedWorkspace,
                     onOptionSelected = { workspace ->
                         onUpdate(
-                            assistant.copy(
-                                workspaceId = workspace?.id?.let { Uuid.parse(it) }
-                            )
+                            assistant.bindWorkspace(workspace)
                         )
                     },
                     modifier = Modifier.fillMaxWidth(),

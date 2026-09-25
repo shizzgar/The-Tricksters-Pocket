@@ -96,7 +96,7 @@ class ImportedDatabaseReconcilerTest {
             .allowMainThreadQueries()
             .build()
         try {
-            val db = room.openHelper.writableDatabase // opens + validates now; no migration runs
+            val db = room.openHelper.writableDatabase // validates the repaired baseline and migrates to the current schema
 
             db.query("SELECT title FROM ConversationEntity WHERE id = 'c1'").use { c ->
                 assertTrue("seeded conversation row should survive the restore", c.moveToFirst())
@@ -190,6 +190,11 @@ class ImportedDatabaseReconcilerTest {
         val dbFile = context.getDatabasePath(TEST_DB)
         SQLiteDatabase.openDatabase(dbFile.absolutePath, null, SQLiteDatabase.OPEN_READWRITE).use { raw ->
             FORK_ONLY_TABLES.forEach { raw.execSQL("DROP TABLE IF EXISTS `$it`") }
+            raw.execSQL("DROP INDEX IF EXISTS index_ConversationEntity_parent_conversation_id")
+            raw.execSQL("DROP INDEX IF EXISTS index_ConversationEntity_subagent_run_id")
+            listOf("parent_conversation_id", "subagent_run_id", "parent_tool_call_id").forEach {
+                raw.execSQL("ALTER TABLE ConversationEntity DROP COLUMN `$it`")
+            }
             if (!withShellCompatibilityColumn) {
                 // SQLite has no portable DROP COLUMN across the SQLite versions bundled with
                 // every supported Android version, so rebuild the table without it instead.
@@ -236,6 +241,11 @@ class ImportedDatabaseReconcilerTest {
         val dbFile = context.getDatabasePath(TEST_DB)
         SQLiteDatabase.openDatabase(dbFile.absolutePath, null, SQLiteDatabase.OPEN_READWRITE).use { raw ->
             FORK_ONLY_TABLES.forEach { raw.execSQL("DROP TABLE IF EXISTS `$it`") }
+            raw.execSQL("DROP INDEX IF EXISTS index_ConversationEntity_parent_conversation_id")
+            raw.execSQL("DROP INDEX IF EXISTS index_ConversationEntity_subagent_run_id")
+            listOf("parent_conversation_id", "subagent_run_id", "parent_tool_call_id").forEach {
+                raw.execSQL("ALTER TABLE ConversationEntity DROP COLUMN `$it`")
+            }
             raw.execSQL(
                 "UPDATE room_master_table SET identity_hash = ? WHERE id = 42",
                 arrayOf<Any?>(UPSTREAM_IDENTITY),

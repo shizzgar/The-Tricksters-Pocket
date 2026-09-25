@@ -836,7 +836,7 @@ class LocalTools(
             tools.add(me.rerere.rikkahub.reliability.checkAppUpdatesTool(gitHubReleaseChecker))
             tools.add(me.rerere.rikkahub.reliability.generateBugReportTool(context, bugReportBuilder))
         }
-        if (availableOptions.contains(LocalToolOption.SubAgents)) {
+        if (availableOptions.contains(LocalToolOption.SubAgents) && !invocationContext.isSubAgent && !invocationContext.isHeadless) {
             // Pass the caller context so the recursion guard inside SubAgentEngine.dispatch
             // can fire — the dispatch tool itself can't read its own coroutine context, but
             // ChatService / cron / workflow / external-automation know who's calling at the
@@ -848,9 +848,10 @@ class LocalTools(
                     settingsStore.settingsFlow.value.subAgents,
                 )
             )
-            tools.add(me.rerere.rikkahub.subagent.subagentListTool(subAgentRegistry))
-            tools.add(me.rerere.rikkahub.subagent.subagentGetTool(subAgentRegistry))
-            tools.add(me.rerere.rikkahub.subagent.subagentCancelTool(subAgentRegistry))
+            tools.add(me.rerere.rikkahub.subagent.subagentListTool(subAgentRegistry, invocationContext.callerConversationId, subAgentEngine))
+            tools.add(me.rerere.rikkahub.subagent.subagentGetTool(subAgentRegistry, subAgentEngine, invocationContext.callerConversationId))
+            tools.add(me.rerere.rikkahub.subagent.subagentCancelTool(subAgentRegistry, subAgentEngine, invocationContext.callerConversationId))
+            tools.add(me.rerere.rikkahub.subagent.subagentSendTool(subAgentEngine, invocationContext.callerConversationId))
         }
         if (availableOptions.contains(LocalToolOption.CostGuards)) {
             tools.add(me.rerere.rikkahub.costguards.checkTokenUsageTool(settingsStore, conversationRepo))

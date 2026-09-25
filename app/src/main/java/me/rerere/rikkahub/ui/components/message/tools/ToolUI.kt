@@ -45,6 +45,7 @@ data class ToolUIContext(
     val content: JsonElement?,
     /** 该工具调用是否在生成中 */
     val loading: Boolean,
+    val conversationId: String? = null,
 )
 
 /**
@@ -89,7 +90,7 @@ private object DefaultToolUIRenderer : ToolUIRenderer {
  * 工具 UI 渲染器注册表, 为新工具定制渲染时在 [renderers] 中注册即可
  */
 object ToolUIRegistry {
-    private val renderers: Map<String, ToolUIRenderer> = (TermuxToolUIs + WebFetchToolUIs + listOf(
+    private val renderers: Map<String, ToolUIRenderer> = (TermuxToolUIs + WebFetchToolUIs + SubAgentToolUIs + SkillToolUIs + listOf(
         ContextCompactionToolUI,
         MemoryToolUI,
         SearchWebToolUI,
@@ -100,7 +101,6 @@ object ToolUIRegistry {
         GetScreenTimeToolUI,
         CalendarQueryToolUI,
         CalendarCreateToolUI,
-        UseSkillToolUI,
         RecentChatsToolUI,
         ConversationSearchToolUI,
         EditFileToolUI,

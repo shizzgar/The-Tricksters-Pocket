@@ -29,6 +29,9 @@ data class Conversation(
     // Null (the default, and what every persisted conversation decodes to) means "use the
     // assistant/settings default" - see ChatService.handleMessageComplete.
     val chatModelId: Uuid? = null,
+    val parentConversationId: Uuid? = null,
+    val subAgentRunId: String? = null,
+    val parentToolCallId: String? = null,
     val modeInjectionIds: Set<Uuid> = emptySet(),
     val lorebookIds: Set<Uuid> = emptySet(),
     // Absolute path inside the workspace rootfs

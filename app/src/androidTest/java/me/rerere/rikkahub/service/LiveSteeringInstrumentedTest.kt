@@ -109,6 +109,7 @@ class LiveSteeringInstrumentedTest {
         val executed = mutableListOf<String>()
         val provider = FixtureProvider().apply { response = { listOf(call("first"), call("second")) } }
         val tools = listOf("first", "second").map { name -> Tool(name = name, description = "fixture", parameters = { InputSchema.Obj(buildJsonObject {}) }, execute = {
+            assertEquals(name, currentCoroutineContext()[me.rerere.rikkahub.data.ai.tools.ExecutingToolCall]?.id)
             executed += name
             queue.enqueue(text("use a different destination"), steerActiveTask = true)
             yield()
@@ -219,7 +220,8 @@ class LiveSteeringInstrumentedTest {
             service.getGenerationJobStateFlow(id).first { it == null }
             assertEquals(2, responses.get())
             assertTrue(service.getMessageQueueFlow(id).value.messages.isEmpty())
-            assertTrue(service.errors.value.none { it.conversationId == id })
+            assertTrue(service.errors.value.filter { it.conversationId == id }.joinToString("\n") { it.error.stackTraceToString() },
+                service.errors.value.none { it.conversationId == id })
             val saved = requireNotNull(repo.getConversationById(id)).currentMessages
             assertEquals(listOf("original goal", "also use Russian", "keep the original goal"), saved.filter { it.role == MessageRole.USER }.map { it.toText() })
             assertEquals(5, saved.size)
@@ -228,6 +230,46 @@ class LiveSteeringInstrumentedTest {
             assertEquals(1, trace.count { it.source == "task.started" })
             assertEquals(1, trace.count { it.source == "input.applied" })
             assertEquals("completed", service.agentTaskState(id)?.status)
+        }
+    }
+
+    @Test fun openingActiveChildPreservesStreamAndBackgroundInitializationKeepsSelectedAssistant() = runBlocking {
+        withChatFixture { service, provider, id, repo ->
+            val store = GlobalContext.get().get<SettingsStore>()
+            val selected = store.settingsFlow.value.assistantId
+            val parent = Uuid.random()
+            service.updateConversationState(id) { it.copy(parentConversationId = parent, subAgentRunId = id.toString()) }
+            service.saveConversation(id, service.getConversationFlow(id).value)
+            service.initializeConversation(id, selectAssistant = false)
+            assertEquals(selected, store.settingsFlow.value.assistantId)
+            provider.stream = {
+                emit(StreamChunk.TextStart("text"))
+                emit(StreamChunk.TextDelta("text", "Live child progress"))
+                // Streaming can advance while DataStore yields. Check a live-only marker,
+                // not equality of two snapshots that may legitimately contain different text.
+                service.updateConversationState(id) { it.copy(parentToolCallId = "live-stream-marker") }
+                service.initializeConversation(id)
+                assertEquals("live-stream-marker", service.getConversationFlow(id).value.parentToolCallId)
+                assertEquals(parent, service.getConversationFlow(id).value.parentConversationId)
+                emit(StreamChunk.TextEnd("text"))
+                emit(StreamChunk.Finish("stop"))
+            }
+            service.sendMessage(id, text("Child task"))
+            service.getGenerationJobStateFlow(id).first { it == null }
+            assertEquals("Live child progress", repo.getConversationById(id)!!.currentMessages.last().toText())
+            assertTrue(service.errors.value.filter { it.conversationId == id }.joinToString("\n") { it.error.stackTraceToString() },
+                service.errors.value.none { it.conversationId == id })
+            val engine = GlobalContext.get().get<me.rerere.rikkahub.subagent.SubAgentEngine>()
+            assertEquals("unknown_child", engine.sendToChild(id.toString(), Uuid.random().toString(), "wrong parent")["error"]?.jsonPrimitive?.content)
+            assertEquals(id.toString(), engine.listChildren(parent.toString(), false).single()["conversation_id"]?.jsonPrimitive?.content)
+            assertEquals("Live child progress", engine.childSnapshot(id.toString(), parent.toString())?.get("latest_reply")?.jsonPrimitive?.content)
+            val active = CompletableDeferred<Unit>()
+            provider.stream = { active.complete(Unit); awaitCancellation() }
+            assertEquals(JsonPrimitive(true), engine.sendToChild(id.toString(), parent.toString(), "Follow-up")["accepted"])
+            active.await()
+            assertTrue(engine.cancelChild(id.toString(), parent.toString()))
+            service.getGenerationJobStateFlow(id).first { it == null }
+            assertFalse(engine.cancelChild(id.toString(), parent.toString()))
         }
     }
 

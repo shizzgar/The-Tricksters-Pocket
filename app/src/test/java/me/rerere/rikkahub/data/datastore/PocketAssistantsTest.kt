@@ -9,6 +9,15 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class PocketAssistantsTest {
+    @Test fun `shipped pocket prompts and emojis upgrade while customized values remain`() {
+        val old = createPocketbroAssistant().copy(systemPrompt = POCKET_V1_PROMPT, avatar = Avatar.Emoji("🎒"))
+        assertEquals(createPocketbroAssistant(), migratePocketAssistant(old, createPocketbroAssistant()))
+        val edited = old.copy(systemPrompt = "My custom instructions", avatar = Avatar.Image("file:///mine.png"))
+        assertEquals(edited, migratePocketAssistant(edited, createPocketbroAssistant()))
+        val think = createThinkbroAssistant().copy(systemPrompt = THINK_V1_PROMPT, avatar = Avatar.Emoji("🧩"))
+        assertEquals(createThinkbroAssistant(), migratePocketAssistant(think, createThinkbroAssistant()))
+    }
+
     @Test fun `generic profiles migrate without resetting user capabilities`() {
         val old = Assistant(id = DEFAULT_ASSISTANT_ID, localTools = emptyList(), enabledSkills = emptySet())
         val updated = mergeDefaultAssistants(listOf(old), emptySet()).first { it.id == old.id }

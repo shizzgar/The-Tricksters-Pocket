@@ -26,11 +26,9 @@ import org.junit.Test
  * pins the fix: every index that migration would have added is present in the backfill list,
  * every statement is idempotent.
  *
- * Issue #105: EXPECTED_VERSION / EXPECTED_IDENTITY_HASH used to be literals (stale at 30, one
- * schema bump behind AppDatabase's real version 31), so nothing caught the drift. Instead of
- * literals, this now reads the highest-numbered exported schema JSON directly and asserts the
- * reconciler constants match it, so a future schema bump that forgets to update the reconciler
- * fails this test instead of silently breaking restores.
+ * The reconciler repairs foreign backups to the exact exported v32 baseline. Room then
+ * applies later migrations. Pinning both DDL and identity to that baseline prevents a
+ * newer identity from being stamped onto an incompletely repaired database.
  */
 class ImportedDatabaseReconcilerTest {
 
@@ -43,12 +41,8 @@ class ImportedDatabaseReconcilerTest {
             ?: error("could not find the AppDatabase schema export directory, tried: $candidates")
     }
 
-    private fun latestSchemaFile(): File {
-        val dir = findSchemaDir()
-        return dir.listFiles { f -> f.extension == "json" }
-            ?.maxByOrNull { it.nameWithoutExtension.toIntOrNull() ?: -1 }
-            ?: error("no schema JSON files found under ${dir.absolutePath}")
-    }
+    private fun latestSchemaFile(): File =
+        File(findSchemaDir(), "${ImportedDatabaseReconciler.EXPECTED_VERSION}.json")
 
     private fun latestSchemaDatabaseObject(): JsonObject {
         val file = latestSchemaFile()
@@ -57,28 +51,28 @@ class ImportedDatabaseReconcilerTest {
     }
 
     @Test
-    fun `expected version matches the newest exported schema`() {
+    fun `expected version matches the reconciled baseline schema`() {
         val database = latestSchemaDatabaseObject()
         val schemaVersion = database["version"]!!.jsonPrimitive.int
         assertEquals(schemaVersion, ImportedDatabaseReconciler.EXPECTED_VERSION)
     }
 
     @Test
-    fun `expected identity hash matches the newest exported schema`() {
+    fun `expected identity hash matches the reconciled baseline schema`() {
         val database = latestSchemaDatabaseObject()
         val schemaHash = database["identityHash"]!!.jsonPrimitive.content
         assertEquals(schemaHash, ImportedDatabaseReconciler.EXPECTED_IDENTITY_HASH)
     }
 
     @Test
-    fun `expected version matches the newest schema file's own name`() {
+    fun `expected version matches the baseline schema file's own name`() {
         val file = latestSchemaFile()
         val nameVersion = file.nameWithoutExtension.toInt()
         assertEquals(nameVersion, ImportedDatabaseReconciler.EXPECTED_VERSION)
     }
 
     @Test
-    fun `expected version matches the version declared in AppDatabase`() {
+    fun `reconciliation baseline has a migration to the current AppDatabase`() {
         val candidates = listOf(
             File("src/main/java/me/rerere/rikkahub/data/db/AppDatabase.kt"),
             File("app/src/main/java/me/rerere/rikkahub/data/db/AppDatabase.kt"),
@@ -90,7 +84,10 @@ class ImportedDatabaseReconcilerTest {
         }
         val declaredVersion = Regex("""version\s*=\s*(\d+)""").find(file.readText())
             ?.groupValues?.get(1)?.toInt()
-        assertEquals(declaredVersion, ImportedDatabaseReconciler.EXPECTED_VERSION)
+        assertTrue(requireNotNull(declaredVersion) >= ImportedDatabaseReconciler.EXPECTED_VERSION)
+        if (declaredVersion != ImportedDatabaseReconciler.EXPECTED_VERSION) {
+            assertTrue(file.readText().contains("AutoMigration(from = 32, to = 33)"))
+        }
     }
 
     @Test

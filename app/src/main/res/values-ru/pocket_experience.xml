@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pocket_open_skill">Открыть скилл</string>
+    <string name="pocket_raw_response">Исходные данные</string>
+    <string name="pocket_readable">Удобный просмотр</string>
+    <string name="pocket_skill_binary">Двоичный файл. Закодированное содержимое доступно в исходных данных.</string>
+    <string name="pocket_skill_more_entries">Ещё %1$d файлов в исходных данных</string>
+    <string name="pocket_skill_page">%1$d / %2$d</string>
+    <string name="pocket_skill_partial">Инструкции загружены · ошибка синхронизации пакета</string>
+    <string name="pocket_skill_title">Скилл · %1$s</string>
+    <string name="pocket_agent_cancelled">Отменён</string>
+    <string name="pocket_agent_done">Задание выполнено</string>
+    <string name="pocket_agent_queued">В очереди</string>
+    <string name="pocket_agent_running">Работает</string>
+    <string name="pocket_agent_saved">Сохранённый чат</string>
+    <string name="pocket_agent_stopped">Выполнение остановлено</string>
+    <string name="pocket_chat_missing">Чат недоступен</string>
+    <string name="pocket_child_chat_hint">Откройте чат специалиста, чтобы увидеть работу, подтвердить действия или отправить уточнение. Сообщения попадут в тот же разговор.</string>
+    <string name="pocket_open_chat">Открыть чат</string>
+    <string name="pocket_subagent_title">Субагент · %1$s</string>
+    <string name="pocket_child_chats">Чаты специалистов</string>
+    <string name="pocket_child_count">Чатов: %1$d · работают: %2$d</string>
+    <string name="pocket_parent_chat">← %1$s</string>
+    <string name="pocket_termux_workspace">Termux подключён через workspace «%1$s». Отдельная интеграция отключена.</string>
+    <string name="pocket_skill_root">Папка пакета</string>
+    <string name="pocket_skill_revision">Версия</string>
+    <string name="pocket_skill_files">Файлов</string>
+    <string name="pocket_skill_bytes">Размер, байт</string>
+    <string name="pocket_skill_offset">Смещение чтения</string>
+    <string name="pocket_skill_continues">Есть продолжение</string>
+    <string name="pocket_skill_source">Источник</string>
+    <string name="pocket_skill_completed">Выполнено</string>
+</resources>

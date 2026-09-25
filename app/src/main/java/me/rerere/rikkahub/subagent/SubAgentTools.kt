@@ -24,6 +24,8 @@ private fun errEnv(error: String, detail: String): List<UIMessagePart> {
 
 internal fun encodeRun(run: SubAgentRun): kotlinx.serialization.json.JsonObject = buildJsonObject {
     put("id", run.id)
+    run.conversationId?.let { put("conversation_id", it) }
+    run.parentChatId?.let { put("parent_conversation_id", it) }
     put("status", run.status.name)
     put("label", run.label)
     if (run.modelId != null) put("model_id", run.modelId)
@@ -64,7 +66,7 @@ fun subagentDispatchTool(
         append(
             """
                 Dispatch a focused sub-agent — a clean-context LLM run that returns a concise
-                summary. Use when the task is independent (research, lookup, multi-step work)
+                summary in a saved child chat the user can open and continue. Use when the task is independent (research, lookup, multi-step work)
                 and would otherwise pollute your context with intermediate output, OR when the
                 user explicitly asks for parallel work.
 
@@ -147,7 +149,7 @@ fun subagentDispatchTool(
             // run (cron / workflow / external-automation / another sub-agent). The engine's
             // own guard relies on a registered conversation id; cron / workflow direct-mode
             // paths have no conversation so the engine guard wouldn't fire there. Catch it here.
-            if (callerContext.isHeadless) {
+            if (callerContext.isHeadless || callerContext.isSubAgent) {
                 return@Tool errEnv(
                     "no_recursion",
                     "sub-agent dispatch is not allowed from inside a headless run (cron / workflow / sub-agent / external automation). Run the work inline instead.",
@@ -190,7 +192,7 @@ fun subagentDispatchTool(
     )
 }
 
-fun subagentListTool(registry: SubAgentRegistry): Tool = Tool(
+fun subagentListTool(registry: SubAgentRegistry, parentChatId: String? = null, engine: SubAgentEngine? = null): Tool = Tool(
     name = "subagent_list",
     description = """
         List sub-agent runs visible to this assistant. Set active_only=true to omit
@@ -206,10 +208,14 @@ fun subagentListTool(registry: SubAgentRegistry): Tool = Tool(
     },
     execute = { args ->
         val activeOnly = args.jsonObject["active_only"]?.jsonPrimitive?.booleanOrNull ?: false
-        val list = registry.list(activeOnly)
+        val list = registry.list(activeOnly).filter { parentChatId == null || it.parentChatId == parentChatId }
+        val saved = if (engine != null && parentChatId != null) engine.listChildren(parentChatId, activeOnly) else emptyList()
+        val savedIds = saved.mapNotNull { it["id"]?.jsonPrimitive?.contentOrNull }.toSet()
         val arr = buildJsonArray {
-            list.forEach { addJsonObject {
+            saved.forEach { add(it) }
+            list.filter { it.id !in savedIds }.forEach { addJsonObject {
                 put("id", it.id)
+                it.conversationId?.let { conversationId -> put("conversation_id", conversationId) }
                 put("label", it.label)
                 put("status", it.status.name)
                 if (it.modelId != null) put("model_id", it.modelId)
@@ -223,7 +229,11 @@ fun subagentListTool(registry: SubAgentRegistry): Tool = Tool(
     },
 )
 
-fun subagentGetTool(registry: SubAgentRegistry): Tool = Tool(
+fun subagentGetTool(
+    registry: SubAgentRegistry,
+    engine: SubAgentEngine? = null,
+    parentChatId: String? = null,
+): Tool = Tool(
     name = "subagent_get",
     description = "Fetch the full run record for a sub-agent by id. Read-only.".trimIndent(),
     parameters = {
@@ -237,17 +247,21 @@ fun subagentGetTool(registry: SubAgentRegistry): Tool = Tool(
     execute = { args ->
         val id = args.jsonObject["id"]?.jsonPrimitive?.contentOrNull
             ?: return@Tool errEnv("invalid_id", "id is required")
-        val run = registry.get(id)
+        if (engine != null) {
+            val snapshot = engine.childSnapshot(id, parentChatId)
+            if (snapshot != null) return@Tool listOf(UIMessagePart.Text(snapshot.toString()))
+        }
+        val run = registry.get(id)?.takeIf { parentChatId == null || it.parentChatId == parentChatId }
             ?: return@Tool errEnv("unknown_id", "no sub-agent run with id $id")
         listOf(UIMessagePart.Text(encodeRun(run).toString()))
     },
 )
 
-fun subagentCancelTool(registry: SubAgentRegistry): Tool = Tool(
+fun subagentCancelTool(registry: SubAgentRegistry, engine: SubAgentEngine? = null, parentChatId: String? = null): Tool = Tool(
     name = "subagent_cancel",
     description = """
-        Cancel a running sub-agent by id. Marks the run CANCELLED; safe to call on
-        already-terminal runs (returns ok=false). Read-only from the user's perspective
+        Cancel active work in a child chat by run id, including a later follow-up.
+        Returns ok=false when no active work was found. Read-only from the user's perspective
         — no approval required.
     """.trimIndent().replace("\n", " "),
     parameters = {
@@ -261,13 +275,30 @@ fun subagentCancelTool(registry: SubAgentRegistry): Tool = Tool(
     execute = { args ->
         val id = args.jsonObject["id"]?.jsonPrimitive?.contentOrNull
             ?: return@Tool errEnv("invalid_id", "id is required")
-        val cancelled = registry.requestCancel(id)
-        if (cancelled) {
+        val cancelled = if (engine != null) engine.cancelChild(id, parentChatId) else registry.requestCancel(id)
+        if (cancelled && engine == null) {
             registry.update(id) { it.copy(status = SubAgentStatus.CANCELLED, finishedAtMs = System.currentTimeMillis()) }
         }
         listOf(UIMessagePart.Text(buildJsonObject {
             put("ok", cancelled)
             put("id", id)
         }.toString()))
+    },
+)
+
+/** Reuses the ordinary message queue: an active child receives steering at a safe boundary. */
+fun subagentSendTool(engine: SubAgentEngine, parentChatId: String?): Tool = Tool(
+    name = "subagent_send",
+    description = "Send a clarification or follow-up to an existing child chat by run id. Uses the same chat and context; active work receives the message at its next safe boundary. Read the latest reply with subagent_get. Accepted does not mean completed.",
+    parameters = { InputSchema.Obj(properties = buildJsonObject {
+        put("id", buildJsonObject { put("type", "string") })
+        put("message", buildJsonObject { put("type", "string") })
+    }, required = listOf("id", "message")) },
+    needsApproval = { true },
+    execute = { args ->
+        val id = args.jsonObject["id"]?.jsonPrimitive?.contentOrNull
+        val message = args.jsonObject["message"]?.jsonPrimitive?.contentOrNull
+        if (id == null || message == null) errEnv("invalid_arguments", "id and message are required")
+        else listOf(UIMessagePart.Text(engine.sendToChild(id, parentChatId, message).toString()))
     },
 )

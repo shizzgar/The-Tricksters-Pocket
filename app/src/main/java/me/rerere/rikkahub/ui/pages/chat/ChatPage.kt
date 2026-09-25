@@ -62,6 +62,7 @@ import me.rerere.hugeicons.stroke.MessageAdd01
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.findProvider
+import me.rerere.rikkahub.data.datastore.findModelById
 import me.rerere.rikkahub.data.datastore.getCurrentAssistant
 import me.rerere.rikkahub.data.datastore.getCurrentChatModel
 import me.rerere.rikkahub.data.datastore.getSelectedASRProvider
@@ -90,7 +91,15 @@ import kotlin.uuid.Uuid
 
 @Composable
 fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
+    androidx.compose.runtime.CompositionLocalProvider(me.rerere.rikkahub.ui.context.LocalToolConversationId provides id.toString()) {
+        ChatPageBody(id, text, files, nodeId)
+    }
+}
+
+@Composable
+private fun ChatPageBody(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid?) {
     val vm: ChatVM = koinViewModel(
+        key = "chat-$id",
         parameters = {
             parametersOf(id.toString())
         }
@@ -293,7 +302,7 @@ private fun ChatPageContent(
         onAttachmentAdded = { showFilesSheet = false },
     )
     val allowAudioVideoAttachments =
-        setting.getCurrentChatModel()?.findProvider(setting.providers) is ProviderSetting.Google
+        currentChatModel?.findProvider(setting.providers) is ProviderSetting.Google
 
     val completionProviders = remember(assistant.workspaceId, conversation.workspaceCwd, workspaceRepository) {
         assistant.workspaceId?.let { workspaceId ->
@@ -316,6 +325,7 @@ private fun ChatPageContent(
         AssistantBackground(setting = setting, modifier = Modifier.hazeSource(hazeState))
         Scaffold(
             topBar = {
+                Column {
                 TopBar(
                     settings = setting,
                     conversation = conversation,
@@ -329,6 +339,8 @@ private fun ChatPageContent(
                         previewMode = !previewMode
                     },
                 )
+                SubAgentChatBar(conversation)
+                }
             },
             bottomBar = {
                 val messageQueue by vm.messageQueue.collectAsStateWithLifecycle()
@@ -339,6 +351,7 @@ private fun ChatPageContent(
                         voiceState = voiceState,
                         onStopVoiceMode = vm.voiceSession::stop,
                         state = inputState,
+                        conversationModelId = conversation.chatModelId,
                         messageQueue = messageQueue,
                         onRemoveQueuedMessage = vm::removeQueuedMessage,
                         onBeginEditQueuedMessage = vm::beginEditQueuedMessage,
@@ -354,7 +367,7 @@ private fun ChatPageContent(
                         enableSearch = enableWebSearch,
                         onUpdateSearchMode = { mode ->
                             val current = setting.getCurrentAssistant()
-                            val model = setting.getCurrentChatModel()
+                            val model = currentChatModel
                             vm.updateSettings(
                                 setting.copy(
                                     assistants = setting.assistants.map { assistant ->
@@ -686,7 +699,7 @@ private fun TopBar(
             ) {
                 Column {
                     val assistant = settings.getCurrentAssistant()
-                    val model = settings.getCurrentChatModel()
+                    val model = conversation.chatModelId?.let { settings.findModelById(it) } ?: settings.getCurrentChatModel()
                     val provider = model?.findProvider(providers = settings.providers, checkOverwrite = false)
                     Text(
                         text = conversation.title.ifBlank { stringResource(R.string.chat_page_new_chat) },

@@ -757,26 +757,26 @@ class ChatService(
 
     // ---- 初始化对话 ----
 
-    suspend fun initializeConversation(conversationId: Uuid) {
-        getOrCreateSession(conversationId) // 确保 session 存在
-        val conversation = conversationRepo.getConversationById(conversationId)
-        if (conversation != null) {
-            updateConversation(conversationId, conversation)
-            settingsStore.updateAssistant(conversation.assistantId)
+    suspend fun initializeConversation(conversationId: Uuid, selectAssistant: Boolean = true) {
+        val session = getOrCreateSession(conversationId)
+        val before = session.state.value
+        // Opening a live child chat must never replace streamed state with an older DB snapshot.
+        if (session.getJob() != null || before.messageNodes.isNotEmpty()) {
+            if (selectAssistant) settingsStore.updateAssistant(before.assistantId)
+            return
+        }
+        val saved = conversationRepo.getConversationById(conversationId)
+        if (saved != null) {
+            session.state.compareAndSet(before, saved)
+            if (selectAssistant) settingsStore.updateAssistant(session.state.value.assistantId)
         } else {
-            // A send can race this asynchronous initialization for a brand-new conversation.
-            // Once the session already contains a user message, never replace it with the
-            // assistant preset that was computed from the stale empty snapshot.
-            if (getConversationFlow(conversationId).value.messageNodes.isNotEmpty()) return
-            // 新建对话, 并添加预设消息
             val currentSettings = settingsStore.settingsFlowRaw.first()
             val assistant = currentSettings.getCurrentAssistant()
-            val newConversation = Conversation.ofId(
-                id = conversationId,
-                assistantId = assistant.id,
-                newConversation = true
+            val initial = Conversation.ofId(
+                id = conversationId, assistantId = assistant.id, newConversation = true,
             ).updateCurrentMessages(assistant.presetMessages)
-            updateConversation(conversationId, newConversation)
+            // A send or live update that happened during the read wins over initialization.
+            session.state.compareAndSet(before, initial)
         }
     }
 
@@ -972,7 +972,7 @@ class ChatService(
     ): Boolean {
         // Headless paths (cron / sub-agent / external-automation / workflow) must always go
         // through the LLM — the fast-path is a per-user-turn optimisation, not a system-flow.
-        if (me.rerere.rikkahub.data.ai.tools.HeadlessConversations.isHeadless(conversationId)) return false
+        if (afterUserSave.subAgentRunId != null || me.rerere.rikkahub.data.ai.tools.HeadlessConversations.isHeadless(conversationId)) return false
 
         // assistant is resolved from the conversation's own assistantId by the caller — do NOT
         // re-read the global getCurrentAssistant() here or a mid-turn assistant switch makes the
@@ -1472,6 +1472,7 @@ class ChatService(
             callerAssistantId = assistant.id.toString(),
             callerConversationId = conversationId.toString(),
             isHeadless = me.rerere.rikkahub.data.ai.tools.HeadlessConversations.isHeadless(conversationId),
+            isSubAgent = conversation.subAgentRunId != null,
             modelCanSeeImages = Modality.IMAGE in model.inputModalities,
             termuxWorkspace = assistant.workspaceId?.let { workspaceRepository.getById(it.toString()) }?.termuxContext(conversation.workspaceCwd),
         )
@@ -1899,7 +1900,8 @@ class ChatService(
                             .isHeadless(conversationId),
                         // show_image keys its result envelope off this — a text-only model
                         // gets told it cannot see the image instead of confabulating one.
-                        modelCanSeeImages = Modality.IMAGE in model.inputModalities,
+                        isSubAgent = conversation.subAgentRunId != null,
+            modelCanSeeImages = Modality.IMAGE in model.inputModalities,
                         termuxWorkspace = assistant.workspaceId?.let { workspaceRepository.getById(it.toString()) }?.termuxContext(conversation.workspaceCwd),
                     )
                     addAll(localTools.getTools(assistant.localTools, invocationCtx))
