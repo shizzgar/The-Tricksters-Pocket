@@ -23,4 +23,14 @@ Generation briefs:
 
 Sources: `docs/branding/thinkbro.webp`, `pocketbro.webp`, `pocket-fox.webp`. Runtime avatars are 512px WebP. Adaptive launcher foregrounds have a safe inset in every density bucket; legacy and monochrome assets are included.
 
-Validation results and release provenance will be recorded after CI completes. No private signing material belongs in the repository.
+## Validation and release provenance
+
+CI [36166955137](https://github.com/shizzgar/rikkahub-agent/actions/runs/36166955137) passed for source commit `90d14a1d30e5c0fa99a1ce14509b4855d17eb6a4`: 847 JVM tests, 65 Python tests, 41 phone instrumented tests and one wide-screen test. Skill Markdown/code cards and child-chat screenshots were visually inspected. Physical-device Termux integration has not been exercised in this release validation.
+
+Release: `excp.rikkahub.rebro`, version `2.5.1-pocket.2`, version code `191`, ARM64 optimized release. The APK was signed locally with the previous release key; its signature was verified and its certificate matched the previous release. Private signing material was not uploaded to CI or the repository.
+
+- APK SHA-256: `8e969891862761055cb416febb0e183ccec681a8155533fa601fbdfb8d669719`
+- Signing certificate SHA-256: `0FAC079E040D97CCE1786CEB21DC0855C0D09B2DF3222A43E71C46DD2C517805`
+- Room v33 schema identity: `5da814f89d0ed14f8db852b188d91493`
+
+This documentation update follows the tested source commit and does not change the release binary.
