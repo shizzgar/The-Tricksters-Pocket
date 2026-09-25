@@ -1,6 +1,3 @@
-<!-- Pocket release work: see docs/tricksters-pocket.md for current behavior and signing status. -->
-
-[The Trickster's Pocket: crew and Termux workspaces](docs/tricksters-pocket.md)
 <div align="center">
 
 <img src="docs/icon.png" width="104" height="104" alt="ReBro ninja anteater" />
@@ -10,7 +7,7 @@
 **Долгие задачи. Видимая трасса. Полные skills в Termux.**
 
 Android-ассистент с управляемым агентским циклом, визуальной трассировкой,<br />
-мастерской навыков и встроенными профилями ReBro и NetBro.
+мастерской навыков и командой PocketBro, ThinkBro, ReBro, NetBro и OrchBro.
 
 [![Android 8+](https://img.shields.io/badge/Android-8%2B-3DDC84?style=flat-square&logo=android&logoColor=white)](docs/getting-started.md)
 [![Runtime CI](https://github.com/shizzgar/rikkahub-agent/actions/workflows/compaction-debug.yml/badge.svg?branch=master)](https://github.com/shizzgar/rikkahub-agent/actions/workflows/compaction-debug.yml)
@@ -22,7 +19,7 @@ Android-ассистент с управляемым агентским цикл
 
 </div>
 
-**2.5.1-rebro.4:** workspace с привязкой к настоящей папке Termux, ReBro и NetBro как связанные профили подагентов, зелёный аватар NetBro и отдельная release-сборка ReBro Agent. [Настройка, перенос данных и подпись APK](docs/termux-workspaces-and-release.md).
+**2.5.1-pocket.1:** новое имя приложения, обычные `termux_*` в Termux-workspace, NetBro — зелёный паук-ниндзя, OrchBro — фиолетовый осьминог-координатор. PocketBro и ThinkBro получили имена и редактируемые описания. ARM64 APK подписан прежним ключом ReBro для обновления существующей установки. [Изменения и совместимость](docs/tricksters-pocket.md).
 
 Это развиваемый форк [ExTV/RikkaHub Agent](https://github.com/ExTV/rikkahub-agent), основанного на [RikkaHub](https://github.com/rikkahub/rikkahub). Здесь собраны наши изменения для длительной работы агента, разбора его действий и работы со skills как с полноценными пакетами файлов. Чат, провайдеры моделей и возможности управления устройством остаются основой приложения.
 
@@ -58,7 +55,7 @@ Android-ассистент с управляемым агентским цикл
 | **Метрики** | TPS по измеренному получению контента; состояние и подробности под сообщением | Отделять скорость ответа модели от времени команд и ожиданий |
 | **Диагностика Termux** | Подсказки по конкретной ошибке, настраиваемый preview вызова, полный вывод в архиве | Исправить причину сбоя и сократить повторную передачу длинных результатов |
 | **Termux workspace** | Привязка настоящей папки, редактор, импорт/экспорт и консоль | Работать с оригиналами файлов и фоновыми задачами из приложения |
-| **Bro-подагенты** | ReBro и NetBro связаны с настройками своих ассистентов | Запускать их с собственными навыками, tools, поиском и workspace |
+| **Bro-подагенты** | ReBro, NetBro, PocketBro и ThinkBro связаны с настройками своих ассистентов; OrchBro использует актуальный список включённых профилей | Координировать специалистов с их собственными навыками, tools, поиском и workspace |
 | **Termux jobs** | Сохраняемые фоновые задания, stdout/stderr, курсоры чтения, отмена и менеджер заданий | Следить за долгими командами прямо из диалога |
 | **Skill workspace** | Файлы и папки, редактор кода, Markdown/image preview, HEX, импорт/экспорт, черновики | Менять инструкции, скрипты и ресурсы внутри приложения |
 | **Skills → Termux** | Передача полного пакета с хешами и версиями, точный `skill_root` | Запускать скрипты вместе с их assets и references |

@@ -20,7 +20,7 @@ Existing profile IDs and custom settings are preserved. Only original generic na
 
 ## Update compatibility
 
-Version code 190 keeps release package `excp.rikkahub.rebro`. Signing with the existing ReBro release key is required to update 2.5.1-rebro.4 in place. CI produces an unsigned optimized release; this is not an installable signed update. Do not generate a new key as a substitute. Device-side Termux integration still requires a physical-device check.
+Version code 190 keeps release package `excp.rikkahub.rebro`. Signing with the existing ReBro release key is required to update 2.5.1-rebro.4 in place. CI produces an unsigned optimized release. The delivered ARM64 APK has been signed locally with the previous ReBro key and its v2/v3 signatures verified. Its source commit, APK hash, certificate fingerprint and passing test counts are recorded in the [release manifest](releases/2.5.1-pocket.1.json). Do not generate a new key as a substitute. Device-side Termux integration still requires a physical-device check.
 
 Repository rename target: `shizzgar/the-tricksters-pocket`. Links remain on the current repository until that rename is confirmed.
 
