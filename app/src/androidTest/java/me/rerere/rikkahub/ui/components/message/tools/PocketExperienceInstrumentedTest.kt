@@ -83,8 +83,15 @@ class PocketExperienceInstrumentedTest {
             compose.waitUntil(10_000) { compose.onAllNodesWithText("Build a checked release").fetchSemanticsNodes().isNotEmpty() }
             capture("pocket-task-dashboard")
             compose.onNodeWithTag("task-dashboard-list").performScrollToNode(hasText(context.getString(me.rerere.rikkahub.R.string.task_results)))
-            compose.waitUntil(10_000) { compose.onAllNodesWithText("Release evidence").fetchSemanticsNodes().isNotEmpty() }
-            compose.onNodeWithTag("task-dashboard-list").performScrollToNode(hasText("Release evidence"))
+            // LazyColumn does not compose off-screen result cards. Scroll while the async
+            // conversation/artifact snapshot settles, then verify the actual visible card.
+            compose.waitUntil(10_000) {
+                runCatching {
+                    compose.onNodeWithTag("task-dashboard-list").performScrollToNode(hasText("Release evidence"))
+                    compose.onNodeWithText("Release evidence").assertIsDisplayed()
+                    true
+                }.getOrDefault(false)
+            }
             compose.onNodeWithText("Release evidence").assertIsDisplayed()
             compose.onNodeWithText("SHA-256: " + artifact.sha256, substring = true).assertIsDisplayed()
             capture("pocket-task-results")

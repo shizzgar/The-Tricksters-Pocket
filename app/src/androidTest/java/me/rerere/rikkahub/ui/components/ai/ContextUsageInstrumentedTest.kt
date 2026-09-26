@@ -56,15 +56,18 @@ class ContextUsageInstrumentedTest {
 
     @Test fun latestExpandedNerdLineShowsUnknownLimitAndUpdatesAfterCompaction() {
         val state = mutableStateOf(snapshot.copy(contextLimit = null, latestPromptTokens = null, providerAnchored = false))
+        // A real chat keeps message identity while context usage updates.
+        val message = UIMessage.assistant("result")
         compose.setContent { CompositionLocalProvider(LocalSettings provides Settings()) { RikkahubTheme { Surface {
             Column(Modifier.width(340.dp).padding(12.dp)) {
                 SendButton(true, true, {}, {}, contextUsage = state.value)
-                ChatMessageNerdLine(UIMessage.assistant("result"), active = true, contextUsage = state.value)
+                ChatMessageNerdLine(message, active = true, contextUsage = state.value)
             }
         } } } }
-        compose.onNodeWithTag("context-usage-details").assertDoesNotExist()
+        compose.onNodeWithTag("context-usage-details", useUnmergedTree = true).assertDoesNotExist()
         compose.onNodeWithTag("chat-message-nerd-line").performClick()
-        compose.onNodeWithTag("context-usage-details").assertIsDisplayed()
+        // The clickable statistics container merges descendant semantics in the default tree.
+        compose.onNodeWithTag("context-usage-details", useUnmergedTree = true).assertIsDisplayed()
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         compose.onNodeWithText(context.getString(R.string.context_usage_unknown_accessible, "860")).assertIsDisplayed()
         compose.runOnIdle { state.value = snapshot.copy(usedTokens = 100, latestPromptTokens = null, providerAnchored = false) }
