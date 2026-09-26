@@ -1,4 +1,4 @@
-# Документация ReBro Agent
+# Документация The Trickster's Pocket
 
 [Обзор проекта](../README.md) · [English overview](../README.en.md)
 
@@ -6,6 +6,8 @@
 
 | Задача | Документ |
 |---|---|
+| Задать задачу через «+», выбрать проверяющего и настроить общий Termux | [Управление задачами и Workspace](pocket-controls.md) |
+| Проекты, результаты, память, skills и технические ассистенты | [Рабочая среда Pocket](pocket-workbench.md) |
 | Установить приложение, настроить модель и Termux | [Начало работы](getting-started.md) |
 | Привязать каталог Termux, настроить профили Bro и перейти на release | [Termux workspaces и release](termux-workspaces-and-release.md) |
 | Посмотреть новые экраны | [Галерея с пояснениями](screenshots.md) |
@@ -14,7 +16,7 @@
 | Работать с BBOT, Nmap, Nuclei и Legba | [Встроенный ассистент NetBro](agent-runtime/netbro-assistant.ru.md) |
 | Понять роль skills, поиска и обновления промптов | [Источники и принятие решений Bro](agent-runtime/bro-skills-and-evidence.ru.md) |
 
-[ReBro Blue и маскот](branding/README.md) · [Разбор трёх трасс](trace-review-2026-09-24.md) · [Обзор upstream от 24 сентября](upstream-review-2026-09-24.md)
+[Иконка, тема и маскоты Pocket](branding/README.md) · [Разбор трёх трасс](trace-review-2026-09-24.md) · [Обзор upstream от 24 сентября](upstream-review-2026-09-24.md)
 
 ## Возможности и настройки
 

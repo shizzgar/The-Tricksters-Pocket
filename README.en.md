@@ -1,13 +1,13 @@
 <div align="center">
 
-<img src="docs/icon.png" width="104" height="104" alt="ReBro ninja anteater" />
+<img src="docs/branding/pocket-mark.svg" width="104" height="104" alt="The Trickster's Pocket" />
 
 # The Trickster's Pocket
 
 **Long tasks. Visible traces. Complete skills in Termux.**
 
 An Android assistant with checkpointed agent tasks, a visual trajectory inspector,<br />
-a skill workspace, and the PocketBro, ThinkBro, ReBro, NetBro and OrchBro crew.
+a skill workspace, and the PocketBro, ThinkBro, ReBro, NetBro, DevBro, OpsBro, VerifyBro and OrchBro crew.
 
 [![Android 8+](https://img.shields.io/badge/Android-8%2B-3DDC84?style=flat-square&logo=android&logoColor=white)](docs/getting-started.md)
 [![Runtime CI](https://github.com/shizzgar/The-Tricksters-Pocket/actions/workflows/compaction-debug.yml/badge.svg?branch=master)](https://github.com/shizzgar/The-Tricksters-Pocket/actions/workflows/compaction-debug.yml)
@@ -19,11 +19,13 @@ a skill workspace, and the PocketBro, ThinkBro, ReBro, NetBro and OrchBro crew.
 
 </div>
 
-**2.5.1-pocket.1:** the new app name, normal `termux_*` tools in Termux workspaces, NetBro as a green ninja spider and OrchBro as a purple octopus coordinator. PocketBro and ThinkBro have names and editable descriptions. The ARM64 APK is signed with the previous ReBro key for updates to existing installations. [Changes and compatibility](docs/tricksters-pocket.md).
+**2.5.1-pocket.4:** explicit tasks from the + menu, a task card shown only after creation, a selectable reviewer, shared Termux settings inside Workspace, a themed live context overlay, and the shared pocket icon. [Usage guide](docs/pocket-controls.md).
+
+[Tasks, results, projects and technical Bros](docs/pocket-workbench.md) · [Nested subagent chats](docs/POCKET-NESTED-CHATS.md).
 
 This is a development fork of [ExTV/RikkaHub Agent](https://github.com/ExTV/rikkahub-agent), built on [RikkaHub](https://github.com/rikkahub/rikkahub). It brings together our work on long agent tasks, inspection of model/tool activity, and skills that include executable scripts and resources. The native chat client, model providers, and device integrations remain its foundation.
 
-**ReBro Blue:** midnight-navy surfaces, blue actions, steel text and a ninja anteater mascot, with matching light/dark palettes. Existing installations can select **Theme settings → ReBro Blue → Apply**. [New screens](docs/screenshots.md#rebro-blue) · [Trace findings](docs/trace-review-2026-09-24.md) · [Upstream integration review](docs/upstream-review-2026-09-24.md).
+**ReBro Blue:** midnight-navy surfaces, blue actions and steel text, with matching light/dark palettes. Existing installations can select **Theme settings → ReBro Blue → Apply**. [New screens](docs/screenshots.md#rebro-blue) · [Trace findings](docs/trace-review-2026-09-24.md) · [Upstream integration review](docs/upstream-review-2026-09-24.md).
 
 ## See the changes
 
@@ -127,7 +129,7 @@ The APK bundles skills; external scanner binaries are installed separately in th
 
 ## Get started
 
-1. **Install this repository's build.** [ARM64 APK and installation guide](docs/getting-started.md#install). ReBro Agent also provides an optimized release variant; the debug CI channel remains available. [Migration and signing](docs/termux-workspaces-and-release.md#release-identity-and-signing).
+1. **Install this repository's build.** [ARM64 APK and installation guide](docs/getting-started.md#install). The Trickster's Pocket provides an optimized release variant; the debug CI channel remains available. [Migration and signing](docs/termux-workspaces-and-release.md#release-identity-and-signing).
 2. **Configure a provider and model.**
 3. **Choose an assistant and its local tool groups.** ReBro and NetBro already have their respective skills and Termux enabled.
 4. **Set up Termux** for commands/scripts: RUN_COMMAND, `allow-external-apps=true`, Python and skill transfer.
@@ -141,7 +143,7 @@ RikkaHub and ExTV provide the multi-provider chat client, MCP, subagents, schedu
 
 ## Validation and current boundaries
 
-The [successful CI run for `3bf0436`](https://github.com/shizzgar/The-Tricksters-Pocket/actions/runs/36057905938) passed **828 JVM, 65 Python and 36 Android tests** and built an optimized release with R8. It covers database migration, saved settings, linked Bro profiles, Termux file RPC boundaries, branding and Android UI. The emulator suite runs the debug variant; release is built separately. The real phone’s Termux connection still needs a device check after installation. [Validation boundary](docs/termux-workspaces-and-release.md#validation-boundary).
+The [successful CI run for `2.5.1-pocket.4` (`f3b06be`)](https://github.com/shizzgar/The-Tricksters-Pocket/actions/runs/36246686773) passed **1051 JVM, 65 Python and 72 Android tests** and built an optimized release with R8. Coverage includes explicit tasks, reviewer selection, shared Termux settings, context calculations, icons, migrations and existing flows. The emulator suite runs the debug variant; release is built separately and signed with the permanent ReBro key. [Signature, hashes and validation limits](docs/releases/2.5.1-pocket.4.json). Physical-device Termux and system-overlay behavior still require a device check.
 
 - Traces are local and may contain private prompts, commands and results. Inspect exports before sharing.
 - Only provider-returned reasoning can be recorded. Deterministic replay and reconstruction of previously unrecorded events are not implemented.

@@ -1,13 +1,13 @@
 <div align="center">
 
-<img src="docs/icon.png" width="104" height="104" alt="ReBro ninja anteater" />
+<img src="docs/branding/pocket-mark.svg" width="104" height="104" alt="The Trickster's Pocket" />
 
 # The Trickster's Pocket
 
 **Долгие задачи. Видимая трасса. Полные skills в Termux.**
 
 Android-ассистент с управляемым агентским циклом, визуальной трассировкой,<br />
-мастерской навыков и командой PocketBro, ThinkBro, ReBro, NetBro и OrchBro.
+мастерской навыков и командой PocketBro, ThinkBro, ReBro, NetBro, DevBro, OpsBro, VerifyBro и OrchBro.
 
 [![Android 8+](https://img.shields.io/badge/Android-8%2B-3DDC84?style=flat-square&logo=android&logoColor=white)](docs/getting-started.md)
 [![Runtime CI](https://github.com/shizzgar/The-Tricksters-Pocket/actions/workflows/compaction-debug.yml/badge.svg?branch=master)](https://github.com/shizzgar/The-Tricksters-Pocket/actions/workflows/compaction-debug.yml)
@@ -19,11 +19,13 @@ Android-ассистент с управляемым агентским цикл
 
 </div>
 
-**2.5.1-pocket.1:** новое имя приложения, обычные `termux_*` в Termux-workspace, NetBro — зелёный паук-ниндзя, OrchBro — фиолетовый осьминог-координатор. PocketBro и ThinkBro получили имена и редактируемые описания. ARM64 APK подписан прежним ключом ReBro для обновления существующей установки. [Изменения и совместимость](docs/tricksters-pocket.md).
+**2.5.1-pocket.4:** задачи через «+» с плашкой только после явного создания, выбор проверяющего ассистента, общие настройки Termux внутри Workspace, живой индикатор контекста поверх приложений и единая иконка кармана. [Как пользоваться](docs/pocket-controls.md).
+
+[Рабочие задачи, результаты, проекты и технические Bro](docs/pocket-workbench.md) · [Вложенные чаты подагентов](docs/POCKET-NESTED-CHATS.md).
 
 Это развиваемый форк [ExTV/RikkaHub Agent](https://github.com/ExTV/rikkahub-agent), основанного на [RikkaHub](https://github.com/rikkahub/rikkahub). Здесь собраны наши изменения для длительной работы агента, разбора его действий и работы со skills как с полноценными пакетами файлов. Чат, провайдеры моделей и возможности управления устройством остаются основой приложения.
 
-**ReBro Blue:** тёмно-синие поверхности, голубые акценты, стальной текст и муравьед-ниндзя. Светлая и тёмная версии переключаются вместе с темой приложения; на существующей установке откройте раздел **«Тема»** в настройках и нажмите **ReBro Blue → Применить**. [Новые экраны](docs/screenshots.md#rebro-blue) · [Разбор реальных трасс](docs/trace-review-2026-09-24.md) · [Что перенесено из upstream](docs/upstream-review-2026-09-24.md).
+**ReBro Blue:** тёмно-синие поверхности, голубые акценты и стальной текст. Светлая и тёмная версии переключаются вместе с темой приложения; на существующей установке откройте раздел **«Тема»** в настройках и нажмите **ReBro Blue → Применить**. [Новые экраны](docs/screenshots.md#rebro-blue) · [Разбор реальных трасс](docs/trace-review-2026-09-24.md) · [Что перенесено из upstream](docs/upstream-review-2026-09-24.md).
 
 ## Посмотреть в действии
 
@@ -137,7 +139,7 @@ Android-ассистент с управляемым агентским цикл
 
 ## Начать работу
 
-1. **Установите сборку этого репозитория.** [Инструкция и ARM64 APK](docs/getting-started.md#install). Для новой установки доступна release-сборка ReBro Agent; прежний CI debug-канал сохранён. [Перенос данных](docs/termux-workspaces-and-release.md#release-identity-and-signing).
+1. **Установите сборку этого репозитория.** [Инструкция и ARM64 APK](docs/getting-started.md#install). Доступна оптимизированная release-сборка The Trickster's Pocket; прежний CI debug-канал сохранён. [Перенос данных](docs/termux-workspaces-and-release.md#release-identity-and-signing).
 2. **Настройте провайдера и модель** в настройках приложения.
 3. **Выберите ассистента** и включите нужные группы локальных инструментов. ReBro и NetBro уже содержат свои наборы skills и Termux.
 4. **Настройте Termux**, если нужны команды и скрипты: RUN_COMMAND, `allow-external-apps=true`, Python и передача навыков.
@@ -151,7 +153,7 @@ Android-ассистент с управляемым агентским цикл
 
 ## Проверки и границы
 
-Для версии `3bf0436` [успешный CI](https://github.com/shizzgar/The-Tricksters-Pocket/actions/runs/36057905938) подтвердил **828 JVM-тестов, 65 Python-тестов и 36 Android-тестов**, а также сборку оптимизированного release с R8. Проверены миграция БД, сохранение пользовательских настроек, связанные профили Bro, защита файлового моста Termux, ресурсы брендинга и Android UI. Эмулятор проверяет debug-вариант; release собирается отдельно. Работа с Termux на реальном телефоне требует проверки после установки. [Подробности](docs/termux-workspaces-and-release.md#validation-boundary).
+Для версии `2.5.1-pocket.4` (`f3b06be`) [успешный CI](https://github.com/shizzgar/The-Tricksters-Pocket/actions/runs/36246686773) подтвердил **1051 JVM-тест, 65 Python-тестов и 72 Android-теста**, а также сборку оптимизированного release с R8. Проверены явные задачи, выбор проверяющего, сохранение настроек Termux, расчёт контекста, иконки, миграции и прежние сценарии. Эмулятор проверяет debug-вариант; release собирается отдельно. APK подписан прежним ключом ReBro. [Подпись, хеши и границы проверки](docs/releases/2.5.1-pocket.4.json). Termux и системный оверлей на реальном телефоне требуют проверки после установки.
 
 - Трасса хранится локально и содержит промпты, команды и результаты. Перед публикацией экспорта проверьте его содержимое.
 - Записывается reasoning, который вернул провайдер. Полного детерминированного replay и реконструкции старых незаписанных событий нет.

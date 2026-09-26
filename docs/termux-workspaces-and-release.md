@@ -1,6 +1,6 @@
-# Termux workspaces and ReBro release builds
+# Termux workspaces and The Trickster's Pocket release builds
 
-Version 2.5.1-rebro.4 (189) adds linked Termux projects and assistant-backed subagent profiles. The application name is **ReBro Agent**. Its launcher retains the blue ninja anteater, NetBro has the supplied green variant, and the notification/loading indicators also use the anteater.
+The application is **The Trickster's Pocket**, with the pocket-and-ears icon used throughout its current interface. Its release family is `2.5.1-pocket.N`. Linked Termux projects and assistant-backed subagent profiles were originally introduced in the historical `2.5.1-rebro.4` release (189); the current app retains that release package ID and signing key for updates in place.
 
 ## Link a real project directory
 
@@ -42,11 +42,13 @@ Profiles remain editable, disableable and deletable. Upgrades preserve those cho
 | Build | Application ID | Signing |
 | --- | --- | --- |
 | Existing debug line | `excp.rikkahub.debug` | Debug key from its build environment |
-| ReBro release | `excp.rikkahub.rebro` | Permanent owner-held ReBro key |
+| The Trickster's Pocket release, including earlier ReBro releases | `excp.rikkahub.rebro` | Permanent owner-held ReBro key |
 
-The release can be installed next to the existing debug version. Export a backup from the old app, install the signed release, and restore that backup in the new app. Android grants permissions per application: reconnect Termux and regrant the new app's `RUN_COMMAND` permission. Do not uninstall the old app until the restored chats, profiles and settings have been checked.
+A signed Pocket release updates an already installed ReBro/Pocket release in place when the package ID and signing certificate match. No deletion, manual data transfer or new Termux grant is required for that update.
 
-The **ReBro release APK** workflow runs the runtime/unit/Python/emulator gate and the optimized build in parallel. Its final `release` job publishes the verified artifact only after both succeed. An intermediate `candidate` artifact is retained for one day and is not an approved release. It checks the release package ID and rejects a debuggable manifest. Its `rebro-arm64-release-unsigned` artifact is intentionally **not installable** until signed. It includes the exact commit, APK hashes, manifest metadata and the Android build-tools signing JAR.
+Debug is a separate application. To move from debug to release, export a backup from debug, install the signed release alongside it, and restore the backup there. Android grants permissions per application: reconnect Termux and grant the release app's `RUN_COMMAND` permission. Keep the existing installation while checking the restored chats, profiles and settings; there is no need to uninstall it to install or update the release.
+
+The **Tricksters Pocket release APK** workflow (`rebro-release.yml`) runs the runtime/unit/Python/emulator gate and the optimized build in parallel. Its final `release` job publishes the verified artifact only after both succeed. An intermediate `candidate` artifact is retained for one day and is not an approved release. It checks the release package ID and rejects a debuggable manifest. Its `rebro-arm64-release-unsigned` artifact retains the historical CI identifier and is intentionally **not installable** until signed. For `2.5.1-pocket.4`, the APK inside is `tricksters-pocket-2.5.1-pocket.4-arm64-unsigned.apk`. The archive includes the exact commit, APK hashes, manifest metadata and the Android build-tools signing JAR. The verified archive is retained for 30 days.
 
 The permanent private key is kept outside Git, public releases and CI artifacts. The owner must retain its private backup; generating a replacement key prevents future APKs from updating an installed release with the old signature. The APK's public certificate fingerprint can be published safely. The ReBro release key created for 2.5.1-rebro.4 has SHA-256 fingerprint `0FAC079E040D97CCE1786CEB21DC0855C0D09B2DF3222A43E71C46DD2C517805`.
 
@@ -65,7 +67,7 @@ sha256sum signed.apk
 
 Verify the resulting v2/v3 signature and record its public certificate and APK hash. A standalone signing helper is also included in the private key backup. For a local Gradle build, the same `REBRO_*` signing variables are supported; an incomplete signing configuration fails explicitly. Supplying none produces an unsigned release and never falls back to a debug key.
 
-The delivered ARM64 APK is signed with this key using APK Signature Scheme v2 and v3. Its exact APK SHA-256, source commit, certificate fingerprint and build-report hash are recorded in the [2.5.1-rebro.4 release manifest](releases/2.5.1-rebro.4.json).
+Signed deliveries use this key with APK Signature Scheme v2 and v3. Check the [manifest for the exact delivered version](releases/) for its APK SHA-256, source commit, certificate fingerprint and build-report hash. The [2.5.1-rebro.4 release manifest](releases/2.5.1-rebro.4.json) is historical evidence for the original signed release; its APK hash does not describe a current Pocket APK.
 
 ## Validation boundary
 
