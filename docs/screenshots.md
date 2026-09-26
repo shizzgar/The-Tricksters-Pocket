@@ -102,6 +102,6 @@
 
 ## Происхождение снимков
 
-Снимки получены в [успешном CI-прогоне](https://github.com/shizzgar/rikkahub-agent/actions/runs/36005633948) для ревизии `8ded6be9b14f34b6bae92c5fc161a1aa36b18189`, Android API 35. Они хранятся в репозитории и не зависят от срока жизни Actions artifacts. Размеры и SHA-256 каждого файла указаны в [provenance.json](media/screenshots/provenance.json).
+Снимки получены в [успешном CI-прогоне](https://github.com/shizzgar/The-Tricksters-Pocket/actions/runs/36005633948) для ревизии `8ded6be9b14f34b6bae92c5fc161a1aa36b18189`, Android API 35. Они хранятся в репозитории и не зависят от срока жизни Actions artifacts. Размеры и SHA-256 каждого файла указаны в [provenance.json](media/screenshots/provenance.json).
 
 Сценарии: [Trajectory](../app/src/androidTest/java/me/rerere/rikkahub/ui/pages/chat/TrajectoryInstrumentedTest.kt), [payload](../app/src/androidTest/java/me/rerere/rikkahub/ui/pages/chat/TracePayloadInstrumentedTest.kt), [skill workspace](../app/src/androidTest/java/me/rerere/rikkahub/ui/pages/extensions/skills/SkillWorkbenchInstrumentedTest.kt), [tool access](../app/src/androidTest/java/me/rerere/rikkahub/ui/pages/assistant/detail/ToolAccessInstrumentedTest.kt), [ReBro Blue и launcher](../app/src/androidTest/java/me/rerere/rikkahub/ui/theme/RebroBrandInstrumentedTest.kt).

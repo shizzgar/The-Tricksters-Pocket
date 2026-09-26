@@ -3,7 +3,7 @@
 ## Select the objective and route
 
 Use rebro-workflow for complex tasks; a focused signing/diagnostic task can enter
-the specialist skill directly. RikkaHub provides the enabled-skill list. The
+the specialist skill directly. The Trickster's Pocket provides the enabled-skill list. The
 orchestrator does not execute another skill magically: call use_skill, obtain
 skill_root, run the script and inspect the result. Treat a disabled skill as
 unavailable; do not guess its private path.

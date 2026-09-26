@@ -508,12 +508,7 @@ fun termuxRunCommandTool(context: Context, owner: String? = null, defaultWorking
         val (resolvedExe, resolvedArgs) = if (rawCommand != null) {
             // apt/dpkg noninteractive wrapping, gated on TermuxRuntime.aptWrapEnabled (user can
             // disable from Settings -> Termux).
-            val preamble = if (TermuxRuntime.aptWrapEnabled) {
-                "export DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a; " +
-                    "apt(){ command apt -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' \"\$@\"; }; " +
-                    "apt-get(){ command apt-get -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' \"\$@\"; }; " +
-                    "export -f apt apt-get; "
-            } else ""
+            val preamble = termuxCommandPreamble()
             // background: detach so a long-running child doesn't keep the capture pipe open and
             // stall the result bundle until timeout. Same inherited-fd hazard as the SSH exec
             // channel; wrapDetachedCommand applies the identical nohup + redirect + echo-pid fix.

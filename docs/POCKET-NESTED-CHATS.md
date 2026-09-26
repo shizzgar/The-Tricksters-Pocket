@@ -25,7 +25,7 @@ Sources: `docs/branding/thinkbro.webp`, `pocketbro.webp`, `pocket-fox.webp`. Run
 
 ## Validation and release provenance
 
-CI [36166955137](https://github.com/shizzgar/rikkahub-agent/actions/runs/36166955137) passed for source commit `90d14a1d30e5c0fa99a1ce14509b4855d17eb6a4`: 847 JVM tests, 65 Python tests, 41 phone instrumented tests and one wide-screen test. Skill Markdown/code cards and child-chat screenshots were visually inspected. Physical-device Termux integration has not been exercised in this release validation.
+CI [36166955137](https://github.com/shizzgar/The-Tricksters-Pocket/actions/runs/36166955137) passed for source commit `90d14a1d30e5c0fa99a1ce14509b4855d17eb6a4`: 847 JVM tests, 65 Python tests, 41 phone instrumented tests and one wide-screen test. Skill Markdown/code cards and child-chat screenshots were visually inspected. Physical-device Termux integration has not been exercised in this release validation.
 
 Release: `excp.rikkahub.rebro`, version `2.5.1-pocket.2`, version code `191`, ARM64 optimized release. The APK was signed locally with the previous release key; its signature was verified and its certificate matched the previous release. Private signing material was not uploaded to CI or the repository.
 

@@ -28,7 +28,7 @@ python rebro.py configure --bridge /absolute/path/bridge-final.js --bridge-mode 
 ```
 
 Choose one appropriate command. Standalone configure records a new baseline and
-replaces local.json; do not rerun it casually. The outer RikkaHub adapter instead
+replaces local.json; do not rerun it casually. The outer The Trickster's Pocket adapter instead
 uses external config and refuses overwrite. expression accepts one JS expression,
 not a file containing declarations.
 

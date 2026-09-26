@@ -196,7 +196,7 @@ internal class TraceArchiveWriter(
 
     companion object {
         private val README = """
-            RikkaHub Agent — complete recorded trajectory (schema 1)
+            The Trickster's Pocket — complete recorded trajectory (schema 1)
 
             manifest.json: root conversation, app metadata, counts, per-session snapshot times.
             sessions/<uuid>/events.jsonl: original append-only event index, in recorded order.

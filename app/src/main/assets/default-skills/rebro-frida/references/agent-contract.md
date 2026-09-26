@@ -62,6 +62,6 @@ as needed to isolate the specific cause.
 
 Historical freezer checks cover a short scenario only. Do not disable the freezer
 globally. `cgroup.freeze=0` does not prove effective thawing: inspect cgroup.events
-and ancestors. Do not freeze Termux/RikkaHub/controller/service to test an ordinary
+and ancestors. Do not freeze Termux/The Trickster's Pocket/controller/service to test an ordinary
 app. Do not revive refuted watchdog or "one-second window" theories without new
 causal evidence.

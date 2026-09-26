@@ -26,7 +26,7 @@ class PocketExperienceInstrumentedTest {
     private fun capture(name: String) {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         File(context.filesDir, "trajectory-qa/$name.png").apply { parentFile!!.mkdirs() }.outputStream().use {
-            compose.onRoot().captureToImage().asAndroidBitmap().compress(Bitmap.CompressFormat.PNG, 100, it)
+            compose.onAllNodes(isRoot()).onLast().captureToImage().asAndroidBitmap().compress(Bitmap.CompressFormat.PNG, 100, it)
         }
     }
     @Test fun markdownInstructionsAndPartialFailureAreVisible() {
@@ -98,6 +98,10 @@ class PocketExperienceInstrumentedTest {
             val verify = context.getString(me.rerere.rikkahub.R.string.task_verify)
             compose.onNodeWithTag("task-dashboard-list").performScrollToNode(hasText(verify))
             compose.onNodeWithText(verify).performClick()
+            val reviewerId = me.rerere.rikkahub.data.datastore.createDevbroAssistant().id
+            compose.onNodeWithTag("task-review-assistant-$reviewerId").performClick()
+            capture("pocket-task-review-picker")
+            compose.onNodeWithText(context.getString(me.rerere.rikkahub.R.string.task_review_prepare)).performClick()
             compose.waitUntil(10_000) { stack.last() is Screen.Chat }
             val review = stack.last() as Screen.Chat
             assertTrue(review.text!!.contains("Tests and signature must pass"))
@@ -106,6 +110,10 @@ class PocketExperienceInstrumentedTest {
             kotlinx.coroutines.runBlocking {
                 val reviewChat = requireNotNull(repository.getConversationById(kotlin.uuid.Uuid.parse(review.id)))
                 assertEquals(parentId, reviewChat.parentConversationId)
+                assertEquals(reviewerId, reviewChat.assistantId)
+                assertEquals(reviewerId.toString(), store.brief(parentId.toString()).reviewAssistantId)
+                assertTrue(me.rerere.rikkahub.data.ai.AgentTaskPolicy.get(reviewChat.id.toString())!!.readOnly)
+                assertNotNull(store.reviewScope(reviewChat.id.toString()))
                 repository.deleteConversation(reviewChat)
             }
         } finally { kotlinx.coroutines.runBlocking {
@@ -113,6 +121,46 @@ class PocketExperienceInstrumentedTest {
             repository.deleteConversation(parent)
             workspaces.delete(workspace.id)
         } }
+    }
+
+
+    @Test fun taskCardRequiresExplicitCreationAndClosingKeepsDetails() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val repository = org.koin.core.context.GlobalContext.get().get<me.rerere.rikkahub.data.repository.ConversationRepository>()
+        val store = me.rerere.rikkahub.data.task.TaskArtifactStore.at(context.filesDir)
+        val conversation = Conversation.ofId(assistantId = me.rerere.rikkahub.data.datastore.createDevbroAssistant().id).copy(title = "Task opt-in fixture")
+        val showEditor = androidx.compose.runtime.mutableStateOf(false)
+        kotlinx.coroutines.runBlocking { repository.insertConversation(conversation) }
+        try {
+            compose.setContent {
+                CompositionLocalProvider(
+                    LocalNavController provides Navigator(mutableListOf<NavKey>(Screen.Chat(conversation.id.toString()))),
+                    me.rerere.rikkahub.ui.context.LocalToaster provides com.dokar.sonner.rememberToasterState(),
+                ) {
+                    RikkahubTheme {
+                        me.rerere.rikkahub.ui.pages.chat.TaskChatControls(conversation, showEditor.value, { showEditor.value = false })
+                    }
+                }
+            }
+            compose.onNodeWithTag("chat-task-card").assertDoesNotExist()
+            compose.runOnIdle { showEditor.value = true }
+            compose.waitUntil(10_000) { compose.onAllNodesWithTag("task-goal-input").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithTag("task-goal-input").performTextInput("Inspect the build")
+            compose.onNodeWithTag("task-save-button").performClick()
+            compose.waitUntil(10_000) { compose.onAllNodesWithTag("chat-task-card").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithText("Inspect the build").assertIsDisplayed()
+            capture("pocket-task-opt-in")
+            compose.onNodeWithContentDescription(context.getString(me.rerere.rikkahub.R.string.task_close)).performClick()
+            compose.onNodeWithTag("task-close-confirm").performClick()
+            compose.waitUntil(10_000) { compose.onAllNodesWithTag("chat-task-card").fetchSemanticsNodes().isEmpty() }
+            kotlinx.coroutines.runBlocking {
+                assertFalse(store.brief(conversation.id.toString()).isActive)
+                assertEquals("Inspect the build", store.brief(conversation.id.toString()).goal)
+            }
+            compose.runOnIdle { showEditor.value = true }
+            compose.waitUntil(10_000) { compose.onAllNodesWithTag("task-goal-input").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithText("Inspect the build").assertIsDisplayed()
+        } finally { kotlinx.coroutines.runBlocking { repository.deleteConversation(conversation) } }
     }
 
     @Test fun childCardOpensNestedChatAndNewAvatarsDecode() {

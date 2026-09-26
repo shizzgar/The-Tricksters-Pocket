@@ -12,15 +12,14 @@ import okhttp3.Request
 private const val TAG = "GHReleaseChecker"
 
 /**
- * Checks GitHub Releases for the latest tag of `ExTV/rikkahub-agent` and compares against
+ * Checks GitHub Releases for the latest tag of `shizzgar/The-Tricksters-Pocket` and compares against
  * the locally-installed [BuildConfig.VERSION_NAME]. Pure HTTP — no caching, no scheduler,
  * no UI. Surfaces are responsible for invoking when the user / scheduler asks.
  *
- * Tag schema: every release on this fork ships as `vX.Y.Z-agent.N` where `vX.Y.Z` is the
- * upstream RikkaHub version this fork is built on top of and `N` is the agent revision.
- * The newer-than comparator is lexicographic by (X, Y, Z, N) — works for the current
- * `2.1.15-agent.0` schema. Pre-release suffixes outside `-agent.N` (e.g. `-rc1`) are not
- * supported; if the user ever ships those, this comparator needs revisiting.
+ * Current tags use `vX.Y.Z-pocket.N`; older releases used `-rebro.N` or `-agent.N`.
+ * The comparator uses the core version and numeric revision. It does not implement
+ * general SemVer prerelease ordering; channels such as `-rc1` need a separate policy.
+ * This opt-in check never redirects to another fork and does not enable app auto-updates.
  */
 class GitHubReleaseChecker(private val client: OkHttpClient) {
 
@@ -49,7 +48,7 @@ class GitHubReleaseChecker(private val client: OkHttpClient) {
             .get()
             .addHeader("Accept", "application/vnd.github+json")
             .addHeader("X-GitHub-Api-Version", "2022-11-28")
-            .addHeader("User-Agent", "rikkahub-agent/${BuildConfig.VERSION_NAME}")
+            .addHeader("User-Agent", "TrickstersPocket/${BuildConfig.VERSION_NAME}")
             .build()
         val response = try {
             client.newCall(req).execute()
@@ -58,6 +57,9 @@ class GitHubReleaseChecker(private val client: OkHttpClient) {
             return@withContext CheckResult.Failed("network error: ${t.message ?: t.javaClass.simpleName}")
         }
         response.use { resp ->
+            if (resp.code == 404) {
+                return@withContext CheckResult.Failed("No public release is available for The Trickster's Pocket in this repository yet.")
+            }
             if (!resp.isSuccessful) {
                 return@withContext CheckResult.Failed("github responded ${resp.code}")
             }
@@ -117,6 +119,6 @@ class GitHubReleaseChecker(private val client: OkHttpClient) {
     }
 
     companion object {
-        const val LATEST_URL = "https://api.github.com/repos/ExTV/rikkahub-agent/releases/latest"
+        const val LATEST_URL = "https://api.github.com/repos/shizzgar/The-Tricksters-Pocket/releases/latest"
     }
 }

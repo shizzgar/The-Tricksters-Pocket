@@ -68,7 +68,6 @@ import me.rerere.ai.provider.ModelType
 import me.rerere.ai.provider.ProviderSetting
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.ArrowRight01
-import me.rerere.hugeicons.stroke.Brain02
 import me.rerere.hugeicons.stroke.Cancel01
 import me.rerere.hugeicons.stroke.DragDropHorizontal
 import me.rerere.hugeicons.stroke.Favourite
@@ -82,6 +81,7 @@ import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.datastore.findModelById
 import me.rerere.rikkahub.data.datastore.findProvider
 import me.rerere.rikkahub.ui.components.ui.AutoAIIcon
+import me.rerere.rikkahub.ui.components.ui.PocketIcon
 import me.rerere.rikkahub.ui.components.ui.Tag
 import me.rerere.rikkahub.ui.components.ui.TagType
 import me.rerere.rikkahub.ui.components.ui.icons.HeartIcon
@@ -215,14 +215,11 @@ internal fun ModelSelectorButton(
                 },
                 modifier = modifier
             ) {
-                model?.modelId?.let {
-                    AutoAIIcon(
-                        it, Modifier
-                            .padding(end = 4.dp)
-                            .size(36.dp),
-                        color = Color.Transparent
-                    )
-                }
+                AutoAIIcon(
+                    name = model?.modelId.orEmpty(),
+                    modifier = Modifier.padding(end = 4.dp).size(36.dp),
+                    color = Color.Transparent,
+                )
                 Text(
                     text = model?.displayName ?: stringResource(R.string.model_list_select_model),
                     maxLines = 1,
@@ -246,6 +243,7 @@ internal fun ModelSelectorButton(
             onClick = {
                 state.open()
             },
+            modifier = modifier,
         ) {
             if (model != null) {
                 AutoAIIcon(
@@ -254,10 +252,9 @@ internal fun ModelSelectorButton(
                     color = Color.Transparent
                 )
             } else {
-                Icon(
-                    imageVector = HugeIcons.Brain02,
+                PocketIcon(
                     contentDescription = stringResource(R.string.setting_model_page_chat_model),
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(28.dp),
                 )
             }
         }

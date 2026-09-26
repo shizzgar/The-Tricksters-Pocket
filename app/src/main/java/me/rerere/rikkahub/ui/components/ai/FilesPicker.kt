@@ -113,6 +113,7 @@ internal fun FilesPicker(
     onStartVoiceMode: (() -> Unit)? = null,
     onOpenTermuxJobs: () -> Unit = {},
     onOpenTrajectory: () -> Unit = {},
+    onOpenTask: () -> Unit = {},
     jobTotal: Long? = null,
     jobsRunning: Long? = null,
 ) {
@@ -238,6 +239,14 @@ internal fun FilesPicker(
             supportingContent = { Text(stringResource(R.string.jobs_entry_hint)) },
             colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
             modifier = Modifier.clip(MaterialTheme.shapes.large).clickable { onOpenTermuxJobs() },
+        )
+
+        ListItem(
+            leadingContent = { Icon(HugeIcons.Files02, null) },
+            headlineContent = { Text(stringResource(R.string.task_dashboard)) },
+            supportingContent = { Text(stringResource(R.string.task_entry_hint)) },
+            colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+            modifier = Modifier.clip(MaterialTheme.shapes.large).clickable { onOpenTask() },
         )
 
         // Compress History Button

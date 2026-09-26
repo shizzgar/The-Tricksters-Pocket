@@ -16,7 +16,7 @@ The stored conversation is the source of evidence. The model's active context is
 - Existing explicit raw-tail retention/fallback remains message-based. A very large assistant message may force full compaction. `retained_raw_tool_calls=0` describes that tail, not whether evidence remains in the summary/history.
 - The source estimate and new summary estimate are approximate, not tokenizer measurements.
 
-Reference designs inspected (implementation is native to RikkaHub, not copied):
+Reference designs inspected (implementation is native to The Trickster's Pocket, not copied):
 
 - [Codex compact.rs](https://github.com/openai/codex/blob/main/codex-rs/core/src/compact.rs): a replacement history distinct from stored history, retention of user context and bounded summaries.
 - [DSH compaction](https://github.com/deepseek-ai/deepseek-harness/blob/ddefc45fbc7f8e46dd73185e68295696d1297887/docs/subsystems/compaction.md): durable evidence versus active context, coherent replacement, span revalidation and cancellation/failure without false success.

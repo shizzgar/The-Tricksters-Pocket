@@ -15,7 +15,12 @@ data class ScopedAgentPolicy(
     val readOnly: Boolean = false,
     val systemPrompt: String? = null,
     val stopped: Boolean = false,
-)
+    val scopedWorkspaceId: String? = null,
+) {
+    init {
+        require(scopedWorkspaceId == null || runCatching { java.util.UUID.fromString(scopedWorkspaceId) }.isSuccess) { "Invalid scoped workspace ID" }
+    }
+}
 
 class AgentExecutionLimitException(val stopReason: GenerationStopReason) : IllegalStateException("Execution stopped: ${stopReason.name}")
 
@@ -51,6 +56,16 @@ object AgentTaskPolicy {
     @Synchronized fun setStepLimit(id: String, limit: Int) { require(limit > 0); set(id, ScopedAgentPolicy(limit)) }
     @Synchronized fun stepLimit(id: String): Int? = policies[id]?.let { (it.maxSteps - it.usedSteps).coerceAtLeast(0) }
     @Synchronized fun stop(id: String) { policies[id]?.let { set(id, it.copy(stopped = true)) } }
+    /** Durable review metadata survives portable backup even when execution policies do not. */
+    @Synchronized fun ensureReview(id: String, workspaceId: String?, resumeStopped: Boolean = false) {
+        val existing = policies[id]
+        val next = (existing ?: ScopedAgentPolicy(Int.MAX_VALUE)).copy(
+            readOnly = true,
+            scopedWorkspaceId = workspaceId,
+            stopped = existing?.stopped == true && !resumeStopped,
+        )
+        if (next != existing) set(id, next)
+    }
     @Synchronized fun check(id: String, now: Long = System.currentTimeMillis()): GenerationStopReason? {
         val p = policies[id] ?: return null
         return when {

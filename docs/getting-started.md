@@ -12,16 +12,16 @@
 
 Начиная с **2.5.1-rebro.4**, ReBro Agent имеет отдельную release-сборку с оптимизацией и постоянным сертификатом. Полученный подписанный ARM64 APK устанавливается напрямую. Он не заменяет debug-приложение: экспортируйте там резервную копию и восстановите её в release, затем заново разрешите Termux для нового приложения.
 
-[ReBro release APK workflow](https://github.com/shizzgar/rikkahub-agent/actions/workflows/rebro-release.yml) сохраняет проверенный **unsigned** APK и данные сборки на 30 дней. Этот CI-артефакт нужно подписать постоянным ключом перед установкой; приватного ключа в репозитории и публичных артефактах нет. [Подписание, сертификат и Termux workspaces](termux-workspaces-and-release.md).
+[ReBro release APK workflow](https://github.com/shizzgar/The-Tricksters-Pocket/actions/workflows/rebro-release.yml) сохраняет проверенный **unsigned** APK и данные сборки на 30 дней. Этот CI-артефакт нужно подписать постоянным ключом перед установкой; приватного ключа в репозитории и публичных артефактах нет. [Подписание, сертификат и Termux workspaces](termux-workspaces-and-release.md).
 
 ### Debug-канал
 
-1. Откройте [Agent runtime debug APK](https://github.com/shizzgar/rikkahub-agent/actions/workflows/compaction-debug.yml).
-2. Выберите успешный прогон нужной ревизии `master`. Убедитесь, что это репозиторий **shizzgar/rikkahub-agent**.
+1. Откройте [Agent runtime debug APK](https://github.com/shizzgar/The-Tricksters-Pocket/actions/workflows/compaction-debug.yml).
+2. Выберите успешный прогон нужной ревизии `master`. Убедитесь, что это репозиторий **shizzgar/The-Tricksters-Pocket**.
 3. В **Artifacts** скачайте **rikkahub-compaction-arm64-debug**. Для скачивания артефактов GitHub может потребоваться вход в аккаунт.
 4. Распакуйте ZIP и установите `rikkahub-compaction-arm64-debug.apk`. Рядом находятся `COMMIT.txt` и `SHA256SUMS`.
 
-[Проверенная сборка 2.5.1-rebro.3 (`92451a6`) от 24.09.2026 →](https://github.com/shizzgar/rikkahub-agent/actions/runs/36023590276/artifacts/10819037896)
+[Проверенная сборка 2.5.1-rebro.3 (`92451a6`) от 24.09.2026 →](https://github.com/shizzgar/The-Tricksters-Pocket/actions/runs/36023590276/artifacts/10819037896)
 
 Артефакты CI хранятся **14 дней**; у указанной сборки срок хранения до 08.10.2026. Если артефакт уже удалён, выберите новый успешный прогон или [соберите приложение](building.md). Доступный владельцу репозитория **Run workflow** позволяет повторить сборку. Это канал debug-сборок, а не стабильный release-канал.
 
@@ -50,7 +50,7 @@ Debug-сборка использует ID `excp.rikkahub.debug`, ReBro release 
 ## 4. Termux и файлы skills
 
 1. Установите и один раз откройте [Termux](https://github.com/termux/termux-app).
-2. Следуйте **Настройки → Termux** в RikkaHub Agent: предоставьте разрешение RUN_COMMAND и включите `allow-external-apps=true` в конфигурации Termux. Разрешение нужно именно установленному экземпляру приложения.
+2. Следуйте **Настройки → Termux** в The Trickster's Pocket: предоставьте разрешение RUN_COMMAND и включите `allow-external-apps=true` в конфигурации Termux. Разрешение нужно именно установленному экземпляру приложения.
 3. В Termux установите Python:
 
    ```sh

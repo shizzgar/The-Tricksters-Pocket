@@ -9,7 +9,7 @@ permissions. An already authorized installation needs no repeat confirmation.
 Plan/apply separate artifact preparation from application; they do not require
 an additional conversation by themselves.
 
-This kit is **for RikkaHub**, not installation of personal skills into ChatGPT.
+This kit is **for The Trickster's Pocket**, not installation of personal skills into ChatGPT.
 Call `use_skill` with the exact enabled name. Use only its successful `skill_root`,
 with `termux_skill_sync` when needed. Each package is self-contained: do not access
 neighboring skill directories or guess versioned paths. Set `working_dir=skill_root`

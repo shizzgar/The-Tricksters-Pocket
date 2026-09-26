@@ -64,7 +64,6 @@ import me.rerere.hugeicons.stroke.FolderAdd
 import me.rerere.hugeicons.stroke.Image02
 import me.rerere.hugeicons.stroke.InLove
 import me.rerere.hugeicons.stroke.LanguageCircle
-import me.rerere.hugeicons.stroke.LookTop
 import me.rerere.hugeicons.stroke.PencilEdit01
 import me.rerere.hugeicons.stroke.Search01
 import me.rerere.hugeicons.stroke.Settings03
@@ -78,6 +77,7 @@ import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.data.model.Folder
 import me.rerere.rikkahub.data.repository.ConversationRepository
 import me.rerere.rikkahub.ui.components.ai.AssistantPicker
+import me.rerere.rikkahub.ui.components.ui.PocketIcon
 import me.rerere.rikkahub.ui.components.ui.BackupReminderCard
 import me.rerere.rikkahub.ui.components.ui.Greeting
 import me.rerere.rikkahub.ui.components.ui.Tooltip
@@ -335,7 +335,7 @@ fun ChatDrawerContent(
                     .padding(horizontal = 8.dp)
             ) {
                 DrawerAction(
-                    icon = { Icon(HugeIcons.LookTop, null) },
+                    icon = { PocketIcon() },
                     label = { Text(stringResource(R.string.assistant_page_title)) },
                     contentDescription = stringResource(R.string.assistant_page_title),
                     onClick = { navController.navigate(Screen.Assistant) },

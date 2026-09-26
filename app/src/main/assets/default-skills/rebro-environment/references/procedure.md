@@ -106,7 +106,7 @@ establish that reinstalling will not replace local modifications.
 
 For a long controlled run, use `termux-wake-lock`, followed by `termux-wake-unlock`.
 It cannot guarantee survival of force-stop, freezer or LMKD. Check Android battery
-policy for Termux/RikkaHub, foreground-service notifications, `dumpsys thermalservice`
+policy for Termux/The Trickster's Pocket, foreground-service notifications, `dumpsys thermalservice`
 and charging state. Do not disable thermal management. Tmux survives terminal loss,
 not reboot or termination of the Termux UID.
 

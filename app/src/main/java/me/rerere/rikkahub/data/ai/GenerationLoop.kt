@@ -19,7 +19,6 @@ import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import me.rerere.rikkahub.service.AgentOverlay
 import me.rerere.rikkahub.service.RikkaAccessibilityService
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toInstant
@@ -1275,8 +1274,8 @@ class GenerationLoop(
         onStopped(GenerationSliceOutcome(stopReason, completedSteps))
     }
         .onStart {
-            // Reset per-turn navigation tracking and surface the overlay so the user
-            // sees that automation is happening even when the agent runs from Telegram.
+            // Reset per-turn navigation tracking. The overlay follows all active chat
+            // sessions in ChatService, including Telegram and nested agent tasks.
             if (manageUiLifecycle) beginTaskUi()
         }
         .onCompletion {
@@ -1285,18 +1284,16 @@ class GenerationLoop(
         .flowOn(Dispatchers.IO)
 
     /**
-     * If the agent navigated away from RikkaHub during this turn (launch_app / open_url) and
-     * the user is still on that destination, bring RikkaHub back to the foreground so the
+     * If the agent navigated away from The Trickster's Pocket during this turn (launch_app / open_url) and
+     * the user is still on that destination, bring The Trickster's Pocket back to the foreground so the
      * user is not stranded inside Chrome / Termux / etc. If the user manually switched apps
      * mid-turn, we skip the auto-return and surface a Toast explaining the safety behavior.
      */
     fun beginTaskUi() {
         AgentTurnTracker.reset()
-        AgentOverlay.show(context)
     }
 
     fun endTaskUi() {
-        AgentOverlay.hide(context)
         handleAutoReturnAfterTurn()
     }
 
@@ -1305,7 +1302,7 @@ class GenerationLoop(
         // Only auto-return when the agent actually drove the destination app via screen
         // automation (tap, click_node, set_text, swipe, scroll, global_action). A pure
         // "open Chrome and stay there" request is just launch_app + a text reply — yanking
-        // the user back to RikkaHub in that case defeats the purpose of the request.
+        // the user back to The Trickster's Pocket in that case defeats the purpose of the request.
         if (!AgentTurnTracker.didAutomate()) return
         val destination = AgentTurnTracker.lastDestination()
         val currentForeground = RikkaAccessibilityService.instance
@@ -1320,7 +1317,7 @@ class GenerationLoop(
             Handler(Looper.getMainLooper()).post {
                 Toast.makeText(
                     context.applicationContext,
-                    "RikkaHub: skipped auto-return because you switched apps. (Safety feature)",
+                    "The Trickster's Pocket: skipped auto-return because you switched apps. (Safety feature)",
                     Toast.LENGTH_LONG
                 ).show()
             }

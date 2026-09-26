@@ -74,7 +74,7 @@ val repositoryModule = module {
     }
 
     single {
-        WorkspaceRepository(get(), get(), get(), get(), me.rerere.rikkahub.data.repository.TermuxWorkspaceBridge(get()))
+        WorkspaceRepository(get(), get(), get(), get(), me.rerere.rikkahub.data.repository.TermuxWorkspaceBridge(get(), get()))
     }
 
     single {

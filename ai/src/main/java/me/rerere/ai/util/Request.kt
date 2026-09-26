@@ -34,8 +34,8 @@ fun Request.Builder.configureReferHeaders(url: String): Request.Builder {
 
         "openrouter.ai" -> {
             this
-                .addHeader("X-Title", "RikkaHub")
-                .addHeader("HTTP-Referer", "https://rikka-ai.com")
+                .addHeader("X-Title", "The Trickster's Pocket")
+                .addHeader("HTTP-Referer", "https://github.com/shizzgar/The-Tricksters-Pocket")
         }
 
         else -> this

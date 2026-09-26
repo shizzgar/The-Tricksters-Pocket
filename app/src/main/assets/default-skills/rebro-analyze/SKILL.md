@@ -5,7 +5,7 @@ description: "Analyze APK/DEX/resources/ELF, identify the exact split and modifi
 
 # Analysis
 
-RikkaHub skill, kit 2.3 with English instructions. Enable this skill separately.
+The Trickster's Pocket skill, kit 2.3 with English instructions. Enable this skill separately.
 Obtain its own skill_root from a successful use_skill/termux_skill_sync response
 and use it as working_dir. Read the [contract](references/contract.md),
 [agent rules](references/agent-contract.md), then the [procedure](references/procedure.md).

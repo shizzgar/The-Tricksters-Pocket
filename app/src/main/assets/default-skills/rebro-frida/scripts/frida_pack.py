@@ -1,4 +1,4 @@
-"""RikkaHub adapter for the unchanged Frida Pack: external state and explicit baseline."""
+"""The Trickster's Pocket adapter for the unchanged Frida Pack: external state and explicit baseline."""
 import argparse
 import fcntl
 import hashlib

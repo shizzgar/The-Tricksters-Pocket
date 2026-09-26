@@ -4,7 +4,7 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 
 /**
- * Maps a Telegram chat to an in-app rikkahub conversation so that the bot's responses to
+ * Maps a Telegram chat to an in-app conversation so that the bot's responses to
  * the same Telegram chat preserve conversational context across turns.
  *
  * One chat → one active conversation. The /reset command (or telegram_reset_chat tool) clears

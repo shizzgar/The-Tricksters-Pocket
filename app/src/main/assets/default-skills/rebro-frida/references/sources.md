@@ -38,13 +38,13 @@ version; keep the skill procedure and local evidence in the decision.
 
 ## Reviewed fork material
 
-PR: [shizzgar/rikkahub-agent#1](https://github.com/shizzgar/rikkahub-agent/pull/1).
+PR: [shizzgar/The-Tricksters-Pocket#1](https://github.com/shizzgar/The-Tricksters-Pocket/pull/1).
 Reviewed head: `964714533885709526fd8072f44ccb1a496a0baa`; it was open at that review.
 
-- [Skill packages and Trajectory](https://github.com/shizzgar/rikkahub-agent/blob/964714533885709526fd8072f44ccb1a496a0baa/docs/agent-runtime/trajectory-and-termux-skills.ru.md)
-- [Autonomous tasks](https://github.com/shizzgar/rikkahub-agent/blob/964714533885709526fd8072f44ccb1a496a0baa/docs/agent-runtime/autonomous-tasks-and-trajectory.ru.md)
-- [SkillsTools](https://github.com/shizzgar/rikkahub-agent/blob/964714533885709526fd8072f44ccb1a496a0baa/app/src/main/java/me/rerere/rikkahub/data/ai/tools/SkillsTools.kt)
-- [ZIP importer](https://github.com/shizzgar/rikkahub-agent/blob/964714533885709526fd8072f44ccb1a496a0baa/app/src/main/java/me/rerere/rikkahub/skills/SkillZipImporter.kt)
+- [Skill packages and Trajectory](https://github.com/shizzgar/The-Tricksters-Pocket/blob/964714533885709526fd8072f44ccb1a496a0baa/docs/agent-runtime/trajectory-and-termux-skills.ru.md)
+- [Autonomous tasks](https://github.com/shizzgar/The-Tricksters-Pocket/blob/964714533885709526fd8072f44ccb1a496a0baa/docs/agent-runtime/autonomous-tasks-and-trajectory.ru.md)
+- [SkillsTools](https://github.com/shizzgar/The-Tricksters-Pocket/blob/964714533885709526fd8072f44ccb1a496a0baa/app/src/main/java/me/rerere/rikkahub/data/ai/tools/SkillsTools.kt)
+- [ZIP importer](https://github.com/shizzgar/The-Tricksters-Pocket/blob/964714533885709526fd8072f44ccb1a496a0baa/app/src/main/java/me/rerere/rikkahub/skills/SkillZipImporter.kt)
 
 The PR description reported its CI results; that historical source review did not
 rerun CI. Reading source does not establish physical-phone integration.

@@ -3,7 +3,7 @@ name: Tricksters Pocket release APK
 on:
   workflow_dispatch:
   push:
-    branches: [feat/termux-workspaces-release, feat/tricksters-pocket, feat/pocket-nested-chats, feat/pocket-workbench]
+    branches: [feat/termux-workspaces-release, feat/tricksters-pocket, feat/pocket-nested-chats, feat/pocket-workbench, feat/pocket-controls]
     tags: ['v*-rebro.*']
     paths-ignore: ['README*.md', 'CHANGELOG.md', 'docs/**']
 
@@ -48,7 +48,7 @@ jobs:
           apks=(app/build/outputs/apk/release/*arm64-v8a*.apk)
           test "${#apks[@]}" -eq 1
           mkdir -p build/rebro-release
-          cp "${apks[0]}" build/rebro-release/tricksters-pocket-2.5.1-pocket.3-arm64-unsigned.apk
+          cp "${apks[0]}" build/rebro-release/tricksters-pocket-2.5.1-pocket.4-arm64-unsigned.apk
           cp "$ANDROID_HOME/build-tools/37.0.0/lib/apksigner.jar" build/rebro-release/
           "$ANDROID_HOME/build-tools/37.0.0/aapt2" dump badging "${apks[0]}" > build/rebro-release/APK-BADGING.txt
           if grep -q 'application-debuggable' build/rebro-release/APK-BADGING.txt; then exit 1; fi

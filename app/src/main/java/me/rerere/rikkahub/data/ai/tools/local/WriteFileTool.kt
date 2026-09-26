@@ -190,6 +190,13 @@ private fun errEnvelope(code: String, detail: String): List<UIMessagePart> =
 
 internal fun shouldAutoCreateParent(rawPath: String, expandedPath: String): Boolean =
     rawPath.startsWith("~/") ||
+        expandedPath.startsWith("/sdcard/Documents/TrickstersPocket/") ||
+        expandedPath.startsWith("/sdcard/Download/TrickstersPocket/") ||
+        expandedPath.startsWith("/sdcard/Pictures/TrickstersPocket/") ||
+        expandedPath.startsWith("/storage/emulated/0/Documents/TrickstersPocket/") ||
+        expandedPath.startsWith("/storage/emulated/0/Download/TrickstersPocket/") ||
+        expandedPath.startsWith("/storage/emulated/0/Pictures/TrickstersPocket/") ||
+        // Compatibility with files and saved instructions from previous releases.
         expandedPath.startsWith("/sdcard/Documents/RikkaHub/") ||
         expandedPath.startsWith("/sdcard/Download/RikkaHub/") ||
         expandedPath.startsWith("/sdcard/Pictures/RikkaHub/") ||

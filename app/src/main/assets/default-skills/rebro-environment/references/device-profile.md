@@ -25,7 +25,7 @@ Read system-prompt-integration.md; the earlier inventory diagnosis remains below
 | zipalign | Included in aapt; help supports -P 4/16/64 | Old `zipalign -h` returned 2 for unknown -h, not a missing tool |
 | Utilities | rg 15.2.0, jq 1.8.2 installed; sqlite3 CLI absent | SQLite CLI is optional for database tasks |
 | Android users | 0 and 150 | Select an explicit user; shared APK-code changes can affect other profiles |
-| RikkaHub | excp.rikkahub.debug 2.5.1 / code 186, plus two other installations | Select the intended installation; version alone does not prove its source commit |
+| The Trickster's Pocket | excp.rikkahub.debug 2.5.1 / code 186, plus two other installations | Select the intended installation; version alone does not prove its source commit |
 
 `apksigner version` returned **0.9**, while the Termux package version was **37.0.0**;
 these are different fields. Tools/help do not establish a real align→sign→verify→install
@@ -73,7 +73,7 @@ live Frida adapter use still requires the complete trusted baseline.
 
 The contract was checked against PR #1 head `68f0038279735eb33502815cc874f930021abbd7`.
 For external imports, use the 10 individual ZIPs from imports/, not the whole kit
-as one skill. Sync from the selected RikkaHub installation and take skill_root
+as one skill. Sync from the selected The Trickster's Pocket installation and take skill_root
 from its response. Multiple package IDs have separate Termux copies. Do not derive
 paths from versionName or use another package ID's copy.
 
@@ -82,4 +82,4 @@ native RPC smoke and Compiler build; that run did not perform a fresh Java hook.
 Actual lab-APK signing/installation and use of the new kit on the phone were not
 yet confirmed. Do not label phone end-to-end passed from this evidence.
 
-Contract source: [fork guide](https://github.com/shizzgar/rikkahub-agent/blob/68f0038279735eb33502815cc874f930021abbd7/docs/agent-runtime/trajectory-and-termux-skills.ru.md).
+Contract source: [fork guide](https://github.com/shizzgar/The-Tricksters-Pocket/blob/68f0038279735eb33502815cc874f930021abbd7/docs/agent-runtime/trajectory-and-termux-skills.ru.md).

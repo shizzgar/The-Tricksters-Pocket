@@ -18,7 +18,7 @@ server does not establish every hook in every app. `native_stalker_calls` is exp
 
 For a standalone copy, unpack into its own directory under Termux home. The baseline
 Python + frida suffice; Node is needed only for offline tests. Run the following
-from the package root without `su`. In a synchronized RikkaHub skill, use the outer
+from the package root without `su`. In a synchronized The Trickster's Pocket skill, use the outer
 `scripts/frida_pack.py` adapter and external config/output as described by that
 skill's procedure; standalone local.json/runs defaults would modify the skill package.
 

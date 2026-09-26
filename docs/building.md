@@ -22,8 +22,8 @@ Dependency versions are pinned in [libs.versions.toml](../gradle/libs.versions.t
 ## Clone and build
 
 ```sh
-git clone --recurse-submodules https://github.com/shizzgar/rikkahub-agent.git
-cd rikkahub-agent
+git clone --recurse-submodules https://github.com/shizzgar/The-Tricksters-Pocket.git
+cd The-Tricksters-Pocket
 git submodule update --init --recursive
 ```
 

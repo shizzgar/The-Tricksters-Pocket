@@ -134,9 +134,9 @@ fun skillInstallFromUrlTool(
 ): Tool = Tool(
     name = "skill_install_from_url",
     description = """
-        Download and install a skill from a URL. Accepts native (RikkaHub markdown +
+        Download and install a skill from a URL. Accepts native (The Trickster's Pocket markdown +
         frontmatter), openclaw markdown, or Hermes JSON formats. Tool names are best-effort
-        transcoded to RikkaHub equivalents. The user reviews and approves the URL + final
+        transcoded to The Trickster's Pocket equivalents. The user reviews and approves the URL + final
         skill name before save. Newly-installed skills are auto-enabled for the calling
         assistant. Existing names are rejected without overwriting: choose a unique name
         for a copy, or review a revision-bound update in the Skills screen. Returns

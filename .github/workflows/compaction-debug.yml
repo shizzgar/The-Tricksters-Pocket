@@ -101,11 +101,13 @@ jobs:
           --tests 'me.rerere.rikkahub.data.ai.tools.local.WebFetch*Test'
           --tests 'me.rerere.rikkahub.data.ai.tools.local.WebExtractToolTest'
           --tests 'me.rerere.rikkahub.service.ChatServiceTest'
+          --tests 'me.rerere.rikkahub.service.AgentOverlayStateTest'
           --tests 'me.rerere.rikkahub.service.MessageQueueTest'
           --tests 'me.rerere.rikkahub.service.QueuedAttachmentCleanupTest'
           --tests 'me.rerere.rikkahub.service.ConversationSessionTest'
           --tests 'me.rerere.rikkahub.subagent.*Test'
           --tests 'me.rerere.rikkahub.data.repository.TermuxWorkspacePathTest'
+          --tests 'me.rerere.rikkahub.data.repository.TermuxJobPreviewTest'
           --tests 'me.rerere.rikkahub.data.ai.transformers.WorkspaceReminderTransformerTest'
           --tests 'me.rerere.rikkahub.data.ai.tools.WorkspaceToolsTest'
           --tests 'me.rerere.rikkahub.data.datastore.TechnicalAssistantsTest'
@@ -120,6 +122,8 @@ jobs:
           --tests 'me.rerere.rikkahub.data.repository.MemoryRevisionTest'
           --tests 'me.rerere.rikkahub.data.db.fts.WorkSearchTest'
           --tests 'me.rerere.rikkahub.data.files.SkillPathsTest'
+          --tests 'me.rerere.rikkahub.data.ai.tools.local.FileManagerToolTest'
+          --tests 'me.rerere.rikkahub.ui.pages.setting.doctor.DoctorReportTest'
       - name: Build debug APKs
         run: bash ./gradlew --no-daemon --build-cache --max-workers=2 :app:assembleDebug
       - name: Exercise trajectory on an Android emulator and capture screens
@@ -152,14 +156,14 @@ jobs:
           adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
           mkdir -p build/trajectory-qa
           test_status=0
-          adb shell am instrument -w -r -e class me.rerere.rikkahub.ui.pages.chat.TrajectoryInstrumentedTest,me.rerere.rikkahub.ui.pages.extensions.skills.SkillWorkbenchInstrumentedTest,me.rerere.rikkahub.ui.pages.assistant.detail.ToolAccessInstrumentedTest,me.rerere.rikkahub.ui.pages.chat.TracePayloadInstrumentedTest,me.rerere.rikkahub.data.datastore.RebroAssistantInstrumentedTest,me.rerere.rikkahub.data.datastore.NetbroAssistantInstrumentedTest,me.rerere.rikkahub.service.LiveSteeringInstrumentedTest,me.rerere.rikkahub.data.db.ImportedDatabaseReconcilerTest,me.rerere.rikkahub.data.db.migrations.Migration_30_31_Test,me.rerere.rikkahub.data.db.migrations.Migration_31_32_Test,me.rerere.rikkahub.data.db.migrations.Migration_32_33_Test,me.rerere.rikkahub.data.db.migrations.Migration_33_34_Test,me.rerere.rikkahub.data.sync.BackupManagerTest,me.rerere.rikkahub.data.security.DeviceSecretCipherInstrumentedTest,me.rerere.rikkahub.context.SharedPayloadInstrumentedTest,me.rerere.rikkahub.context.ProjectMemorySearchInstrumentedTest,me.rerere.rikkahub.ui.components.ai.ContextUsageInstrumentedTest,me.rerere.rikkahub.ui.components.message.tools.PocketExperienceInstrumentedTest,me.rerere.rikkahub.ui.theme.RebroBrandInstrumentedTest,me.rerere.rikkahub.ui.pages.extensions.workspace.TermuxWorkspaceUiInstrumentedTest,me.rerere.rikkahub.data.ai.tools.local.JavascriptInstrumentedTest excp.rikkahub.debug.test/androidx.test.runner.AndroidJUnitRunner | tee build/trajectory-qa/instrumentation.txt || test_status=$?
+          adb shell am instrument -w -r -e class me.rerere.rikkahub.ui.pages.chat.TrajectoryInstrumentedTest,me.rerere.rikkahub.ui.pages.extensions.skills.SkillWorkbenchInstrumentedTest,me.rerere.rikkahub.ui.pages.assistant.detail.ToolAccessInstrumentedTest,me.rerere.rikkahub.ui.pages.chat.TracePayloadInstrumentedTest,me.rerere.rikkahub.data.datastore.RebroAssistantInstrumentedTest,me.rerere.rikkahub.data.datastore.NetbroAssistantInstrumentedTest,me.rerere.rikkahub.service.LiveSteeringInstrumentedTest,me.rerere.rikkahub.service.AgentOverlayInstrumentedTest,me.rerere.rikkahub.data.db.ImportedDatabaseReconcilerTest,me.rerere.rikkahub.data.db.migrations.Migration_30_31_Test,me.rerere.rikkahub.data.db.migrations.Migration_31_32_Test,me.rerere.rikkahub.data.db.migrations.Migration_32_33_Test,me.rerere.rikkahub.data.db.migrations.Migration_33_34_Test,me.rerere.rikkahub.data.sync.BackupManagerTest,me.rerere.rikkahub.data.security.DeviceSecretCipherInstrumentedTest,me.rerere.rikkahub.context.SharedPayloadInstrumentedTest,me.rerere.rikkahub.context.ProjectMemorySearchInstrumentedTest,me.rerere.rikkahub.ui.components.ai.ContextUsageInstrumentedTest,me.rerere.rikkahub.ui.components.ai.PocketIconInstrumentedTest,me.rerere.rikkahub.ui.components.message.tools.PocketExperienceInstrumentedTest,me.rerere.rikkahub.ui.theme.RebroBrandInstrumentedTest,me.rerere.rikkahub.ui.pages.extensions.workspace.TermuxWorkspaceUiInstrumentedTest,me.rerere.rikkahub.ui.pages.extensions.workspace.TermuxSharedSettingsInstrumentedTest,me.rerere.rikkahub.data.ai.tools.local.JavascriptInstrumentedTest excp.rikkahub.debug.test/androidx.test.runner.AndroidJUnitRunner | tee build/trajectory-qa/instrumentation.txt || test_status=$?
           adb logcat -d -v threadtime > build/trajectory-qa/logcat.txt || true
           grep -Eq '^OK \([0-9]+ tests?\)' build/trajectory-qa/instrumentation.txt || test_status=1
           adb shell wm size 1920x1200
           adb shell wm density 160
           adb shell am instrument -w -r -e class me.rerere.rikkahub.ui.pages.extensions.skills.SkillWorkbenchWideInstrumentedTest excp.rikkahub.debug.test/androidx.test.runner.AndroidJUnitRunner | tee build/trajectory-qa/wide-instrumentation.txt || test_status=$?
           grep -Fq 'OK (1 test)' build/trajectory-qa/wide-instrumentation.txt || test_status=1
-          for name in trajectory-waterfall trajectory-flow trajectory-inspector trajectory-russian-dark skill-workbench-files skill-workbench-editor skill-workbench-binary-ru skill-workbench-wide tool-access-russian trajectory-tools-compact trajectory-messages-compact trajectory-full-export rebro-theme-dark rebro-theme-light termux-workspace-create bro-subagent-profiles pocket-skill-markdown pocket-skill-code pocket-child-chat pocket-task-dashboard pocket-task-results pocket-context-ring-and-details pocket-context-after-compaction; do
+          for name in trajectory-waterfall trajectory-flow trajectory-inspector trajectory-russian-dark skill-workbench-files skill-workbench-editor skill-workbench-binary-ru skill-workbench-wide tool-access-russian trajectory-tools-compact trajectory-messages-compact trajectory-full-export rebro-theme-dark rebro-theme-light termux-workspace-create bro-subagent-profiles pocket-skill-markdown pocket-skill-code pocket-child-chat pocket-task-dashboard pocket-task-results pocket-context-ring-and-details pocket-context-after-compaction pocket-icons-light pocket-icons-dark termux-workspace-shared-settings pocket-agent-overlay-light pocket-agent-overlay-dark-compacted pocket-agent-overlay-unknown pocket-task-review-picker pocket-task-opt-in; do
             adb exec-out run-as excp.rikkahub.debug cat "files/trajectory-qa/$name.png" > "build/trajectory-qa/$name.png" || test_status=1
           done
           cp /tmp/trajectory-emulator.log build/trajectory-qa/emulator.log
@@ -183,13 +187,13 @@ jobs:
           test "${#apks[@]}" -eq 1
           "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose "${apks[0]}"
           mkdir -p build/compaction-delivery
-          cp "${apks[0]}" build/compaction-delivery/rikkahub-compaction-arm64-debug.apk
+          cp "${apks[0]}" build/compaction-delivery/tricksters-pocket-arm64-debug.apk
           git rev-parse HEAD > build/compaction-delivery/COMMIT.txt
           cd build/compaction-delivery
-          sha256sum rikkahub-compaction-arm64-debug.apk > SHA256SUMS
+          sha256sum tricksters-pocket-arm64-debug.apk > SHA256SUMS
       - uses: actions/upload-artifact@v7
         with:
-          name: rikkahub-compaction-arm64-debug
+          name: tricksters-pocket-arm64-debug
           path: build/compaction-delivery/
           if-no-files-found: error
           retention-days: 14

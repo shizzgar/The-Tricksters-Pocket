@@ -11,7 +11,7 @@
 - Миграция базы 31→32 сохраняет прежние Linux workspaces и настройки; восстановление резервных копий учитывает новую схему.
 - Release variant с оптимизацией, отдельным ID excp.rikkahub.rebro и подписью постоянным ключом вне репозитория. Код версии 189.
 
-[CI для `3bf0436`](https://github.com/shizzgar/rikkahub-agent/actions/runs/36057905938) прошёл: **828 JVM, 65 Python и 36 Android-тестов**, оптимизированная сборка release с R8 и проверка package ID / отсутствия debuggable. Готовый ARM64 APK подписан постоянным ключом; подписи v2/v3 проверены. [SHA-256 и сертификат](docs/releases/2.5.1-rebro.4.json). [Настройка и границы проверки](docs/termux-workspaces-and-release.md).
+[CI для `3bf0436`](https://github.com/shizzgar/The-Tricksters-Pocket/actions/runs/36057905938) прошёл: **828 JVM, 65 Python и 36 Android-тестов**, оптимизированная сборка release с R8 и проверка package ID / отсутствия debuggable. Готовый ARM64 APK подписан постоянным ключом; подписи v2/v3 проверены. [SHA-256 и сертификат](docs/releases/2.5.1-rebro.4.json). [Настройка и границы проверки](docs/termux-workspaces-and-release.md).
 
 ## 2.5.1-rebro.3 — NetBro и английские skills
 
@@ -27,8 +27,8 @@
 [Настройка и состав NetBro](docs/agent-runtime/netbro-assistant.ru.md).
 
 Проверено на `92451a6`: **808 JVM, 46 Python и 32 Android-теста**, подпись ARM64 APK.
-[Успешный CI](https://github.com/shizzgar/rikkahub-agent/actions/runs/36023590276) ·
-[Установочный архив](https://github.com/shizzgar/rikkahub-agent/actions/runs/36023590276/artifacts/10819037896).
+[Успешный CI](https://github.com/shizzgar/The-Tricksters-Pocket/actions/runs/36023590276) ·
+[Установочный архив](https://github.com/shizzgar/The-Tricksters-Pocket/actions/runs/36023590276/artifacts/10819037896).
 
 ## 2026-09-24 — ReBro Blue и исправления по реальным трассам
 
@@ -40,7 +40,7 @@
 - В экспорт трассы добавлена ревизия исходников сборки. Приватные трассы в репозиторий не включены.
 - Версия `2.5.1-rebro.2`, код 187. Сохранённые темы, настройки tools и пользовательские промпты не заменяются.
 
-Проверенная ревизия: [`8ded6be`](https://github.com/shizzgar/rikkahub-agent/commit/8ded6be9b14f34b6bae92c5fc161a1aa36b18189). [CI: 799 JVM + 21 Python + 30 Android тестов](https://github.com/shizzgar/rikkahub-agent/actions/runs/36005633948), 14 снимков Android-интерфейса и проверка подписи APK. [Скачать ARM64 APK в ZIP](https://github.com/shizzgar/rikkahub-agent/actions/runs/36005633948/artifacts/10811427234).
+Проверенная ревизия: [`8ded6be`](https://github.com/shizzgar/The-Tricksters-Pocket/commit/8ded6be9b14f34b6bae92c5fc161a1aa36b18189). [CI: 799 JVM + 21 Python + 30 Android тестов](https://github.com/shizzgar/The-Tricksters-Pocket/actions/runs/36005633948), 14 снимков Android-интерфейса и проверка подписи APK. [Скачать ARM64 APK в ZIP](https://github.com/shizzgar/The-Tricksters-Pocket/actions/runs/36005633948/artifacts/10811427234).
 
 [Решения по upstream](docs/upstream-review-2026-09-24.md) · [Разбор трасс и ограничения выводов](docs/trace-review-2026-09-24.md).
 
@@ -52,7 +52,7 @@
 - Добавлены подтверждение сохранения перед продолжением, стабильные ID сообщений, освобождение очереди при ошибке/отмене, сохранение поведения Stop и событие `input.applied` в полной трассе.
 - Ожидание повторной попытки при временном сбое сети пробуждается при новом уточнении.
 
-Проверенная ревизия: [`81fea68`](https://github.com/shizzgar/rikkahub-agent/commit/81fea68a154782d4ab6e8fbadee2278e51cbb565). [CI: 718 JVM + 21 Python + 20 Android тестов](https://github.com/shizzgar/rikkahub-agent/actions/runs/35875085640). Семь новых Android-проверок покрывают границы операций, подтверждение tools, тот же запуск задачи без автономного режима, Stop и состояния очереди.
+Проверенная ревизия: [`81fea68`](https://github.com/shizzgar/The-Tricksters-Pocket/commit/81fea68a154782d4ab6e8fbadee2278e51cbb565). [CI: 718 JVM + 21 Python + 20 Android тестов](https://github.com/shizzgar/The-Tricksters-Pocket/actions/runs/35875085640). Семь новых Android-проверок покрывают границы операций, подтверждение tools, тот же запуск задачи без автономного режима, Stop и состояния очереди.
 
 ## 2026-09-23 — полный экспорт трассы и оформление репозитория
 
@@ -62,7 +62,7 @@
 - Руководства по началу работы и сборке, карта документации, правила участия и формы баг-репортов.
 - CI включён для основной ветки; правки только документации не запускают полную сборку APK.
 
-Проверенная ревизия: [`a8c800b`](https://github.com/shizzgar/rikkahub-agent/commit/a8c800b67ae1b2890682466af44d5b85c450ff55). [CI: 688 JVM + 21 Python + 13 Android тестов](https://github.com/shizzgar/rikkahub-agent/actions/runs/35861320725).
+Проверенная ревизия: [`a8c800b`](https://github.com/shizzgar/The-Tricksters-Pocket/commit/a8c800b67ae1b2890682466af44d5b85c450ff55). [CI: 688 JVM + 21 Python + 13 Android тестов](https://github.com/shizzgar/The-Tricksters-Pocket/actions/runs/35861320725).
 
 ## 2026-09-22 — ReBro и полный kit
 
@@ -72,7 +72,7 @@
 - Миграция добавляет профиль один раз, сохраняет пользовательские правки и не подключает чужие persona-skills.
 - Исправлено исключение vendored `AGENTS.md` правилом `.gitignore`; Android-тест сверяет полный комплект и хеши.
 
-Проверенная ревизия: [`3bb42b0`](https://github.com/shizzgar/rikkahub-agent/commit/3bb42b0c2487923c5beddde826c0377899e4f207). [CI: 680 JVM + 21 Python + 12 Android тестов](https://github.com/shizzgar/rikkahub-agent/actions/runs/35792969182).
+Проверенная ревизия: [`3bb42b0`](https://github.com/shizzgar/The-Tricksters-Pocket/commit/3bb42b0c2487923c5beddde826c0377899e4f207). [CI: 680 JVM + 21 Python + 12 Android тестов](https://github.com/shizzgar/The-Tricksters-Pocket/actions/runs/35792969182).
 
 ## Предыдущие этапы нашей ветки
 
@@ -100,4 +100,4 @@
 - Исправлено ложное обнаружение изменения диалога из-за служебных обновлений; реальные изменения сжимаемого источника по-прежнему блокируют устаревшее сохранение.
 - Структурированные карточки Termux, web-fetch и compaction с корректным отображением статусов и результатов.
 
-Полная история и отдельные исправления доступны в [commits](https://github.com/shizzgar/rikkahub-agent/commits/master/).
+Полная история и отдельные исправления доступны в [commits](https://github.com/shizzgar/The-Tricksters-Pocket/commits/master/).

@@ -177,6 +177,17 @@ class FileManagerToolTest {
 
     // ========== write_text_file ==========
 
+    @Test fun `write_text_file creates current public folders but not similarly named folders`() {
+        for (storage in listOf("/sdcard", "/storage/emulated/0")) {
+            for (collection in listOf("Documents", "Download", "Pictures")) {
+                val current = "$storage/$collection/TrickstersPocket/nested/note.txt"
+                assertTrue(current, shouldAutoCreateParent(current, current))
+                val lookalike = "$storage/$collection/TrickstersPocketOther/note.txt"
+                assertFalse(lookalike, shouldAutoCreateParent(lookalike, lookalike))
+            }
+        }
+    }
+
     @Test fun `write_text_file auto creates RikkaHub shared-storage parents`() {
         assertTrue(
             shouldAutoCreateParent(

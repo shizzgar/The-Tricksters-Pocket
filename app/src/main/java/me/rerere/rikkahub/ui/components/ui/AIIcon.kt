@@ -64,8 +64,18 @@ fun AutoAIIcon(
     loading: Boolean = false,
     color: Color = MaterialTheme.colorScheme.secondaryContainer,
 ) {
-    val path = remember(name) { computeAIIconByName(name) } ?: run {
-        TextAvatar(text = name, modifier = modifier, loading = loading, color = color)
+    val path = remember(name) { computeAIIconByName(name) }
+    if (path == null || path == "pocket.svg") {
+        Surface(
+            modifier = modifier.size(24.dp),
+            shape = rememberAvatarShape(loading),
+            color = color,
+        ) {
+            PocketIcon(
+                modifier = Modifier.padding(4.dp),
+                contentDescription = name.takeIf(String::isNotBlank),
+            )
+        }
         return
     }
     AIIcon(

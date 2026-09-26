@@ -449,8 +449,7 @@ private fun WorkspaceBasicPage(
         }
 
         if (workspace?.termuxPath != null) {
-            item { Text(workspace.termuxPath) }
-            item { Text(stringResource(R.string.workspace_termux_link_hint)) }
+            item { WorkspaceTermuxSettings(workspace.termuxPath) }
         } else {
         item {
             CardGroup(

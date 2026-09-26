@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="termux_shared_settings_title">Общие настройки Termux</string>
+    <string name="termux_shared_settings_description">Изменения сразу действуют для отдельной интеграции Termux и всех рабочих пространств Termux. Рабочая папка и разрешения инструментов задаются отдельно для каждого пространства.</string>
+    <string name="termux_workspace_connection_title">Рабочее пространство Termux</string>
+    <string name="termux_workspace_directory_description">Начальная папка этого пространства. В чате можно выбрать вложенную папку; настройка рабочей папки отдельной интеграции Termux сюда не применяется.</string>
+    <string name="termux_workspace_connection_action">Подключение и разрешения</string>
+    <string name="termux_workspace_connection_description">Открыть настройку Termux, проверить доступ или соединение.</string>
+    <string name="termux_shared_turn_budget_description">Общий лимит для всех ассистентов и инструментов, включая рабочие пространства. Максимальная длительность одного хода: 1–60 минут.</string>
+    <string name="termux_shared_steps_description">Общий лимит для всех ассистентов и инструментов, включая рабочие пространства. Максимум итераций вызова инструментов за ход: 1–500.</string>
+    <string name="termux_shared_timeout_description">Ожидание результата команды и обычной команды в консоли рабочего пространства: 5–600 секунд. У фоновых заданий свой срок выполнения.</string>
+    <string name="termux_shared_stdout_description">Предпросмотр вывода команды и консоли рабочего пространства в UTF-8: 1 000–64 000 байт. Остальной вывод доступен в результате команды или журнале задания.</string>
+    <string name="termux_shared_stderr_description">Предпросмотр ошибок команды и консоли рабочего пространства в UTF-8: 500–16 000 байт. Остальной вывод доступен в результате команды или журнале задания.</string>
+    <string name="termux_shared_apt_description">Убирать интерактивные запросы менеджера пакетов в командах с захватом вывода и в консоли рабочего пространства. Интерактивные сессии терминала работают как обычно.</string>
+</resources>

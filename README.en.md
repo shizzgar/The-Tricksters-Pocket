@@ -10,7 +10,7 @@ An Android assistant with checkpointed agent tasks, a visual trajectory inspecto
 a skill workspace, and the PocketBro, ThinkBro, ReBro, NetBro and OrchBro crew.
 
 [![Android 8+](https://img.shields.io/badge/Android-8%2B-3DDC84?style=flat-square&logo=android&logoColor=white)](docs/getting-started.md)
-[![Runtime CI](https://github.com/shizzgar/rikkahub-agent/actions/workflows/compaction-debug.yml/badge.svg?branch=master)](https://github.com/shizzgar/rikkahub-agent/actions/workflows/compaction-debug.yml)
+[![Runtime CI](https://github.com/shizzgar/The-Tricksters-Pocket/actions/workflows/compaction-debug.yml/badge.svg?branch=master)](https://github.com/shizzgar/The-Tricksters-Pocket/actions/workflows/compaction-debug.yml)
 [![AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-528FDC?style=flat-square)](LICENSE)
 
 [Русский](README.md) · **English**
@@ -141,7 +141,7 @@ RikkaHub and ExTV provide the multi-provider chat client, MCP, subagents, schedu
 
 ## Validation and current boundaries
 
-The [successful CI run for `3bf0436`](https://github.com/shizzgar/rikkahub-agent/actions/runs/36057905938) passed **828 JVM, 65 Python and 36 Android tests** and built an optimized release with R8. It covers database migration, saved settings, linked Bro profiles, Termux file RPC boundaries, branding and Android UI. The emulator suite runs the debug variant; release is built separately. The real phone’s Termux connection still needs a device check after installation. [Validation boundary](docs/termux-workspaces-and-release.md#validation-boundary).
+The [successful CI run for `3bf0436`](https://github.com/shizzgar/The-Tricksters-Pocket/actions/runs/36057905938) passed **828 JVM, 65 Python and 36 Android tests** and built an optimized release with R8. It covers database migration, saved settings, linked Bro profiles, Termux file RPC boundaries, branding and Android UI. The emulator suite runs the debug variant; release is built separately. The real phone’s Termux connection still needs a device check after installation. [Validation boundary](docs/termux-workspaces-and-release.md#validation-boundary).
 
 - Traces are local and may contain private prompts, commands and results. Inspect exports before sharing.
 - Only provider-returned reasoning can be recorded. Deterministic replay and reconstruction of previously unrecorded events are not implemented.

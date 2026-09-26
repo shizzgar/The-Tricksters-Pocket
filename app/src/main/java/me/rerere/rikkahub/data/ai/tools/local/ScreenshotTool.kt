@@ -25,7 +25,7 @@ import java.util.Date
 import java.util.Locale
 
 private const val SCREENSHOT_CACHE_DIR = "screenshots"
-private const val PICTURES_SUBDIR = "RikkaHub/Screenshots"
+private const val PICTURES_SUBDIR = "TrickstersPocket/Screenshots"
 private const val PRUNE_OLDER_THAN_MS = 60L * 60L * 1000L  // 1 hour — cache only
 
 private fun pruneOldCacheScreenshots(dir: File) {
@@ -37,7 +37,7 @@ private fun pruneOldCacheScreenshots(dir: File) {
 
 fun takeScreenshotTool(context: Context): Tool = Tool(
     name = "take_screenshot",
-    description = "Capture the current display via AccessibilityService and return it as a vision attachment. PNG also saved to Pictures/RikkaHub/Screenshots/ — gallery_path in the result is the on-device absolute path. Secure surfaces (banking, DRM, password fields) error gracefully. OS-rate-limited to ~1/sec. The result includes screen_state (foreground package, shade_open, display size). For \"did my action work\" checks prefer the \"after\" object that action tools already return; screenshot only when you need visual detail.",
+    description = "Capture the current display via AccessibilityService and return it as a vision attachment. PNG also saved to Pictures/TrickstersPocket/Screenshots/ — gallery_path in the result is the on-device absolute path. Secure surfaces (banking, DRM, password fields) error gracefully. OS-rate-limited to ~1/sec. The result includes screen_state (foreground package, shade_open, display size). For \"did my action work\" checks prefer the \"after\" object that action tools already return; screenshot only when you need visual detail.",
     parameters = {
         InputSchema.Obj(
             properties = buildJsonObject {
@@ -92,7 +92,7 @@ fun takeScreenshotTool(context: Context): Tool = Tool(
                         }
                     }
 
-                    // 2) Save a user-visible copy to Pictures/RikkaHub/Screenshots — visible in
+                    // 2) Save a user-visible copy to Pictures/TrickstersPocket/Screenshots — visible in
                     //    Gallery, the Files app, and the list_files / find_files tools.
                     val galleryPath: String? = saveToGallery(context, res.bitmap, displayName)
                     res.bitmap.recycle()
@@ -128,7 +128,7 @@ fun takeScreenshotTool(context: Context): Tool = Tool(
 )
 
 /**
- * Persist [bitmap] as a PNG into the device gallery at Pictures/RikkaHub/Screenshots/.
+ * Persist [bitmap] as a PNG into the device gallery at Pictures/TrickstersPocket/Screenshots/.
  *
  * Q+ (API 29+): use MediaStore (no permission required for own-app inserts; visible to
  * the user's Gallery app via media indexing).

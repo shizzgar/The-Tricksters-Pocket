@@ -1,4 +1,4 @@
-# RikkaHub: execution and skill access
+# The Trickster's Pocket: execution and skill access
 
 This contract was checked against the PR #1 guide at head
 `d7210a5dd2782f7da9b8c4eefb1d16c02921261d`. The installed APK may be another build;
@@ -17,7 +17,7 @@ connected**. Disabling use_skill also hides the other skill tools. The agent can
 create the first skill through an invisible skill_create: connect one in the UI first.
 A system prompt does not enable tools or change exclusions.
 
-Three RikkaHub package IDs were observed on the original phone. Their Termux copies
+Three compatible Android package IDs were observed on the original phone. Their Termux copies
 are separate; do not use skill_root from another installation. Imported skill version
 and app APK version are distinct. A new sync does not replace files used by a running job.
 
@@ -57,4 +57,4 @@ Tool availability may change between requests and is checked again on invocation
 Do not execute a disabled tool through old history or another private path.
 Writing a skill does not execute its scripts: sync after an intentional package change.
 
-Source: [guide at the reviewed head](https://github.com/shizzgar/rikkahub-agent/blob/d7210a5dd2782f7da9b8c4eefb1d16c02921261d/docs/agent-runtime/trajectory-and-termux-skills.ru.md).
+Source: [guide at the reviewed head](https://github.com/shizzgar/The-Tricksters-Pocket/blob/d7210a5dd2782f7da9b8c4eefb1d16c02921261d/docs/agent-runtime/trajectory-and-termux-skills.ru.md).

@@ -10,7 +10,7 @@ Android-ассистент с управляемым агентским цикл
 мастерской навыков и командой PocketBro, ThinkBro, ReBro, NetBro и OrchBro.
 
 [![Android 8+](https://img.shields.io/badge/Android-8%2B-3DDC84?style=flat-square&logo=android&logoColor=white)](docs/getting-started.md)
-[![Runtime CI](https://github.com/shizzgar/rikkahub-agent/actions/workflows/compaction-debug.yml/badge.svg?branch=master)](https://github.com/shizzgar/rikkahub-agent/actions/workflows/compaction-debug.yml)
+[![Runtime CI](https://github.com/shizzgar/The-Tricksters-Pocket/actions/workflows/compaction-debug.yml/badge.svg?branch=master)](https://github.com/shizzgar/The-Tricksters-Pocket/actions/workflows/compaction-debug.yml)
 [![AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-528FDC?style=flat-square)](LICENSE)
 
 **Русский** · [English](README.en.md)
@@ -151,7 +151,7 @@ Android-ассистент с управляемым агентским цикл
 
 ## Проверки и границы
 
-Для версии `3bf0436` [успешный CI](https://github.com/shizzgar/rikkahub-agent/actions/runs/36057905938) подтвердил **828 JVM-тестов, 65 Python-тестов и 36 Android-тестов**, а также сборку оптимизированного release с R8. Проверены миграция БД, сохранение пользовательских настроек, связанные профили Bro, защита файлового моста Termux, ресурсы брендинга и Android UI. Эмулятор проверяет debug-вариант; release собирается отдельно. Работа с Termux на реальном телефоне требует проверки после установки. [Подробности](docs/termux-workspaces-and-release.md#validation-boundary).
+Для версии `3bf0436` [успешный CI](https://github.com/shizzgar/The-Tricksters-Pocket/actions/runs/36057905938) подтвердил **828 JVM-тестов, 65 Python-тестов и 36 Android-тестов**, а также сборку оптимизированного release с R8. Проверены миграция БД, сохранение пользовательских настроек, связанные профили Bro, защита файлового моста Termux, ресурсы брендинга и Android UI. Эмулятор проверяет debug-вариант; release собирается отдельно. Работа с Termux на реальном телефоне требует проверки после установки. [Подробности](docs/termux-workspaces-and-release.md#validation-boundary).
 
 - Трасса хранится локально и содержит промпты, команды и результаты. Перед публикацией экспорта проверьте его содержимое.
 - Записывается reasoning, который вернул провайдер. Полного детерминированного replay и реконструкции старых незаписанных событий нет.
