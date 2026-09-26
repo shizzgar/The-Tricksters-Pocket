@@ -75,9 +75,9 @@ internal fun SkillPackageInfo(name: String, onDismiss: () -> Unit) {
                 if (data.environment.isNotEmpty()) item { Text(stringResource(R.string.pocket_skill_environment, data.environment.joinToString(", "))) }
                 item { Text(stringResource(R.string.pocket_skill_readiness_hint), style = MaterialTheme.typography.bodySmall) }
                 item { HorizontalDivider() }
-                item { SelectionContainer { Text(stringResource(R.string.pocket_skill_source, data.source), style = MaterialTheme.typography.bodySmall) } }
+                item { SelectionContainer { Text(stringResource(R.string.pocket_skill_package_source, data.source), style = MaterialTheme.typography.bodySmall) } }
                 data.version?.let { item { Text(stringResource(R.string.pocket_skill_version, it)) } }
-                item { SelectionContainer { Text(stringResource(R.string.pocket_skill_revision, data.revision), style = MaterialTheme.typography.bodySmall) } }
+                item { SelectionContainer { Text(stringResource(R.string.pocket_skill_package_revision, data.revision), style = MaterialTheme.typography.bodySmall) } }
                 item { Text(stringResource(R.string.pocket_skill_tests), style = MaterialTheme.typography.titleMedium) }
                 item { Text(stringResource(R.string.pocket_skill_test_disclaimer), style = MaterialTheme.typography.bodySmall) }
                 if (data.history.isEmpty()) item { Text(stringResource(R.string.pocket_skill_no_tests)) }

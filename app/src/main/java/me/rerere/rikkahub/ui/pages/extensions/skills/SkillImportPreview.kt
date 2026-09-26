@@ -28,10 +28,10 @@ internal fun SkillImportPreview(proposal: SkillImportProposal, busy: Boolean, on
                 Text(proposal.name, style = MaterialTheme.typography.titleMedium)
                 LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     item {
-                        SelectionContainer { Text(stringResource(R.string.pocket_skill_source, proposal.source), style = MaterialTheme.typography.bodySmall) }
+                        SelectionContainer { Text(stringResource(R.string.pocket_skill_package_source, proposal.source), style = MaterialTheme.typography.bodySmall) }
                         proposal.version?.let { Text(stringResource(R.string.pocket_skill_version, it), style = MaterialTheme.typography.bodySmall) }
                         Text(stringResource(R.string.skill_workbench_inventory, proposal.files.size, skillSize(proposal.bytes)), style = MaterialTheme.typography.bodySmall)
-                        proposal.expectedRevision?.let { Text(stringResource(R.string.pocket_skill_revision, it.take(16)), style = MaterialTheme.typography.bodySmall) }
+                        proposal.expectedRevision?.let { Text(stringResource(R.string.pocket_skill_package_revision, it.take(16)), style = MaterialTheme.typography.bodySmall) }
                         val requirements = proposal.requirements
                         if (requirements.tools.isNotEmpty() || requirements.anyTools.isNotEmpty()) Text(stringResource(R.string.pocket_skill_required_tools, (requirements.tools + requirements.anyTools.joinToString(" / ").takeIf { it.isNotBlank() }.orEmpty()).filter(String::isNotBlank).joinToString(", ")), style = MaterialTheme.typography.bodySmall)
                         if (requirements.environment.isNotEmpty()) Text(stringResource(R.string.pocket_skill_environment, requirements.environment.joinToString(", ")), style = MaterialTheme.typography.bodySmall)

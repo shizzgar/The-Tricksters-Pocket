@@ -20,12 +20,14 @@ object AuxiliaryTokenUsageStore {
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private var root: File? = null
     private val cache = mutableMapOf<String, Meter>()
+    private val deleted = mutableSetOf<String>()
     @Synchronized fun initialize(filesDir: File) {
         val target = File(filesDir, "auxiliary-token-usage")
         if (root == target) return
         check(target.isDirectory || target.mkdirs())
         root = target
         cache.clear()
+        deleted.clear()
     }
     private fun file(id: String): File? {
         require(runCatching { java.util.UUID.fromString(id) }.isSuccess)
@@ -35,6 +37,7 @@ object AuxiliaryTokenUsageStore {
         file(id)?.takeIf { it.exists() }?.let { json.decodeFromString<Meter>(it.readText()) } ?: Meter()
     }
     @Synchronized fun record(conversationId: String, requestId: String, usage: TokenUsage?) {
+        if (conversationId in deleted) return
         val old = read(conversationId)
         if (requestId in old.requests) return
         val input = usage?.promptTokens?.toLong()?.coerceAtLeast(0) ?: 0
@@ -54,5 +57,5 @@ object AuxiliaryTokenUsageStore {
     @Synchronized fun totals(conversationId: String): TokenBudgetTracker.Totals = read(conversationId).let {
         TokenBudgetTracker.Totals(it.input, it.output, it.total, it.maximum, it.measured, it.unknown)
     }
-    @Synchronized fun delete(conversationId: String) { cache.remove(conversationId); file(conversationId)?.delete() }
+    @Synchronized fun delete(conversationId: String) { deleted.add(conversationId); cache.remove(conversationId); file(conversationId)?.delete() }
 }

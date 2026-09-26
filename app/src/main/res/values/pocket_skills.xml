@@ -1,8 +1,8 @@
 <resources>
   <string name="pocket_skill_import_preview">Review skill import</string>
-  <string name="pocket_skill_source">Source: %1$s</string>
+  <string name="pocket_skill_package_source">Source: %1$s</string>
   <string name="pocket_skill_version">Version: %1$s</string>
-  <string name="pocket_skill_revision">Revision: %1$s</string>
+  <string name="pocket_skill_package_revision">Revision: %1$s</string>
   <string name="pocket_skill_required_tools">Required tools: %1$s</string>
   <string name="pocket_skill_environment">Environment not yet verified: %1$s. Run the skill’s environment preflight to check installed dependencies.</string>
   <string name="pocket_skill_new_hint">Review the files before installing. Importing does not execute scripts.</string>

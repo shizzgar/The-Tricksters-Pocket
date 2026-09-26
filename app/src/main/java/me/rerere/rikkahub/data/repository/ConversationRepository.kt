@@ -409,6 +409,8 @@ class ConversationRepository(
         org.koin.core.context.GlobalContext.getOrNull()?.getOrNull<me.rerere.rikkahub.subagent.SubAgentRegistry>()
             ?.forgetConversation(conversation.id.toString())
         me.rerere.rikkahub.data.ai.AgentTaskPolicy.clear(conversation.id.toString())
+        me.rerere.rikkahub.costguards.AuxiliaryTokenUsageStore.initialize(context.filesDir)
+        me.rerere.rikkahub.costguards.AuxiliaryTokenUsageStore.delete(conversation.id.toString())
         me.rerere.rikkahub.data.task.TaskArtifactStore.at(context.filesDir).removeConversation(conversation.id.toString())
         me.rerere.rikkahub.data.ai.SessionJournal.at(context.filesDir).delete(conversation.id.toString())
         org.koin.core.context.GlobalContext.getOrNull()?.getOrNull<ProjectRepository>()?.removeConversation(conversation.id.toString())

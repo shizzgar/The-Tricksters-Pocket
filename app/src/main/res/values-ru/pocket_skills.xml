@@ -1,8 +1,8 @@
 <resources>
   <string name="pocket_skill_import_preview">Проверка импорта скилла</string>
-  <string name="pocket_skill_source">Источник: %1$s</string>
+  <string name="pocket_skill_package_source">Источник: %1$s</string>
   <string name="pocket_skill_version">Версия: %1$s</string>
-  <string name="pocket_skill_revision">Ревизия: %1$s</string>
+  <string name="pocket_skill_package_revision">Ревизия: %1$s</string>
   <string name="pocket_skill_required_tools">Нужные инструменты: %1$s</string>
   <string name="pocket_skill_environment">Окружение ещё не проверено: %1$s. Запустите проверку окружения скилла, чтобы проверить установленные зависимости.</string>
   <string name="pocket_skill_new_hint">Проверьте файлы перед установкой. При импорте скрипты не запускаются.</string>

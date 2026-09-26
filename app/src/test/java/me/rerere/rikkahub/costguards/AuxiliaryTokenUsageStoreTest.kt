@@ -24,6 +24,7 @@ class AuxiliaryTokenUsageStoreTest {
         assertEquals(1, totals.messageCount)
         assertEquals(1, totals.unmeasuredMessages)
         AuxiliaryTokenUsageStore.delete(id)
+        AuxiliaryTokenUsageStore.record(id, "late-completion", usage)
         assertEquals(0L, AuxiliaryTokenUsageStore.totals(id).totalTokens)
     }
 }
