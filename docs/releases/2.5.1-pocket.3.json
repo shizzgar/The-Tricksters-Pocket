@@ -1,0 +1,37 @@
+{
+  "version": "2.5.1-pocket.3",
+  "version_code": 192,
+  "package_id": "excp.rikkahub.rebro",
+  "architecture": "arm64-v8a",
+  "source_commit": "e181596ea16824796fd7776e5617c1fbc77f187b",
+  "workflow_run": "https://github.com/shizzgar/The-Tricksters-Pocket/actions/runs/36238655709",
+  "apk_file": "Tricksters-Pocket-2.5.1-pocket.3-arm64-release.apk",
+  "apk_bytes": 57791686,
+  "apk_sha256": "1d3617f2fb472f60c37704bb787d139e9a4c0b4c57c58b9c8578630d824e7feb",
+  "unsigned_apk_sha256": "1e86b59219d04ee742b1577d643b1c51dfe6a90b3aeaa5a39da24cb97b5cf098",
+  "signer_certificate_sha256": "0FAC079E040D97CCE1786CEB21DC0855C0D09B2DF3222A43E71C46DD2C517805",
+  "signature_schemes": [
+    "v2",
+    "v3"
+  ],
+  "debuggable": false,
+  "bundled_assets_verified": [
+    "branding/devbro-avatar.webp",
+    "branding/opsbro-avatar.webp",
+    "branding/verifybro-avatar.webp"
+  ],
+  "tests": {
+    "jvm": 982,
+    "python": 65,
+    "android": 66,
+    "failures": 0,
+    "skipped": 0
+  },
+  "emulator": {
+    "api": 35,
+    "variant": "debug"
+  },
+  "physical_device_termux_verified": false,
+  "build_reports_artifact_id": 10905492091,
+  "build_reports_artifact_digest": "sha256:8b4d9653ac377538c924223020932b21c644002cece0a7c0eb377cbfc6af70d9"
+}

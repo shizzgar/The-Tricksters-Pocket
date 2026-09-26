@@ -38,4 +38,4 @@ Workspace edits use revision checks and atomic saves. External shell writers are
 
 ## Release validation
 
-The release package remains `excp.rikkahub.rebro`, version code 192. CI runs JVM tests, Android integration tests and screenshot fixtures, and builds an unsigned optimized ARM64 APK. Final validation results and signing provenance are recorded only after those checks finish. The existing ReBro signing key is required for in-place updates.
+The release package remains `excp.rikkahub.rebro`, version code 192. CI runs JVM tests, Android integration tests and screenshot fixtures, and builds an unsigned optimized ARM64 APK. Validation completed on commit `e181596ea16824796fd7776e5617c1fbc77f187b`: 982 JVM tests, 65 Python tests and 66 Android tests passed with no failures or skipped tests. Context gauges, skill rendering and task-result screens were visually inspected. The optimized ARM64 APK was signed locally with the existing ReBro key; the certificate and APK v2/v3 signatures were verified. See the [release manifest](releases/2.5.1-pocket.3.json) for hashes and build provenance.
