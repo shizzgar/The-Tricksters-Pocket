@@ -10,8 +10,8 @@
     <string name="task_message">Open chat / send message</string>
     <string name="task_stop_one">Stop this chat</string>
     <string name="task_stop_all">Stop whole task</string>
-    <string name="task_verify">Verify with VerifyBro</string>
-    <string name="task_verify_missing">VerifyBro is unavailable. Restore the built-in assistant to request a review.</string>
+    <string name="task_verify">Review results…</string>
+    <string name="task_verify_missing">No reviewer is available. Choose an existing assistant or add one in assistant settings.</string>
     <string name="task_projects">Projects</string>
     <string name="task_open">Open</string>
     <string name="task_export">Save a copy</string>
@@ -37,4 +37,18 @@
     <string name="task_brief_saved">Goal and criteria saved</string>
     <string name="task_workspace">Workspace: %1$s</string>
     <string name="task_result_source_chat">Source chat</string>
+    <string name="task_entry_hint">Set a goal, define acceptance criteria, and inspect results.</string>
+    <string name="task_define">Set a task</string>
+    <string name="task_define_hint">The goal and criteria guide the next messages in this chat and its child chats. Saving pins the task above the message box.</string>
+    <string name="task_set">Set task</string>
+    <string name="task_open_results">Open results and history</string>
+    <string name="task_inactive_hint">No active task. Use + in the chat to set or resume one. Previous results remain available.</string>
+    <string name="task_close">Close task</string>
+    <string name="task_close_hint">Hide the task card and stop applying its goal to future requests. Results and chat history are kept. Running agents continue; use Stop to stop them.</string>
+    <string name="task_load_error">Could not load task details.</string>
+    <string name="task_review_title">Review</string>
+    <string name="task_review_choose">Choose a reviewer</string>
+    <string name="task_review_hint">Choose any assistant. A separate child chat will open with the goal, evidence, and a draft review request. Review tools are restricted to reading; sending the request is your choice.</string>
+    <string name="task_review_prepare">Prepare review</string>
+    <string name="task_review_selected">Last reviewer: %1$s</string>
 </resources>

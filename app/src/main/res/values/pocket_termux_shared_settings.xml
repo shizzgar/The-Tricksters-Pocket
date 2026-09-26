@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="termux_shared_settings_title">Shared Termux settings</string>
+    <string name="termux_shared_settings_description">Changes apply immediately to standalone Termux and every Termux workspace. The working directory and tool approvals belong to each workspace.</string>
+    <string name="termux_workspace_connection_title">Termux workspace</string>
+    <string name="termux_workspace_directory_description">Default starting directory for this workspace. The assistant can select a subdirectory in chat; the standalone Termux working-directory setting does not change it.</string>
+    <string name="termux_workspace_connection_action">Connection and permissions</string>
+    <string name="termux_workspace_connection_description">Open Termux setup, check access, or test the connection.</string>
+    <string name="termux_shared_turn_budget_description">Shared by all assistants and tools, including workspaces. Maximum duration of one turn: 1–60 minutes.</string>
+    <string name="termux_shared_steps_description">Shared by all assistants and tools, including workspaces. Maximum tool-call iterations in one turn: 1–500.</string>
+    <string name="termux_shared_timeout_description">Default wait for captured commands and foreground workspace console commands: 5–600 seconds. Durable background jobs have their own lifetime.</string>
+    <string name="termux_shared_stdout_description">UTF-8 output preview for captured commands and the workspace console: 1,000–64,000 bytes. More output remains available in command output or job logs.</string>
+    <string name="termux_shared_stderr_description">UTF-8 error preview for captured commands and the workspace console: 500–16,000 bytes. More output remains available in command output or job logs.</string>
+    <string name="termux_shared_apt_description">Avoid package-manager prompts in captured shell commands and workspace console commands. Interactive terminal sessions keep their normal behavior.</string>
+</resources>

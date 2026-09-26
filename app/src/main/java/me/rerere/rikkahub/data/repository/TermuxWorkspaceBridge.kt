@@ -7,6 +7,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.*
 import me.rerere.rikkahub.data.ai.tools.local.*
+import me.rerere.rikkahub.data.preferences.TermuxPreferences
 import me.rerere.workspace.*
 import java.io.InputStream
 import java.io.OutputStream
@@ -17,7 +18,7 @@ import kotlin.uuid.Uuid
 data class WorkspaceTextSnapshot(val text: String, val revision: String?)
 
 /** Transport only: all project file access runs as Termux's UID, never through Android File. */
-class TermuxWorkspaceBridge(private val context: Context) {
+class TermuxWorkspaceBridge(private val context: Context, private val preferences: TermuxPreferences) {
     suspend fun request(root: String, action: String, path: String = "", extra: JsonObject = buildJsonObject {}): JsonObject =
         withContext(Dispatchers.IO) {
             check(TermuxIntegration.state(context) == TermuxIntegration.State.READY) {
@@ -150,31 +151,40 @@ class TermuxWorkspaceBridge(private val context: Context) {
     suspend fun jobs(workspaceId: String, payload: JsonObject): JsonObject =
         checked(termuxJobRequest(context, "workspace:$workspaceId", payload))
 
-    suspend fun start(workspaceId: String, root: String, command: String, cwd: String, timeoutSeconds: Long = 3600): JsonObject {
+    suspend fun start(workspaceId: String, root: String, command: String, cwd: String, timeoutSeconds: Long = 3600, aptWrapEnabled: Boolean? = null): JsonObject {
+        val preamble = termuxCommandPreamble(aptWrapEnabled ?: preferences.snapshot().aptWrapEnabled)
         val relative = relativePath(root, cwd)
         request(root, "probe", relative)
         return jobs(workspaceId, buildJsonObject {
-            put("action", "start"); put("operation_id", Uuid.random().toString()); put("command", command)
+            put("action", "start"); put("operation_id", Uuid.random().toString()); put("command", preamble + command)
             put("working_dir", if (relative.isBlank()) root else "${root.trimEnd('/')}/$relative")
             put("execution_timeout_seconds", timeoutSeconds.coerceIn(1, 86400))
         })
     }
 
-    suspend fun execute(workspaceId: String, root: String, command: String, cwd: String, timeoutMillis: Long): WorkspaceCommandResult {
-        var result = start(workspaceId, root, command, cwd, (timeoutMillis / 1000).coerceAtLeast(1))
+    suspend fun execute(workspaceId: String, root: String, command: String, cwd: String, timeoutMillis: Long?): WorkspaceCommandResult {
+        val settings = preferences.snapshot()
+        val timeout = timeoutMillis ?: settings.commandTimeoutMs
+        var result = start(workspaceId, root, command, cwd, (timeout / 1000).coerceAtLeast(1), settings.aptWrapEnabled)
         val job = result.getValue("job_id").jsonPrimitive.content
         try {
             while (result.string("state") in ACTIVE) {
                 result = jobs(workspaceId, buildJsonObject { put("action", "wait"); put("job_id", job); put("timeout_seconds", 20) })
             }
             check(result.string("state") != "unknown") { "Termux job $job has an unknown outcome. Inspect Workspace > Console > Jobs." }
-            val out = jobs(workspaceId, buildJsonObject { put("action", "read"); put("job_id", job); put("stream", "stdout"); put("max_bytes", 32000) })
-            val err = jobs(workspaceId, buildJsonObject { put("action", "read"); put("job_id", job); put("stream", "stderr"); put("max_bytes", 32000) })
+            suspend fun preview(stream: String, limit: Int) = readTermuxJobPreview(limit) { cursor, bytes ->
+                jobs(workspaceId, buildJsonObject {
+                    put("action", "read"); put("job_id", job); put("stream", stream)
+                    put("cursor", cursor); put("max_bytes", bytes)
+                })
+            }
+            val out = preview("stdout", settings.maxStdoutBytes)
+            val err = preview("stderr", settings.maxStderrBytes)
             return WorkspaceCommandResult(
                 exitCode = result["exit_code"]?.jsonPrimitive?.intOrNull ?: -1,
-                stdout = out.string("text").orEmpty(), stderr = err.string("text").orEmpty(),
+                stdout = out.text, stderr = err.text,
                 timedOut = result.string("state") == "timed_out",
-                truncated = out["has_more"]?.jsonPrimitive?.booleanOrNull == true || err["has_more"]?.jsonPrimitive?.booleanOrNull == true,
+                truncated = out.truncated || err.truncated,
                 jobId = job,
             )
         } catch (e: CancellationException) {

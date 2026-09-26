@@ -56,4 +56,60 @@ class TaskArtifactStoreTest {
         assertThrows(Exception::class.java) { TaskArtifactStore.validateBackupDocument("{\"artifacts\":[{\"path\":\"/workspace/../secret\"}]}", id) }
     }
 
+    @Test fun `task is opt in and closing retains brief reviewer and results`() = runBlocking {
+        val store = TaskArtifactStore.at(temp.root)
+        assertFalse(store.brief(id).isActive)
+        assertFalse(TaskBrief(active = true).isActive)
+        val reviewer = "7760cefb-909a-438b-88fb-6ebd220405f0"
+        // An auto-captured file creates a metadata document with an empty brief.
+        val directory = File(temp.root, "task-results").apply { mkdirs() }
+        val file = File(directory, "$id.json")
+        file.writeText("""{"artifacts":[],"capturedToolCalls":["produced-result"]}""")
+        assertFalse(store.brief(id).isActive)
+        store.setReviewAssistant(id, reviewer)
+        assertFalse(store.brief(id).isActive)
+        store.saveBrief(id, TaskBrief("Build release", "Checks pass", active = true, reviewAssistantId = reviewer))
+        assertTrue(store.brief(id).isActive)
+        store.closeBrief(id)
+        assertFalse(store.brief(id).isActive)
+        assertEquals("Build release", store.brief(id).goal)
+        assertEquals(reviewer, store.brief(id).reviewAssistantId)
+        assertTrue(file.readText().contains("produced-result"))
+        assertTrue(runCatching { store.updateBriefText(id, "stale editor", "") }.isFailure)
+        // Decode the actual persisted document, rather than relying on process state.
+        val persisted = kotlinx.serialization.json.Json.parseToJsonElement(file.readText()) as kotlinx.serialization.json.JsonObject
+        val closed = kotlinx.serialization.json.Json.decodeFromJsonElement(TaskBrief.serializer(), persisted.getValue("brief"))
+        assertFalse(closed.isActive)
+        store.saveBrief(id, closed.copy(active = true))
+        assertTrue(store.brief(id).isActive)
+    }
+
+    @Test fun `old explicit tasks migrate but old empty auto records stay hidden`() = runBlocking {
+        val directory = File(temp.root, "task-results").apply { mkdirs() }
+        val file = File(directory, "$id.json")
+        file.writeText("""{"brief":{"goal":"Existing task","acceptanceCriteria":"Keep results"}}""")
+        assertTrue(TaskArtifactStore.at(temp.root).brief(id).isActive)
+        file.writeText("""{"brief":{"goal":"","acceptanceCriteria":""},"artifacts":[]}""")
+        assertFalse(TaskArtifactStore.at(temp.root).brief(id).isActive)
+        assertTrue(runCatching { TaskArtifactStore.at(temp.root).setReviewAssistant(id, "missing-or-invalid") }.isFailure)
+    }
+
+    @Test fun `review identity survives portable metadata restore without a policy file`() = runBlocking {
+        val source = TaskArtifactStore.at(temp.newFolder("source"))
+        val workspace = "7760cefb-909a-438b-88fb-6ebd220405f0"
+        source.markReview(id, TaskReviewScope(workspace))
+        assertFalse(source.brief(id).isActive)
+        val sourceFile = File(temp.root, "source/task-results/$id.json")
+        val document = sourceFile.readText()
+        TaskArtifactStore.validateBackupDocument(document, id)
+        val restoredRoot = temp.newFolder("restored")
+        File(restoredRoot, "task-results").mkdirs()
+        File(restoredRoot, "task-results/$id.json").writeText(document)
+        assertEquals(TaskReviewScope(workspace), TaskArtifactStore.at(restoredRoot).reviewScope(id))
+        assertFalse(File(restoredRoot, "agent-policies").exists())
+        assertThrows(Exception::class.java) { TaskArtifactStore.validateBackupDocument("""{"reviewScope":{"workspaceId":"../bad"}}""", id) }
+        source.removeConversation(id)
+        assertTrue(runCatching { source.markReview(id, TaskReviewScope(workspace)) }.isFailure)
+    }
+
 }

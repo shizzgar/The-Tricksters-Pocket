@@ -32,6 +32,25 @@ class ProjectMemorySearchInstrumentedTest {
         } finally { projects.remove(project.id); conversations.deleteConversation(child); conversations.deleteConversation(root) }
     }
 
+    @Test fun reviewWorkspaceOverrideWinsWithoutChangingAssistantSettings() = runBlocking {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val conversations = GlobalContext.get().get<ConversationRepository>()
+        val projects = GlobalContext.get().get<ProjectRepository>()
+        val source = me.rerere.rikkahub.data.datastore.createDevbroAssistant().copy(workspaceId = Uuid.random())
+        val reviewer = me.rerere.rikkahub.data.datastore.createOpsbroAssistant().copy(workspaceId = Uuid.random())
+        val root = Conversation(assistantId = source.id, messageNodes = emptyList())
+        val child = Conversation(assistantId = reviewer.id, parentConversationId = root.id, messageNodes = emptyList())
+        val settings = me.rerere.rikkahub.data.datastore.Settings(assistants = listOf(source, reviewer))
+        try {
+            conversations.insertConversation(root); conversations.insertConversation(child)
+            me.rerere.rikkahub.data.ai.AgentTaskPolicy.initialize(context.filesDir)
+            me.rerere.rikkahub.data.ai.AgentTaskPolicy.set(child.id.toString(), me.rerere.rikkahub.ui.pages.chat.taskReviewPolicy(source.workspaceId.toString()))
+            val effective = projects.effectiveAssistant(child.id, reviewer, settings)
+            assertEquals(source.workspaceId, effective.workspaceId)
+            assertNotEquals(source.workspaceId, settings.assistants.last().workspaceId)
+        } finally { conversations.deleteConversation(child); conversations.deleteConversation(root) }
+    }
+
     @Test fun forgottenFactCanBeRestoredAndStaleEditCannotOverwriteIt() = runBlocking {
         val memories = GlobalContext.get().get<MemoryRepository>()
         val scope = MemoryRepository.projectScope(Uuid.random().toString())

@@ -57,4 +57,66 @@ class AgentTaskPolicyTest {
         listOf("workspace_read_file", "web_fetch", "skill_get_content", "conversation_history_read")
             .forEach { assertTrue(it, AgentToolPolicy.permits(it, id, false)) }
     }
+    @Test fun `review keeps scoped workspace and read only tools across restart`() {
+        val directory = temp.newFolder()
+        val id = UUID.randomUUID().toString()
+        val workspace = UUID.randomUUID().toString()
+        AgentTaskPolicy.initialize(directory)
+        AgentTaskPolicy.set(id, me.rerere.rikkahub.ui.pages.chat.taskReviewPolicy(workspace))
+        AgentTaskPolicy.initialize(temp.newFolder())
+        AgentTaskPolicy.initialize(directory)
+        assertEquals(workspace, AgentTaskPolicy.get(id)?.scopedWorkspaceId)
+        assertTrue(AgentTaskPolicy.get(id)?.readOnly == true)
+        assertFalse(AgentToolPolicy.permits("workspace_shell", id, false))
+        assertFalse(AgentToolPolicy.permits("workspace_write_file", id, false))
+        assertTrue(AgentToolPolicy.permits("workspace_read_file", id, false))
+        assertThrows(IllegalArgumentException::class.java) { ScopedAgentPolicy(5, scopedWorkspaceId = "../workspace") }
+    }
+
+    @Test fun `restored review reconstructs read only scope when execution policy was excluded from backup`() {
+        val directory = temp.newFolder()
+        val id = UUID.randomUUID().toString()
+        val workspace = UUID.randomUUID().toString()
+        AgentTaskPolicy.initialize(directory)
+        assertNull(AgentTaskPolicy.get(id))
+
+        AgentTaskPolicy.ensureReview(id, workspace)
+
+        assertTrue(AgentToolPolicy.permits("workspace_read_file", id, readOnly = false))
+        listOf("workspace_write_file", "workspace_shell", "termux_job_start", "mcp__server__write")
+            .forEach { assertFalse(it, AgentToolPolicy.permits(it, id, readOnly = false)) }
+        assertEquals(workspace, AgentTaskPolicy.get(id)?.scopedWorkspaceId)
+        AgentTaskPolicy.initialize(temp.newFolder())
+        AgentTaskPolicy.initialize(directory)
+        assertTrue(AgentTaskPolicy.get(id)?.readOnly == true)
+        assertEquals(workspace, AgentTaskPolicy.get(id)?.scopedWorkspaceId)
+    }
+
+    @Test fun `ordinary review restoration keeps stop and explicit continuation preserves all execution limits`() {
+        AgentTaskPolicy.initialize(temp.newFolder())
+        val id = UUID.randomUUID().toString()
+        val workspace = UUID.randomUUID().toString()
+        val existing = ScopedAgentPolicy(
+            maxSteps = 4, usedSteps = 3, deadlineAtMs = 9000,
+            allowedTools = setOf("workspace_read_file"), readOnly = false,
+            systemPrompt = "Review only the selected evidence", stopped = true,
+        )
+        AgentTaskPolicy.set(id, existing)
+
+        AgentTaskPolicy.ensureReview(id, workspace)
+        val stopped = existing.copy(readOnly = true, scopedWorkspaceId = workspace)
+        assertEquals(stopped, AgentTaskPolicy.get(id))
+        assertEquals(GenerationStopReason.CANCELLED, AgentTaskPolicy.check(id, now = 100))
+
+        AgentTaskPolicy.ensureReview(id, workspace, resumeStopped = true)
+        assertEquals(stopped.copy(stopped = false), AgentTaskPolicy.get(id))
+        assertFalse(AgentToolPolicy.permits("web_fetch", id, readOnly = false))
+        assertFalse(AgentToolPolicy.permits("workspace_write_file", id, readOnly = false))
+        assertEquals(GenerationStopReason.TASK_DEADLINE, AgentTaskPolicy.check(id, now = 9000))
+        assertNull(AgentTaskPolicy.reserveStep(id, now = 100))
+        assertEquals(GenerationStopReason.RUN_STEP_LIMIT, AgentTaskPolicy.reserveStep(id, now = 101))
+        AgentTaskPolicy.ensureReview(id, workspace, resumeStopped = true)
+        assertEquals(GenerationStopReason.RUN_STEP_LIMIT, AgentTaskPolicy.check(id, now = 102))
+    }
+
 }

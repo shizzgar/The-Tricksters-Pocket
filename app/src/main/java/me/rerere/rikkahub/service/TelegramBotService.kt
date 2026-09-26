@@ -255,7 +255,7 @@ class TelegramBotService : Service() {
         val body = if (rejected != null) {
             "Rejected sender ${rejected.senderId} (chat ${rejected.chatId}). Add to whitelist if that was you."
         } else {
-            "Routing inbound messages to RikkaHub"
+            "Routing inbound messages to The Trickster's Pocket"
         }
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Telegram bot listening")
@@ -1300,7 +1300,7 @@ class TelegramBotService : Service() {
     private suspend fun trySendReplyAsDocument(chatId: Long, text: String, replyTo: Long?): Boolean {
         var file: java.io.File? = null
         return try {
-            file = java.io.File.createTempFile("rikkahub_reply_", ".md", cacheDir).apply { writeText(text) }
+            file = java.io.File.createTempFile("tricksters_pocket_reply_", ".md", cacheDir).apply { writeText(text) }
             val preview = text.take(500).let { if (text.length > 500) "$it…" else it }
             sendWithFloodRetry(
                 chatId,

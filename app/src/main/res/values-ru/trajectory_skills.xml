@@ -48,11 +48,11 @@
     <string name="termux_skills_directory">Каталог пакетов</string>
     <string name="termux_skills_directory_help">Абсолютный путь внутри домашнего каталога Termux. Добавляется подкаталог приложения. При смене пути старые копии остаются в прежнем каталоге.</string>
     <string name="termux_skills_save">Сохранить каталог</string>
-    <string name="termux_skills_dependencies">Нужен Python в Termux (pkg install python). Синхронизация только копирует файлы. Запуск скриптов и установка зависимостей выполняются отдельными действиями агента. Копии отделены от оригиналов в RikkaHub.</string>
+    <string name="termux_skills_dependencies">Нужен Python в Termux (pkg install python). Синхронизация только копирует файлы. Запуск скриптов и установка зависимостей выполняются отдельными действиями агента. Копии отделены от оригиналов в The Trickster\'s Pocket.</string>
     <string name="termux_skills_count">%1$d пакетов · %2$d КиБ с учётом сохранённых версий</string>
     <string name="termux_skills_sync">Синхронизировать установленные</string>
     <string name="termux_skills_clear">Удалить копии в Termux</string>
-    <string name="termux_skills_clear_warning">Будут удалены все копии и версии навыков в выбранном каталоге Termux. Сначала остановите задания, которые их используют. Оригиналы в RikkaHub сохранятся и могут быть переданы снова.</string>
+    <string name="termux_skills_clear_warning">Будут удалены все копии и версии навыков в выбранном каталоге Termux. Сначала остановите задания, которые их используют. Оригиналы в The Trickster\'s Pocket сохранятся и могут быть переданы снова.</string>
     <string name="trace_metadata">Метаданные</string>
     <string name="trace_totals">Токены провайдера ↑ %1$s · ↓ %2$s · %3$s ток/с</string>
     <string name="trace_rate">Скорость генерации</string>

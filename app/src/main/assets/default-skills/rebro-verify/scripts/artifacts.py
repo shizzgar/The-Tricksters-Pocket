@@ -1,4 +1,4 @@
-"""Small shared artifact contract for Rebro RikkaHub packages, version 2.0."""
+"""Small shared artifact contract for Rebro The Trickster's Pocket packages, version 2.0."""
 import hashlib
 import json
 from pathlib import Path, PurePosixPath

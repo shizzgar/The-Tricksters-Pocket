@@ -66,7 +66,7 @@ fun createSkillTools(
                     if (available().isEmpty()) return@buildString
                     appendLine("Skill examples are instructions, not tool permissions. Only the tools declared in this request are available. Never call a disabled tool mentioned by a skill.")
                     if (termuxBridge != null) {
-                        appendLine("Enabled skills can be copied as full packages to Termux using termux_skill_sync. use_skill also prepares them when automatic sync is enabled. Only a successful result's skill_root is a usable Termux path; RikkaHub private paths are not accessible to Termux. Auto-loaded instructions do not themselves sync files: call termux_skill_sync before running their scripts. Run from skill_root so relative paths resolve; keep generated files in a separate workspace. Copies never grant extra tool permissions.")
+                        appendLine("Enabled skills can be copied as full packages to Termux using termux_skill_sync. use_skill also prepares them when automatic sync is enabled. Only a successful result's skill_root is a usable Termux path; The Trickster's Pocket private paths are not accessible to Termux. Auto-loaded instructions do not themselves sync files: call termux_skill_sync before running their scripts. Run from skill_root so relative paths resolve; keep generated files in a separate workspace. Copies never grant extra tool permissions.")
                     }
                     // Auto-load skills with `auto_load: true` in their SKILL.md frontmatter:
                     // their body (auto_load_path file if set, else SKILL.md) is inlined into

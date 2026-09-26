@@ -9,7 +9,7 @@ vendor runtime code remains unchanged. The adapter verifies the updated `SHA256S
 at startup. Original source archive hashes remain in the app's provenance metadata.
 This is a component within rebro-frida, used by analyze/verify when needed.
 
-In RikkaHub, run through `scripts/frida_pack.py`. It uses external config/evidence,
+In The Trickster's Pocket, run through `scripts/frida_pack.py`. It uses external config/evidence,
 preserves skill_root and holds the shared Frida lock. Direct `rebro.py configure/run`
 examples in the original README apply to a standalone copy: their `local.json`/`runs`
 defaults are unsuitable for a synchronized skill.

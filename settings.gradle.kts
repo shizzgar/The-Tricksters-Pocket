@@ -25,7 +25,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "rikkahub"
+rootProject.name = "The Trickster's Pocket"
 include(":app")
 include(":highlight")
 include(":ai")

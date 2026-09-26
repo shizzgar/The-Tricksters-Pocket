@@ -2,7 +2,7 @@
 
 Standalone commands run from the unpacked pack root. PID 12345, com.example.app,
 libexample.so and Example.calculate are placeholders. Put --config **before**
-the subcommand. In the RikkaHub skill, use the outer adapter with external config/output.
+the subcommand. In the The Trickster's Pocket skill, use the outer adapter with external config/output.
 
 ## Inspect another config without changing the baseline
 

@@ -48,7 +48,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.Edit03
-import me.rerere.hugeicons.stroke.LookTop
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.datastore.Settings
@@ -58,6 +57,7 @@ import me.rerere.rikkahub.data.model.assistantReadiness
 import me.rerere.rikkahub.data.files.SkillManager
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import me.rerere.rikkahub.ui.components.ui.UIAvatar
+import me.rerere.rikkahub.ui.components.ui.PocketIcon
 import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.hooks.rememberAssistantState
 import kotlin.uuid.Uuid
@@ -76,7 +76,7 @@ fun AssistantPicker(
 
     NavigationDrawerItem(
         icon = {
-            Icon(HugeIcons.LookTop, contentDescription = null)
+            PocketIcon()
         },
         label = {
             Row(

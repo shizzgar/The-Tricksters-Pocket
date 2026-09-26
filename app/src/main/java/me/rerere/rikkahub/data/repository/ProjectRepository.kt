@@ -71,7 +71,8 @@ class ProjectRepository(context: Context, private val conversations: Conversatio
 
     suspend fun effectiveAssistant(conversationId: Uuid, assistant: me.rerere.rikkahub.data.model.Assistant, settings: me.rerere.rikkahub.data.datastore.Settings): me.rerere.rikkahub.data.model.Assistant {
         val project = projectForConversation(conversationId)
-        var workspace = project?.workspaceId?.let(Uuid::parse) ?: assistant.workspaceId
+        val scopedWorkspace = me.rerere.rikkahub.data.ai.AgentTaskPolicy.get(conversationId.toString())?.scopedWorkspaceId?.let(Uuid::parse)
+        var workspace = scopedWorkspace ?: project?.workspaceId?.let(Uuid::parse) ?: assistant.workspaceId
         var parent = conversations.getConversationById(conversationId)?.parentConversationId
         val visited = mutableSetOf(conversationId)
         while (workspace == null && parent != null && visited.add(parent)) {

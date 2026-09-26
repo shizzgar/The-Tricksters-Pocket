@@ -73,7 +73,7 @@ class TermuxSkillBridge(private val context: Context, private val preferences: T
                 buildJsonObject {
                     result.forEach { (key, value) -> put(key, value) }
                     put("name", skill.name)
-                    put("usage", "Use skill_root as the working_dir for Termux tools. All relative references, scripts and assets are inside that directory. Run scripts with the Termux interpreter (python3, bash, node, etc.) if their shebang targets another OS. Dependencies are not installed automatically. Write generated output to a separate working directory. This is a versioned copy; edits here do not update RikkaHub.")
+                    put("usage", "Use skill_root as the working_dir for Termux tools. All relative references, scripts and assets are inside that directory. Run scripts with the Termux interpreter (python3, bash, node, etc.) if their shebang targets another OS. Dependencies are not installed automatically. Write generated output to a separate working directory. This is a versioned copy; edits here do not update The Trickster's Pocket.")
                 }
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { failure("skill_sync_failed", e.message.orEmpty()) }

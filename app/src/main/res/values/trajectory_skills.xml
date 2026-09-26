@@ -48,11 +48,11 @@
     <string name="termux_skills_directory">Package directory</string>
     <string name="termux_skills_directory_help">Absolute path inside Termux home. An app-specific subdirectory is added. Changing this path keeps old copies in their previous directory.</string>
     <string name="termux_skills_save">Save directory</string>
-    <string name="termux_skills_dependencies">Requires Python in Termux (pkg install python). Sync copies files only; scripts and dependency installation remain explicit agent actions. Copies are separate from the originals in RikkaHub.</string>
+    <string name="termux_skills_dependencies">Requires Python in Termux (pkg install python). Sync copies files only; scripts and dependency installation remain explicit agent actions. Copies are separate from the originals in The Trickster\'s Pocket.</string>
     <string name="termux_skills_count">%1$d packages · %2$d KiB including retained versions</string>
     <string name="termux_skills_sync">Sync installed skills</string>
     <string name="termux_skills_clear">Clear Termux copies</string>
-    <string name="termux_skills_clear_warning">This removes all managed skill revisions in the selected directory. Stop jobs that use them first. Original skills in RikkaHub are kept and can be synced again.</string>
+    <string name="termux_skills_clear_warning">This removes all managed skill revisions in the selected directory. Stop jobs that use them first. Original skills in The Trickster\'s Pocket are kept and can be synced again.</string>
     <string name="trace_metadata">Metadata</string>
     <string name="trace_totals">Reported tokens ↑ %1$s · ↓ %2$s · %3$s tok/s</string>
     <string name="trace_rate">Generation speed</string>

@@ -18,6 +18,8 @@ data class QueuedMessage(
     val isApplying: Boolean = false,
     // Optional in-memory observer; null result means the queued message was withdrawn.
     val reply: CompletableDeferred<String?>? = null,
+    // Automated completion delivery may append input, but must never undo the user's Stop.
+    val explicitUserTurn: Boolean = false,
 )
 
 data class MessageQueueState(
@@ -44,7 +46,7 @@ class MessageQueue {
     val state = mutableState.asStateFlow()
 
     @Synchronized
-    fun enqueue(parts: List<UIMessagePart>, answer: Boolean = true, reply: CompletableDeferred<String?>? = null, steerActiveTask: Boolean = false, id: Uuid = Uuid.random()) {
+    fun enqueue(parts: List<UIMessagePart>, answer: Boolean = true, reply: CompletableDeferred<String?>? = null, steerActiveTask: Boolean = false, id: Uuid = Uuid.random(), explicitUserTurn: Boolean = false) {
         if (parts.isEmptyInputMessage()) {
             reply?.complete(null)
             return
@@ -57,6 +59,7 @@ class MessageQueue {
                 answer = answer,
                 reply = reply,
                 steerActiveTask = steerActiveTask && answer && reply == null,
+                explicitUserTurn = explicitUserTurn,
             ),
         )
     }

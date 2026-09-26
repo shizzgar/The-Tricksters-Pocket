@@ -20,7 +20,21 @@ import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 
 @Serializable
-data class TaskBrief(val goal: String = "", val acceptanceCriteria: String = "")
+data class TaskBrief(
+    val goal: String = "",
+    val acceptanceCriteria: String = "",
+    // Null migrates previously saved, explicit briefs. Automatically captured files never opt in.
+    val active: Boolean? = null,
+    val reviewAssistantId: String? = null,
+) {
+    val isActive: Boolean get() = active != false && (goal.isNotBlank() || acceptanceCriteria.isNotBlank())
+}
+
+/** Portable identity of a review chat: policy files are intentionally excluded from backups. */
+@Serializable
+data class TaskReviewScope(val workspaceId: String? = null) {
+    init { require(workspaceId == null || runCatching { java.util.UUID.fromString(workspaceId) }.isSuccess) { "Invalid review workspace ID" } }
+}
 
 @Serializable
 data class TaskArtifact(
@@ -40,7 +54,12 @@ data class TaskArtifact(
 )
 
 @Serializable
-private data class TaskFiles(val brief: TaskBrief = TaskBrief(), val artifacts: List<TaskArtifact> = emptyList(), val capturedToolCalls: Set<String> = emptySet())
+private data class TaskFiles(
+    val brief: TaskBrief = TaskBrief(),
+    val artifacts: List<TaskArtifact> = emptyList(),
+    val capturedToolCalls: Set<String> = emptySet(),
+    val reviewScope: TaskReviewScope? = null,
+)
 
 /** App-owned, atomic metadata. Workspace content stays in its original workspace. */
 class TaskArtifactStore private constructor(private val directory: File) {
@@ -71,8 +90,29 @@ class TaskArtifactStore private constructor(private val directory: File) {
         require(!target.exists() || target.delete()) { "Could not remove task metadata" }
         mutableRevision.value++
     } }
+    suspend fun reviewScope(id: String): TaskReviewScope? = withContext(Dispatchers.IO) { mutex.withLock { read(id).reviewScope } }
+    suspend fun markReview(id: String, scope: TaskReviewScope) = withContext(Dispatchers.IO) { mutex.withLock {
+        save(id, read(id).copy(reviewScope = scope))
+    } }
     suspend fun brief(id: String): TaskBrief = withContext(Dispatchers.IO) { mutex.withLock { read(id).brief } }
     suspend fun saveBrief(id: String, brief: TaskBrief) = withContext(Dispatchers.IO) { mutex.withLock { save(id, read(id).copy(brief = brief)) } }
+    suspend fun updateBriefText(id: String, goal: String, criteria: String): TaskBrief = withContext(Dispatchers.IO) { mutex.withLock {
+        val old = read(id)
+        require(old.brief.isActive) { "Task is closed. Use + in the chat to set it again." }
+        val updated = old.brief.copy(goal = goal.trim(), acceptanceCriteria = criteria.trim())
+        require(updated.isActive) { "Task goal or acceptance criteria is required" }
+        save(id, old.copy(brief = updated))
+        updated
+    } }
+    suspend fun closeBrief(id: String) = withContext(Dispatchers.IO) { mutex.withLock {
+        val old = read(id)
+        save(id, old.copy(brief = old.brief.copy(active = false)))
+    } }
+    suspend fun setReviewAssistant(id: String, assistantId: String) = withContext(Dispatchers.IO) { mutex.withLock {
+        require(runCatching { java.util.UUID.fromString(assistantId) }.isSuccess) { "Invalid reviewer ID" }
+        val old = read(id)
+        save(id, old.copy(brief = old.brief.copy(reviewAssistantId = assistantId)))
+    } }
     suspend fun artifacts(ids: Collection<String>): List<TaskArtifact> = withContext(Dispatchers.IO) { mutex.withLock { ids.flatMap { read(it).artifacts } } }
     suspend fun setAvailability(item: TaskArtifact, status: String, error: String? = null) = withContext(Dispatchers.IO) { mutex.withLock {
         val old = read(item.conversationId)
@@ -142,6 +182,7 @@ class TaskArtifactStore private constructor(private val directory: File) {
             val data = Json { ignoreUnknownKeys = true }.decodeFromString<TaskFiles>(raw)
             fun uuid(value: String) { require(runCatching { java.util.UUID.fromString(value) }.isSuccess) { "Invalid task metadata ID" } }
             expectedConversationId?.let(::uuid)
+            data.brief.reviewAssistantId?.let(::uuid)
             data.artifacts.forEach { item ->
                 uuid(item.conversationId); uuid(item.assistantId); uuid(item.workspaceId)
                 require(expectedConversationId == null || expectedConversationId == item.conversationId) { "Artifact belongs to another conversation" }

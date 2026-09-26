@@ -292,6 +292,7 @@ private fun ChatPageContent(
     var previewMode by rememberSaveable { mutableStateOf(false) }
     val hazeState = rememberHazeState()
     val assistant = setting.getCurrentAssistant()
+    var showTaskEditor by rememberSaveable(conversation.id.toString()) { mutableStateOf(false) }
     var showFilesSheet by remember { mutableStateOf(false) }
     var showTrajectory by rememberSaveable(conversation.id) { mutableStateOf(false) }
     var showTermuxJobs by rememberSaveable(conversation.id) { mutableStateOf(false) }
@@ -347,6 +348,11 @@ private fun ChatPageContent(
                 val messageQueue by vm.messageQueue.collectAsStateWithLifecycle()
                 val voiceState by vm.voiceSession.state.collectAsStateWithLifecycle()
                 Column {
+                    TaskChatControls(
+                        conversation = conversation,
+                        showEditor = showTaskEditor,
+                        onDismissEditor = { showTaskEditor = false },
+                    )
                     ChatInput(
                         onStartVoiceMode = onStartVoiceMode,
                         voiceState = voiceState,
@@ -561,6 +567,7 @@ private fun ChatPageContent(
                 onDismiss = { showFilesSheet = false },
                 onOpenTermuxJobs = { showFilesSheet = false; showTermuxJobs = true },
                 onOpenTrajectory = { showFilesSheet = false; showTrajectory = true },
+                onOpenTask = { showFilesSheet = false; showTaskEditor = true },
             )
         }
     }
@@ -577,6 +584,7 @@ private fun ChatFilesPickerSheet(
     onStartVoiceMode: () -> Unit,
     onOpenTermuxJobs: () -> Unit,
     onOpenTrajectory: () -> Unit,
+    onOpenTask: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val jobState by vm.termuxJobs.state.collectAsStateWithLifecycle()
@@ -603,6 +611,11 @@ private fun ChatFilesPickerSheet(
     ) {
         FilesPicker(
             onOpenTrajectory = onOpenTrajectory,
+            onOpenTask = {
+                focusManager.clearFocus(force = true)
+                keyboardController?.hide()
+                onOpenTask()
+            },
             jobTotal = jobState.totalJobs,
             jobsRunning = jobState.activeJobs,
             onOpenTermuxJobs = {

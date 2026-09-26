@@ -15,7 +15,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
- * Binds RikkaHub to the co-signed agent-keyboard ([KEYBOARD_PACKAGE]) AIDL service and
+ * Binds The Trickster's Pocket to the co-signed agent-keyboard ([KEYBOARD_PACKAGE]) AIDL service and
  * drives the active text field through it.
  *
  * Lifecycle the client manages for the caller:

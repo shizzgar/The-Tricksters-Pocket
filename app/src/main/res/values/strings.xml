@@ -659,7 +659,7 @@
   <string name="setting_asr_configure_step_itn">Enable ITN</string>
   <string name="setting_asr_configure_step_itn_desc">Inverse Text Normalization: convert spoken numbers to digits (e.g. 三百 → 300)</string>
   <string name="setting_asr_configure_step_timestamp">Enable Timestamps</string>
-  <string name="setting_asr_configure_step_timestamp_desc">Return word-level timestamps in delta events. Disabled by default to save tokens (rikkahub does not consume them yet)</string>
+  <string name="setting_asr_configure_step_timestamp_desc">Return word-level timestamps in delta events. Disabled by default to save tokens (The Trickster\'s Pocket does not consume them yet)</string>
   <string name="setting_asr_configure_step_hotwords">Hotwords</string>
   <string name="setting_asr_configure_step_hotwords_desc">Comma-separated list of hotwords to boost recognition accuracy for proper nouns / domain terms</string>
   <string name="setting_asr_page_add_provider">Add ASR Provider</string>
@@ -897,7 +897,7 @@
   <string name="setting_page_search_web_fetch_tools_desc">Let the assistant fetch and read web page content directly. On by default; turn off to rely only on your configured search provider.</string>
   <string name="setting_page_share">Share</string>
   <string name="setting_page_share_desc">Share this app with friends</string>
-  <string name="setting_page_share_text">The Trickster\'s Pocket - Open Source Android AI Assistant\n\nGitHub: https://github.com/shizzgar/rikkahub-agent</string>
+  <string name="setting_page_share_text">The Trickster\'s Pocket - Open Source Android AI Assistant\n\nGitHub: https://github.com/shizzgar/The-Tricksters-Pocket</string>
   <string name="setting_page_sponsor_alert_confirm">Donate</string>
   <string name="setting_page_sponsor_alert_desc">You have launched the app over 100 times! If you enjoy using it, please consider supporting the developer.</string>
   <string name="setting_page_sponsor_alert_dismiss">Not Now</string>
@@ -2415,7 +2415,7 @@
   <string name="doctor_detail_vision_unavailable">Vision encoder unavailable on this device for: %1$s. These multimodal models run in text-only mode — chat works, image inputs don\'t. Often fixed by a future LiteRT-LM SDK update.</string>
   <string name="doctor_detail_skills_count">%1$d installed (%2$d bundled, %3$d user-added).</string>
   <string name="doctor_detail_cache_size">Cache is using %1$s. Tap "Clear cache" to reclaim space.</string>
-  <string name="doctor_detail_app_build">RikkaHub-agent %1$s (%2$s) — debug=%3$s</string>
+  <string name="doctor_detail_app_build">The Trickster\'s Pocket %1$s (%2$s) — debug=%3$s</string>
   <string name="doctor_detail_android">API %1$d (%2$s) on %3$s %4$s</string>
   <string name="doctor_unnamed">Unnamed</string>
   <string name="doctor_unnamed_paren">(unnamed)</string>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pocket_overlay_parallel">%1$s · активных: %2$d</string>
+    <string name="pocket_overlay_parallel_description">Показан активный чат с наибольшим заполнением контекста; у остальных чатов отдельные окна контекста.</string>
+    <string name="pocket_overlay_context">Контекст ≈ %1$s / %2$s · %3$d%%</string>
+    <string name="pocket_overlay_context_unknown">Контекст ≈ %1$s · лимит неизвестен</string>
+    <string name="pocket_overlay_tool">Выполняются инструменты</string>
+    <string name="pocket_overlay_approval">Ожидание подтверждения</string>
+    <string name="pocket_overlay_continuing">Задача продолжается</string>
+</resources>

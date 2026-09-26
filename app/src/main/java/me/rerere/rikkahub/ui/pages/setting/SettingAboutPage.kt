@@ -121,7 +121,7 @@ fun SettingAboutPage() {
                         )
 
                         Text(
-                            text = "RikkaHub",
+                            text = "The Trickster's Pocket",
                             style = MaterialTheme.typography.displaySmall,
                         )
                     }
@@ -157,21 +157,21 @@ fun SettingAboutPage() {
                         modifier = Modifier.padding(horizontal = 8.dp),
                     ) {
                         item(
-                            onClick = { context.openUrl("https://rikka-ai.com/") },
+                            onClick = { context.openUrl("https://github.com/shizzgar/The-Tricksters-Pocket") },
                             leadingContent = { Icon(HugeIcons.Earth, null) },
-                            supportingContent = { Text("https://rikka-ai.com") },
+                            supportingContent = { Text("https://github.com/shizzgar/The-Tricksters-Pocket") },
                             headlineContent = { Text(stringResource(R.string.about_page_website)) },
                         )
                         item(
-                            onClick = { context.openUrl("https://github.com/ExTV/rikkahub-agent") },
+                            onClick = { context.openUrl("https://github.com/shizzgar/The-Tricksters-Pocket") },
                             leadingContent = { Icon(HugeIcons.Github, null) },
-                            supportingContent = { Text("https://github.com/ExTV/rikkahub-agent") },
+                            supportingContent = { Text("https://github.com/shizzgar/The-Tricksters-Pocket") },
                             headlineContent = { Text(stringResource(R.string.about_page_github)) },
                         )
                         item(
-                            onClick = { context.openUrl("https://github.com/ExTV/rikkahub-agent/blob/master/LICENSE") },
+                            onClick = { context.openUrl("https://github.com/shizzgar/The-Tricksters-Pocket/blob/master/LICENSE") },
                             leadingContent = { Icon(HugeIcons.File02, null) },
-                            supportingContent = { Text("https://github.com/ExTV/rikkahub-agent/blob/master/LICENSE") },
+                            supportingContent = { Text("https://github.com/shizzgar/The-Tricksters-Pocket/blob/master/LICENSE") },
                             headlineContent = { Text(stringResource(R.string.about_page_license)) },
                         )
                     }

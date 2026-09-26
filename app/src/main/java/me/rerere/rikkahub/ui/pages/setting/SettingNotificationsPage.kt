@@ -272,7 +272,7 @@ private data class InstalledAppRow(
  * name, plus a Switch per row that auto-saves on toggle. Search field at the top filters by
  * label or package; an optional filter chip narrows to currently-whitelisted only.
  *
- * The dialog NEVER lists the rikkahub package itself or com.android.systemui — both would
+ * The dialog NEVER lists the app package itself or com.android.systemui — both would
  * trigger the listener service's self-loop guard regardless of whether they're whitelisted.
  */
 @Composable

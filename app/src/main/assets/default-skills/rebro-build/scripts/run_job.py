@@ -1,4 +1,4 @@
-"""Bounded foreground job for a RikkaHub managed background job; stdlib only."""
+"""Bounded foreground job for a The Trickster's Pocket managed background job; stdlib only."""
 import argparse
 import fcntl
 import json

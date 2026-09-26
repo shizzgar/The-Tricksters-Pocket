@@ -48,7 +48,7 @@ paths; a file not found within limits is not proven absent from the phone.
 | Listener 27044 | Check endpoint without exposing unrelated connections |
 | Bridge candidates/hash/format markers | Choose plain adapter or preserve private loader |
 | Loader AST markers/runtime literals | Check QJS/V8 and assembly without copying source |
-| RikkaHub/Termux package versions | Compare the phone with the sync contract |
+| The Trickster's Pocket/Termux package versions | Compare the phone with the sync contract |
 
 If paths are already known, supply them in the same run:
 

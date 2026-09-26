@@ -572,6 +572,7 @@ class ChatService(
                 if (automatically && !me.rerere.rikkahub.data.ai.mayRestoreAgentTask(saved,
                     conversationCheckpoint(getConversationFlow(id).value.currentMessages),
                     settingsStore.settingsFlow.first().networkSetting.generationRuntime.resumeTasksAfterRestart)) return@launchGenerationJob
+                ensureReviewPolicy(id, resumeStopped = !automatically)
                 handleMessageComplete(id, resumed = if (automatically) saved else saved?.copy(
                     loopGuardTrips = 0, startedAt = System.currentTimeMillis(),
                 ))
@@ -601,12 +602,20 @@ class ChatService(
         }
     }
 
+    private var agentOverlayJob: Job? = null
+
     init {
         me.rerere.ai.provider.GenerationTrace.sink = { id, source, payload -> journal.append(id, source, payload); Unit }
         ProcessLifecycleOwner.get().lifecycle.addObserver(lifecycleObserver)
+        agentOverlayJob = AgentOverlayMonitor(context, settingsStore.settingsFlow, conversationRepo).start(
+            appScope, getConversationJobs().map { jobs -> jobs.keys.mapNotNull { sessions[it] } },
+        )
     }
 
     fun cleanup() = runCatching {
+        agentOverlayJob?.cancel()
+        agentOverlayJob = null
+        AgentOverlay.hide(context)
         ProcessLifecycleOwner.get().lifecycle.removeObserver(lifecycleObserver)
         manualCompactionJobs.values.forEach { it.cancel() }
         manualCompactionJobs.clear()
@@ -626,7 +635,8 @@ class ChatService(
     // ---- Session 管理 ----
 
     private fun getOrCreateSession(conversationId: Uuid): ConversationSession {
-        return sessions.computeIfAbsent(conversationId) { id ->
+        var created = false
+        val session = sessions.computeIfAbsent(conversationId) { id ->
             val settings = settingsStore.settingsFlow.value
             ConversationSession(
                 id = id,
@@ -647,10 +657,16 @@ class ChatService(
                     appScope.launch { dispatchNextQueuedMessage(id) }
                 },
             ).also {
-                _sessionsVersion.value++
-                Log.i(TAG, "createSession: $id (total: ${sessions.size + 1})")
+                created = true
             }
         }
+        // Publish only after computeIfAbsent inserts the session. Background flow collectors
+        // can otherwise observe the version before the session exists and miss its whole job.
+        if (created) {
+            _sessionsVersion.update { it + 1 }
+            Log.i(TAG, "createSession: $conversationId (total: ${sessions.size})")
+        }
+        return session
     }
 
     private fun removeSession(conversationId: Uuid) {
@@ -856,7 +872,7 @@ class ChatService(
         val session = getOrCreateSession(conversationId)
         synchronized(session) {
             if (session.messageQueue.state.value.messages.isEmpty()) session.messageQueue.resume()
-            session.messageQueue.enqueue(content, answer, steerActiveTask = session.getJob() != null)
+            session.messageQueue.enqueue(content, answer, steerActiveTask = session.getJob() != null, explicitUserTurn = true)
             dispatchNextQueuedMessage(conversationId)
         }
     }
@@ -894,7 +910,7 @@ class ChatService(
                 message.parts.any { it is UIMessagePart.Tool && it.isPending }
             }) { context.getString(R.string.chat_page_voice_tools_before_resume) }
             if (session.messageQueue.state.value.messages.isEmpty()) session.messageQueue.resume()
-            session.messageQueue.enqueue(listOf(UIMessagePart.Text(text)), reply = reply)
+            session.messageQueue.enqueue(listOf(UIMessagePart.Text(text)), reply = reply, explicitUserTurn = true)
             dispatchNextQueuedMessage(conversationId)
         }
         return reply
@@ -929,6 +945,7 @@ class ChatService(
                 // the new user message, otherwise that message can be appended to an empty
                 // in-memory session and visually replace the recovered history.
                 ensureHydrated(conversationId)
+                ensureReviewPolicy(conversationId, resumeStopped = answer && queued.explicitUserTurn)
                 val currentConversation = session.state.value
                 // Resolve the assistant from the conversation's own assistantId, not the
                 // global current-assistant pointer — otherwise switching assistants mid-
@@ -1008,6 +1025,8 @@ class ChatService(
         // Headless paths (cron / sub-agent / external-automation / workflow) must always go
         // through the LLM — the fast-path is a per-user-turn optimisation, not a system-flow.
         if (afterUserSave.subAgentRunId != null || me.rerere.rikkahub.data.ai.tools.HeadlessConversations.isHeadless(conversationId)) return false
+        // Reviews need the scoped workspace and budget guard of the normal execution path.
+        if (me.rerere.rikkahub.data.ai.AgentTaskPolicy.get(conversationId.toString())?.readOnly == true) return false
 
         // assistant is resolved from the conversation's own assistantId by the caller — do NOT
         // re-read the global getCurrentAssistant() here or a mid-turn assistant switch makes the
@@ -1145,6 +1164,9 @@ class ChatService(
                 if (indexAt < 0) {
                     Log.w(TAG, "regenerateAtMessage: node for message ${message.id} not in conversation; skipping")
                     return@launch
+                }
+                if (message.role == MessageRole.USER || regenerateAssistantMsg) {
+                    ensureReviewPolicy(conversationId, resumeStopped = true)
                 }
                 if (message.role == MessageRole.USER) {
                     // 如果是用户消息，则截止到当前消息
@@ -1286,8 +1308,12 @@ class ChatService(
      *  (via the conversation's assistant). Fall back to a ChatScope-style grant (this
      *  conversation only) when no workspace is resolvable, never the global set. */
     private suspend fun grantAlwaysScope(conversationId: Uuid, toolName: String) {
+        ensureReviewPolicy(conversationId)
         val conversation = conversationRepo.getConversationById(conversationId)
-        val assistant = conversation?.let { settingsStore.settingsFlow.first().getAssistantById(it.assistantId) }
+        val settings = settingsStore.settingsFlow.first()
+        val assistant = conversation?.let { settings.getAssistantById(it.assistantId) }?.let {
+            projectRepository?.effectiveAssistant(conversationId, it, settings) ?: it
+        }
         val workspaceId = assistant?.workspaceId?.toString()
         val workspace = workspaceId?.let { workspaceRepository.getById(it) }
         if (isScopedWorkspaceTool(toolName, workspace?.termuxPath != null)) {
@@ -1480,6 +1506,7 @@ class ChatService(
         model: Model,
         settings: Settings,
     ): List<Tool> = buildList {
+        ensureReviewPolicy(conversationId)
         val effectiveAssistant = projectRepository?.effectiveAssistant(conversationId, assistant, settings) ?: assistant
         if (me.rerere.rikkahub.data.ai.tools.shouldUseExternalWebSearch(effectiveAssistant, model)) {
             addAll(createSearchTools(settings))
@@ -1514,7 +1541,21 @@ class ChatService(
         }
     }.let { me.rerere.rikkahub.data.ai.AgentToolPolicy.filter(it, conversationId.toString(), assistant.readOnlyTools) }
 
+    private suspend fun ensureReviewPolicy(id: Uuid, resumeStopped: Boolean = false) {
+        val scope = me.rerere.rikkahub.data.task.TaskArtifactStore.at(context.filesDir).reviewScope(id.toString()) ?: return
+        val execution = currentCoroutineContext()
+        withContext(Dispatchers.IO) {
+            // Stop and an explicit resume share the same session lock. A cancelled pending
+            // send can never clear a Stop that arrived while its metadata was loading.
+            synchronized(getOrCreateSession(id)) {
+                execution.ensureActive()
+                me.rerere.rikkahub.data.ai.AgentTaskPolicy.ensureReview(id.toString(), scope.workspaceId, resumeStopped)
+            }
+        }
+    }
+
     private suspend fun checkExecutionBudget(id: Uuid, reserveStep: Boolean): GenerationStopReason? {
+        ensureReviewPolicy(id)
         val policy = me.rerere.rikkahub.data.ai.AgentTaskPolicy.get(id.toString())
         if (policy?.stopped == true) return GenerationStopReason.CANCELLED
         if (policy != null && System.currentTimeMillis() >= policy.deadlineAtMs) return GenerationStopReason.TASK_DEADLINE
@@ -1689,6 +1730,7 @@ class ChatService(
         manageUiLifecycle: Boolean = !autonomousCycle,
         claimSteeringInput: suspend (String) -> Boolean = { false },
     ): GenerationSliceOutcome {
+        ensureReviewPolicy(conversationId)
         var outcome = GenerationSliceOutcome(GenerationStopReason.FAILED)
         val settings = settingsStore.settingsFlow.first()
         // Resolve the assistant from this conversation's own assistantId — the global
@@ -1825,7 +1867,7 @@ class ChatService(
                 systemAddendum = listOfNotNull(
                     me.rerere.rikkahub.data.ai.tools.ConversationSystemAddendum.get(conversationId),
                     project?.promptContext(),
-                    taskBrief.takeIf { it.goal.isNotBlank() || it.acceptanceCriteria.isNotBlank() }?.let {
+                    taskBrief.takeIf { it.isActive && (it.goal.isNotBlank() || it.acceptanceCriteria.isNotBlank()) }?.let {
                         "Task goal: ${it.goal}\nAcceptance criteria: ${it.acceptanceCriteria}"
                     },
                 ).joinToString("\n\n").ifBlank { null },
@@ -3687,6 +3729,17 @@ class ChatService(
             .mapTo(mutableSetOf()) { it.title }
         val forkConversation = createForkConversation(currentConversation, copiedNodes, existingTitles)
 
+        val taskStore = me.rerere.rikkahub.data.task.TaskArtifactStore.at(context.filesDir)
+        taskStore.reviewScope(conversationId.toString())?.let { scope ->
+            // A fork of a review keeps its review identity, including through backup/restore.
+            ensureReviewPolicy(conversationId)
+            taskStore.markReview(forkConversation.id.toString(), scope)
+            withContext(Dispatchers.IO) {
+                me.rerere.rikkahub.data.ai.AgentTaskPolicy.get(conversationId.toString())?.let {
+                    me.rerere.rikkahub.data.ai.AgentTaskPolicy.set(forkConversation.id.toString(), it)
+                }
+            }
+        }
         saveConversation(forkConversation.id, forkConversation)
         journal.append(forkConversation.id.toString(), "conversation.forked", buildJsonObject {
             put("parent_conversation", currentConversation.id.toString())
@@ -3844,19 +3897,18 @@ class ChatService(
 
     // 停止当前会话生成任务（不清理会话缓存）
     suspend fun stopGeneration(conversationId: Uuid) {
-        me.rerere.rikkahub.data.ai.AgentTaskPolicy.stop(conversationId.toString())
+        val session = getOrCreateSession(conversationId)
+        val jobs = synchronized(session) {
+            me.rerere.rikkahub.data.ai.AgentTaskPolicy.stop(conversationId.toString())
+            session.messageQueue.pause()
+            session.cancelJobs()
+        }
         // Persist Stop even when a recovery coroutine has not acquired its in-memory task yet.
         runCatching {
             updateAgentTask(conversationId) { if (it.status == "completed") it else it.copy(status = "cancelled", reason = GenerationStopReason.CANCELLED) }
         }.onFailure { Log.w(TAG, "Could not persist Stop; cancelling the live job anyway", it) }
-        // Cancel BEFORE the mutex so the cancelled coroutines can drain their own writes
-        // (which may try to acquire the same mutex via their save path). Also pause the
-        // message queue so nothing auto-dispatches into the conversation we're stopping.
-        val session = getOrCreateSession(conversationId)
-        val jobs = synchronized(session) {
-            session.messageQueue.pause()
-            session.cancelJobs()
-        }
+        // Cancellation already happened under the same lock as review resumption; join
+        // before taking the persistence mutex so cancelled writers can drain safely.
         jobs.forEach { it.join() }
 
         val convMutex = mutexFor(conversationId)

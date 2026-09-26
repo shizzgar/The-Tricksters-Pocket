@@ -411,9 +411,9 @@ internal fun unreachableEnvelope(host: String, port: Int, outcome: ProbeOutcome)
         })
         put("recovery", "Direct TCP to ${outcome.resolvedIp}:$port failed across every available " +
             "network (${outcome.totalMs}ms total). If Termux ssh from the same device reaches " +
-            "this host, RikkaHub's process is being filtered. Check Settings → Network → " +
+            "this host, The Trickster's Pocket's process is being filtered. Check Settings → Network → " +
             "Private DNS (try Off), any active VPN's per-app routing, and Settings → Apps → " +
-            "RikkaHub → Mobile data & Wi-Fi (enable Background data and Unrestricted data usage).")
+            "The Trickster's Pocket → Mobile data & Wi-Fi (enable Background data and Unrestricted data usage).")
     }
 
 /** Run a single command on an open session. Returns a JSON object with exit_code/stdout/stderr. */

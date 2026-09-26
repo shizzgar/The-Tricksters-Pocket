@@ -97,7 +97,7 @@ import me.rerere.rikkahub.service.ChatError
 import me.rerere.rikkahub.ui.components.message.ChatMessage
 import me.rerere.rikkahub.ui.components.ui.ErrorCardsDisplay
 import me.rerere.rikkahub.ui.components.ui.ListSelectableItem
-import me.rerere.rikkahub.ui.components.ui.AnteaterLoadingIndicator
+import me.rerere.rikkahub.ui.components.ui.PocketLoadingIndicator
 import me.rerere.rikkahub.ui.components.ui.Tooltip
 import me.rerere.rikkahub.ui.hooks.ImeLazyListAutoScroller
 import me.rerere.rikkahub.ui.theme.ChatFontProvider
@@ -411,7 +411,7 @@ private fun ChatListNormal(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        AnteaterLoadingIndicator(
+                        PocketLoadingIndicator(
                             modifier = Modifier.size(28.dp)
                         )
                         AnimatedVisibility(

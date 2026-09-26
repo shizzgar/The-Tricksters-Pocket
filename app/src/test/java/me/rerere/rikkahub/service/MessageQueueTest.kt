@@ -253,4 +253,30 @@ class MessageQueueTest {
         assertNull(first.takeNext())
         assertEquals(text("second"), second.takeNext()!!.parts)
     }
+
+    @Test
+    fun `completion delivery cannot masquerade as explicit user review continuation`() {
+        val queue = MessageQueue()
+        queue.enqueue(text("child completion"))
+        queue.enqueue(text("continue reviewing"), explicitUserTurn = true)
+        assertFalse(queue.takeNext()!!.explicitUserTurn)
+        assertTrue(queue.takeNext()!!.explicitUserTurn)
+    }
+
+    @Test
+    fun `explicit user origin survives edits pause and failed steering without changing completion origin`() {
+        val queue = MessageQueue()
+        queue.enqueue(text("user"), steerActiveTask = true, explicitUserTurn = true)
+        queue.enqueue(text("completion"), steerActiveTask = true)
+        val ids = queue.state.value.messages.map { it.id }
+        ids.forEach { id -> queue.beginEdit(id); queue.finishEdit(id, text("edited")) }
+        val claimed = queue.claimSteering()
+        assertEquals(listOf(true, false), claimed.map { it.explicitUserTurn })
+        queue.pause()
+        queue.finishSteering(ids.toSet(), accepted = false)
+        assertNull(queue.takeNext())
+        queue.resume()
+        assertTrue(queue.takeNext()!!.explicitUserTurn)
+        assertFalse(queue.takeNext()!!.explicitUserTurn)
+    }
 }

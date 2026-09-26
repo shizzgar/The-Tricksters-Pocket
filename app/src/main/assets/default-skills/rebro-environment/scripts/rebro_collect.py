@@ -590,7 +590,7 @@ done'''
                 if focus=='frida' else
                 [('Root access',self.root),('Device and resources',self.device),('Toolchain',self.tools),
                  ('Python and Frida transport',self.python_and_frida),('Live Frida service',self.services),
-                 ('RikkaHub/Termux packages',self.packages),('Bridge and baseline discovery',self.discover)])
+                 ("The Trickster's Pocket / Termux packages",self.packages),('Bridge and baseline discovery',self.discover)])
         for index,(label,fn) in enumerate(phases,1):
             print(f'[{index}/{len(phases)}] {label}',file=sys.stderr,flush=True)
             try:fn()

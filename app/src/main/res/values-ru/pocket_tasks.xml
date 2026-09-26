@@ -10,8 +10,8 @@
     <string name="task_message">Открыть чат / написать</string>
     <string name="task_stop_one">Остановить этот чат</string>
     <string name="task_stop_all">Остановить всю задачу</string>
-    <string name="task_verify">Проверить с VerifyBro</string>
-    <string name="task_verify_missing">VerifyBro недоступен. Восстановите встроенного ассистента для проверки.</string>
+    <string name="task_verify">Проверить результаты…</string>
+    <string name="task_verify_missing">Нет доступного проверяющего. Выберите существующего ассистента или добавьте нового в настройках ассистентов.</string>
     <string name="task_projects">Проекты</string>
     <string name="task_open">Открыть</string>
     <string name="task_export">Сохранить копию</string>
@@ -37,4 +37,18 @@
     <string name="task_brief_saved">Цель и критерии сохранены</string>
     <string name="task_workspace">Workspace: %1$s</string>
     <string name="task_result_source_chat">Исходный чат</string>
+    <string name="task_entry_hint">Поставить цель, задать критерии приёмки и посмотреть результаты.</string>
+    <string name="task_define">Поставить задачу</string>
+    <string name="task_define_hint">Цель и критерии будут учитываться в следующих сообщениях этого чата и его дочерних чатов. После сохранения задача появится над полем ввода.</string>
+    <string name="task_set">Поставить задачу</string>
+    <string name="task_open_results">Открыть результаты и историю</string>
+    <string name="task_inactive_hint">Активной задачи нет. Задайте или возобновите её через + в чате. Прежние результаты доступны.</string>
+    <string name="task_close">Закрыть задачу</string>
+    <string name="task_close_hint">Скрыть плашку задачи и больше не добавлять её цель в новые запросы. Результаты и история сохранятся. Работающие агенты продолжат работу; для остановки используйте «Стоп».</string>
+    <string name="task_load_error">Не удалось загрузить задачу.</string>
+    <string name="task_review_title">Проверка</string>
+    <string name="task_review_choose">Кто проверит результаты?</string>
+    <string name="task_review_hint">Выберите любого ассистента. Откроется отдельный дочерний чат с целью, результатами и черновиком запроса на проверку. Инструменты проверки ограничены чтением; отправку запроса подтверждаете вы.</string>
+    <string name="task_review_prepare">Подготовить проверку</string>
+    <string name="task_review_selected">Последний проверяющий: %1$s</string>
 </resources>
