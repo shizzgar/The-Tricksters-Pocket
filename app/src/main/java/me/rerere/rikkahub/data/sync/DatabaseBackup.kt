@@ -45,7 +45,9 @@ internal object DatabaseBackup {
         SQLiteDatabase.openDatabase(configuration, null) { error("Backup database is corrupt") }.use { database ->
             val exists = database.query("SELECT name FROM sqlite_master WHERE type='table' AND name='ssh_hosts'").use { it.moveToFirst() }
             if (exists) {
-                database.execSQL("PRAGMA secure_delete=ON")
+                database.query("PRAGMA secure_delete=ON").use { cursor ->
+                    check(cursor.moveToFirst() && cursor.getInt(0) == 1) { "Could not enable secure credential cleanup" }
+                }
                 val rows = database.query("SELECT name,password,privateKey,passphrase FROM ssh_hosts").use { cursor ->
                     buildList { while (cursor.moveToNext()) add((0..3).map { if (cursor.isNull(it)) null else cursor.getString(it) }) }
                 }

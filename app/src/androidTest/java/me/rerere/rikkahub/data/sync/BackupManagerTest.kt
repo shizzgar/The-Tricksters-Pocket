@@ -49,8 +49,19 @@ class BackupManagerTest {
     }
 
     @After fun tearDown() {
-        liveDatabase.close()
-        directory.deleteRecursively()
+        // libsimple's dictionary configuration is process-global. Staged Room opens above
+        // point it at this fixture's isolated filesDir; restore the durable app dictionary
+        // before removing that directory, so subsequent native jieba queries stay valid.
+        val app = InstrumentationRegistry.getInstrumentation().targetContext
+        val dict = me.rerere.rikkahub.data.db.fts.SimpleDictManager.extractDict(app)
+        try {
+            liveDatabase.openHelper.writableDatabase.query("SELECT jieba_dict(?)", arrayOf(dict.absolutePath)).use {
+                check(it.moveToFirst())
+            }
+        } finally {
+            liveDatabase.close()
+            directory.deleteRecursively()
+        }
     }
 
     @Test fun oldArchiveIgnoresShmAndLeavesLiveDatabaseUntouchedUntilStartup() = runBlocking {
