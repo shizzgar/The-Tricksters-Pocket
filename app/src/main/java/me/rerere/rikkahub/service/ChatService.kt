@@ -1965,7 +1965,7 @@ class ChatService(
                     )
                     addAll(localTools.getTools(assistant.localTools, invocationCtx))
                     addAll(createWorkspaceToolsIfReady(assistant.workspaceId?.toString(), conversation.workspaceCwd))
-        addAll(me.rerere.rikkahub.data.ai.tools.TaskArtifactTools.create(conversationId, effectiveAssistant,
+        addAll(me.rerere.rikkahub.data.ai.tools.TaskArtifactTools.create(conversationId, assistant,
             workspaceRepository, me.rerere.rikkahub.data.task.TaskArtifactStore.at(context.filesDir)))
                     mcpManager.getAllAvailableTools().also { allTools ->
                         // Upstream name validation: a server name that isn't pure

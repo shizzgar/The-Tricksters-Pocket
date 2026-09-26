@@ -77,6 +77,6 @@ fun MemoryLedgerPage(memoryScope: String) {
         AlertDialog(onDismissRequest = { editing = null }, title = { Text(stringResource(R.string.pocket_memory)) }, text = { Column { OutlinedTextField(content, { content = it }, minLines = 4); error?.let { Text(it, color = MaterialTheme.colorScheme.error) } } }, confirmButton = { TextButton(enabled = content.isNotBlank(), onClick = { mutate {
             if (original.id == 0) repository.addMemory(memoryScope, content) else repository.updateContent(original.id, content, original.revision)
             editing = null
-        } }) { Text(stringResource(R.string.save)) } }, dismissButton = { TextButton(onClick = { editing = null }) { Text(stringResource(R.string.cancel)) } })
+        } }) { Text(stringResource(R.string.chat_page_save)) } }, dismissButton = { TextButton(onClick = { editing = null }) { Text(stringResource(R.string.cancel)) } })
     }
 }

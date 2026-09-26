@@ -96,7 +96,7 @@ fun ProjectsPage(conversationId: String? = null) {
                 item { OutlinedTextField(instructions, { instructions = it }, label = { Text(stringResource(R.string.pocket_instructions)) }, minLines = 3) }
                 item { OutlinedTextField(knowledge, { knowledge = it }, label = { Text(stringResource(R.string.pocket_knowledge)) }, minLines = 3) }
             }
-        }, confirmButton = { TextButton(enabled = name.isNotBlank(), onClick = { save(project.copy(name = name.trim(), workspaceId = workspace, instructions = instructions, knowledge = knowledge)) }) { Text(stringResource(R.string.save)) } }, dismissButton = { TextButton(onClick = { editing = null }) { Text(stringResource(R.string.cancel)) } })
+        }, confirmButton = { TextButton(enabled = name.isNotBlank(), onClick = { save(project.copy(name = name.trim(), workspaceId = workspace, instructions = instructions, knowledge = knowledge)) }) { Text(stringResource(R.string.chat_page_save)) } }, dismissButton = { TextButton(onClick = { editing = null }) { Text(stringResource(R.string.cancel)) } })
     }
 }
 
