@@ -116,7 +116,7 @@ class BackupManagerTest {
     @Test fun defaultArchiveRemovesSshSecretsIncludingDeletedSQLiteBytes() = runBlocking {
         liveDatabase.openHelper.writableDatabase.execSQL(
             "INSERT INTO ssh_hosts (name,host,port,user,password,privateKey,passphrase,createdAtMs) VALUES (?,?,?,?,?,?,?,?)",
-            arrayOf("synthetic-host", "localhost", 22, "tester", "synthetic-backup-password", "synthetic-private-key", "synthetic-passphrase", 0))
+            arrayOf<Any>("synthetic-host", "localhost", 22, "tester", "synthetic-backup-password", "synthetic-private-key", "synthetic-passphrase", 0))
         val archive = manager.createBackup(includeDatabase = true, includeFiles = false, includeCredentials = false, password = "")
         ZipFile(archive).use { zip ->
             val bytes = zip.getInputStream(zip.getEntry(DatabaseBackup.ARCHIVE_DATABASE)).use { it.readBytes() }
@@ -135,7 +135,7 @@ class BackupManagerTest {
     @Test fun encryptedBackupAuthenticatesBeforePublishingAndProtectsRestoredCredentials() = runBlocking {
         liveDatabase.openHelper.writableDatabase.execSQL(
             "INSERT INTO ssh_hosts (name,host,port,user,password,createdAtMs) VALUES (?,?,?,?,?,?)",
-            arrayOf("synthetic-host", "localhost", 22, "tester", "synthetic-portable-secret", 0))
+            arrayOf<Any>("synthetic-host", "localhost", 22, "tester", "synthetic-portable-secret", 0))
         val archive = manager.createBackup(includeDatabase = true, includeFiles = false,
             includeCredentials = true, password = "synthetic-archive-password")
         ZipFile(archive).use { zip ->
