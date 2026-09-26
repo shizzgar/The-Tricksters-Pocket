@@ -44,10 +44,12 @@ class FilesManager(
         val resolvedName = displayName ?: getFileNameFromUri(uri) ?: "file"
         val resolvedMime = mimeType ?: getFileMimeType(uri) ?: "application/octet-stream"
         val target = createTargetFile(folder, resolvedName, resolvedMime)
-        context.contentResolver.openInputStream(uri)?.use { input ->
-            target.outputStream().use { output ->
-                input.copyTo(output)
-            }
+        try {
+            val input = context.contentResolver.openInputStream(uri) ?: error("Cannot open shared file")
+            input.use { source -> target.outputStream().use { output -> source.copyTo(output) } }
+        } catch (error: Throwable) {
+            target.delete()
+            throw error
         }
         createManagedFileEntity(
             folder = folder,

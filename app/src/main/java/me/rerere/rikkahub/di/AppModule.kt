@@ -101,7 +101,7 @@ val appModule = module {
     single { me.rerere.rikkahub.reliability.BugReportBuilder(get()) }
 
     // Phase 11: Sub-agents
-    single { me.rerere.rikkahub.subagent.SubAgentRegistry() }
+    single { me.rerere.rikkahub.subagent.SubAgentRegistry(java.io.File(get<android.content.Context>().filesDir, "subagent-runs.json")) }
     single {
         me.rerere.rikkahub.subagent.SubAgentEngine(
             registry = get(),
@@ -278,7 +278,8 @@ val appModule = module {
             skillManager = get(),
             toolApprovalPreferences = get(),
             workspaceRepository = get(),
-            folderRepository = get()
+            folderRepository = get(),
+            projectRepository = get()
         )
     }
 

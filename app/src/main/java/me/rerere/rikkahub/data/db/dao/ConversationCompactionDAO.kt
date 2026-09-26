@@ -9,6 +9,9 @@ import me.rerere.rikkahub.data.db.entity.ConversationCompactionEntity
 @Dao
 interface ConversationCompactionDAO {
     @Query("SELECT * FROM conversation_compaction WHERE conversation_id = :conversationId")
+    fun observeByConversationId(conversationId: String): kotlinx.coroutines.flow.Flow<ConversationCompactionEntity?>
+
+    @Query("SELECT * FROM conversation_compaction WHERE conversation_id = :conversationId")
     suspend fun getByConversationId(conversationId: String): ConversationCompactionEntity?
 
     /** Doctor support: how many conversations have ever been compacted. */

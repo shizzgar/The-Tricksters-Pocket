@@ -111,6 +111,7 @@ internal fun ChildChatCard(conversation: Conversation, status: String? = null, a
 internal fun subAgentStatusLabel(status: String?): String = stringResource(when (status?.lowercase()) {
     "pending", "queued" -> R.string.pocket_agent_queued
     "running" -> R.string.pocket_agent_running
+    "waiting_approval", "awaiting_approval" -> R.string.pocket_runtime_waiting_approval
     "succeeded" -> R.string.pocket_agent_done
     "failed", "timed_out", "process_lost" -> R.string.pocket_agent_stopped
     "cancelled" -> R.string.pocket_agent_cancelled

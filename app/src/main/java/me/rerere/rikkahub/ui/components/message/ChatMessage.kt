@@ -115,6 +115,7 @@ fun ChatMessage(
     generationActive: Boolean = loading,
     generationProgress: me.rerere.ai.provider.GenerationProgress? = null,
     processingStatus: String? = null,
+    contextUsage: me.rerere.rikkahub.data.ai.ContextUsageSnapshot? = null,
     model: Model? = null,
     assistant: Assistant? = null,
     lastMessage: Boolean = false,
@@ -234,7 +235,8 @@ fun ChatMessage(
         )
 
         ProvideTextStyle(textStyle) {
-            ChatMessageNerdLine(message = message, progress = generationProgress, processingStatus = processingStatus, active = loading)
+            ChatMessageNerdLine(message = message, progress = generationProgress, processingStatus = processingStatus, active = loading,
+                contextUsage = contextUsage.takeIf { lastMessage })
         }
 
     }

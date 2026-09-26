@@ -1,33 +1,18 @@
 package me.rerere.rikkahub.ui.pages.share.handler
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Card
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil3.compose.AsyncImage
 import kotlinx.coroutines.launch
 import me.rerere.rikkahub.R
+import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.utils.base64Encode
 import me.rerere.rikkahub.utils.navigateToChatPage
@@ -36,75 +21,61 @@ import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 
 @Composable
-fun ShareHandlerPage(text: String, image: String?) {
-    val vm: ShareHandlerVM = koinViewModel(parameters = { parametersOf(text) })
+fun ShareHandlerPage(text: String, streams: List<String>) {
+    val vm: ShareHandlerVM = koinViewModel(parameters = { parametersOf(text, streams) })
     val settings by vm.settings.collectAsStateWithLifecycle()
+    val files by vm.files.collectAsStateWithLifecycle()
+    val failures by vm.failures.collectAsStateWithLifecycle()
+    val importing by vm.isImporting.collectAsStateWithLifecycle()
+    val recent by vm.recentChats.collectAsStateWithLifecycle()
+    val projects by vm.projectRepository.projects.collectAsStateWithLifecycle()
+    var projectId by remember { mutableStateOf<String?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var opening by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    val navController = LocalNavController.current
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(stringResource(R.string.share_handler_page_title))
-                }
-            )
-        }
-    ) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = it + PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
+    val nav = LocalNavController.current
+    Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.share_handler_page_title)) }, navigationIcon = { BackButton() }) }) { padding ->
+        LazyColumn(contentPadding = padding + PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxSize()) {
             item {
                 Card {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp)
-                    ) {
-                        Text(
-                            text = vm.shareText,
-                            maxLines = 5,
-                            overflow = TextOverflow.Ellipsis,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-
-                        image?.let {
-                            AsyncImage(
-                                model = it,
-                                contentDescription = null,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
+                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (text.isNotBlank()) Text(text, maxLines = 5, overflow = TextOverflow.Ellipsis)
+                        Text(stringResource(R.string.pocket_share_files, files.size, streams.size))
+                        files.forEach { Text(it.lastPathSegment.orEmpty(), style = MaterialTheme.typography.bodySmall) }
+                        if (importing || opening) LinearProgressIndicator(Modifier.fillMaxWidth())
+                        failures.forEach { Text(it, color = MaterialTheme.colorScheme.error) }
+                        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                     }
                 }
             }
-
-            items(settings.assistants, key = { it.id }) { assistant ->
-                Surface(
-                    onClick = {
-                        scope.launch {
-                            vm.updateAssistant(assistant.id)
-                            navigateToChatPage(
-                                navigator = navController,
-                                initText = vm.shareText.base64Encode(),
-                                initFiles = image?.let { listOf(it.toUri()) } ?: emptyList()
-                            )
-                        }
-                    },
-                    tonalElevation = 4.dp,
-                    shape = MaterialTheme.shapes.medium
-                ) {
-                    ListItem(
-                        headlineContent = {
-                            Text(
-                                text = assistant.name.ifEmpty {
-                                    stringResource(R.string.assistant_page_default_assistant)
-                                },
-                                maxLines = 1
-                            )
-                        },
-                    )
+            if (projects.isNotEmpty()) item {
+                var expanded by remember { mutableStateOf(false) }
+                Box {
+                    TextButton(onClick = { expanded = true }) { Text(projects.firstOrNull { it.id == projectId }?.name ?: stringResource(R.string.pocket_no_project)) }
+                    DropdownMenu(expanded, { expanded = false }) {
+                        DropdownMenuItem(text = { Text(stringResource(R.string.pocket_no_project)) }, onClick = { projectId = null; expanded = false })
+                        projects.forEach { project -> DropdownMenuItem(text = { Text(project.name) }, onClick = { projectId = project.id; expanded = false }) }
+                    }
+                }
+            }
+            item { Text(stringResource(R.string.pocket_share_new), style = MaterialTheme.typography.titleMedium) }
+            items(settings.assistants, key = { "assistant:${it.id}" }) { assistant ->
+                Surface(onClick = {
+                    scope.launch {
+                        opening = true
+                        try {
+                            val id = vm.newChat(assistant.id, projectId)
+                            navigateToChatPage(nav, chatId = id, initText = text.base64Encode(), initFiles = files)
+                        } catch (failure: Exception) { error = failure.message } finally { opening = false }
+                    }
+                }, enabled = !importing && !opening, shape = MaterialTheme.shapes.medium, tonalElevation = 3.dp) {
+                    ListItem(headlineContent = { Text(assistant.name.ifBlank { stringResource(R.string.assistant_page_default_assistant) }) })
+                }
+            }
+            item { Text(stringResource(R.string.pocket_share_existing), style = MaterialTheme.typography.titleMedium) }
+            items(recent.sortedByDescending { it.updateAt }.take(40), key = { "chat:${it.id}" }) { chat ->
+                Surface(onClick = { navigateToChatPage(nav, chatId = chat.id, initText = text.base64Encode(), initFiles = files) }, enabled = !importing && !opening, shape = MaterialTheme.shapes.medium) {
+                    ListItem(headlineContent = { Text(chat.title.ifBlank { stringResource(R.string.search_page_untitled) }) }, supportingContent = { Text(settings.assistants.firstOrNull { it.id == chat.assistantId }?.name.orEmpty()) })
                 }
             }
         }

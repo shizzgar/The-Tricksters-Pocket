@@ -117,7 +117,7 @@ val dataSourceModule = module {
     }
 
     single {
-        MessageFtsManager(get())
+        MessageFtsManager(get(), get())
     }
 
     // Phase 24 — unified AgentRun ledger. DAO + the single shared writer/reader + the
@@ -138,6 +138,7 @@ val dataSourceModule = module {
             conversationRepo = get(),
             aiLoggingManager = get(),
             systemPromptBuilder = get(),
+            projectRepository = get(),
         )
     }
 

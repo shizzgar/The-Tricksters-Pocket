@@ -37,11 +37,13 @@ class LiveSteeringInstrumentedTest {
 
     private class FixtureProvider : Provider<ProviderSetting.OpenAI> {
         val requests = CopyOnWriteArrayList<List<UIMessage>>()
+        val advertisedTools = CopyOnWriteArrayList<List<String>>()
         var response: suspend () -> List<UIMessagePart> = { listOf(UIMessagePart.Text("done")) }
         var stream: suspend FlowCollector<StreamChunk>.() -> Unit = { error("Unexpected stream") }
         override suspend fun listModels(providerSetting: ProviderSetting.OpenAI) = emptyList<Model>()
         override suspend fun generateText(providerSetting: ProviderSetting.OpenAI, messages: List<UIMessage>, params: TextGenerationParams): TextGenerationResult {
             requests += messages
+            advertisedTools += params.tools.map { it.name }
             return TextGenerationResult("fixture", params.model.modelId, UIMessage(role = MessageRole.ASSISTANT, parts = response()), "stop")
         }
         override suspend fun streamText(providerSetting: ProviderSetting.OpenAI, messages: List<UIMessage>, params: TextGenerationParams): Flow<StreamChunk> = flow {
@@ -59,6 +61,10 @@ class LiveSteeringInstrumentedTest {
         tools: List<Tool> = emptyList(),
         initial: List<UIMessage> = listOf(UIMessage(role = MessageRole.USER, parts = text("original task"))),
         afterTool: suspend (List<UIMessage>) -> List<UIMessage>? = { null },
+        conversationId: Uuid? = null,
+        readonly: Boolean = false,
+        guard: suspend (Boolean) -> GenerationStopReason? = { null },
+        refresh: (suspend () -> List<Tool>)? = null,
     ): Run {
         val model = Model(modelId = "steering-fixture", abilities = listOf(ModelAbility.TOOL))
         val settings = Settings(providers = listOf(ProviderSetting.OpenAI(models = listOf(model))))
@@ -71,7 +77,8 @@ class LiveSteeringInstrumentedTest {
         var reserved = emptyList<QueuedMessage>()
         withTimeout(15_000) {
             loop.generateText(settings = settings, model = model, messages = initial,
-                assistant = Assistant(streamOutput = false, localTools = emptyList()), tools = tools,
+                assistant = Assistant(streamOutput = false, localTools = emptyList(), readOnlyTools = readonly), tools = tools,
+                conversationId = conversationId, executionGuard = guard, refreshTools = refresh,
                 manageUiLifecycle = false, autonomousCycle = false, maxSteps = 5,
                 awaitToolResultPersistence = true,
                 claimSteeringInput = { at ->
@@ -159,6 +166,65 @@ class LiveSteeringInstrumentedTest {
         assertTrue(provider.requests.isEmpty())
     }
 
+    @Test fun persistedAllowlistFiltersRefreshAndRejectsForgedToolExecution() = runBlocking {
+        val id = Uuid.random()
+        AgentTaskPolicy.set(id.toString(), ScopedAgentPolicy(5, allowedTools = setOf("workspace_read_file")))
+        try {
+            val executed = mutableListOf<String>()
+            val tools = listOf("workspace_read_file", "workspace_write_file").map { name ->
+                Tool(name = name, description = "fixture", parameters = { InputSchema.Obj(buildJsonObject {}) },
+                    execute = { executed += name; text("ok") })
+            }
+            val provider = FixtureProvider().apply { response = {
+                if (requests.size == 1) listOf(call("workspace_write_file")) else text("done")
+            } }
+            val result = drive(provider, MessageQueue(), tools, conversationId = id, refresh = { tools })
+            assertTrue(executed.isEmpty())
+            assertTrue(provider.advertisedTools.all { it == listOf("workspace_read_file") })
+            assertTrue(result.messages.flatMap { it.getTools() }.single().output.toString().contains("tool_not_found"))
+        } finally { AgentTaskPolicy.clear(id.toString()) }
+    }
+
+    @Test fun totalRequestLimitIsRetainedAcrossApprovalAndContinuation() = runBlocking {
+        val id = Uuid.random()
+        AgentTaskPolicy.set(id.toString(), ScopedAgentPolicy(1))
+        try {
+            var executed = 0
+            val tool = Tool(name = "approval", description = "fixture", parameters = { InputSchema.Obj(buildJsonObject {}) },
+                needsApproval = { true }, execute = { executed++; text("approved work completed") })
+            val provider = FixtureProvider().apply { response = { listOf(call("approval")) } }
+            val guard: suspend (Boolean) -> GenerationStopReason? = { reserve ->
+                if (reserve) AgentTaskPolicy.reserveStep(id.toString()) else null
+            }
+            val first = drive(provider, MessageQueue(), listOf(tool), conversationId = id, guard = guard)
+            assertEquals(GenerationStopReason.WAITING_APPROVAL, first.outcome.reason)
+            assertEquals(0, executed)
+            val approved = first.messages.map { message -> message.copy(parts = message.parts.map {
+                if (it is UIMessagePart.Tool) it.copy(approvalState = ToolApprovalState.Approved) else it
+            }) }
+            val resumed = drive(provider, MessageQueue(), listOf(tool), initial = approved, conversationId = id, guard = guard)
+            assertEquals(1, executed)
+            assertEquals(1, provider.requests.size)
+            assertEquals(GenerationStopReason.RUN_STEP_LIMIT, resumed.outcome.reason)
+            val again = drive(provider, MessageQueue(), listOf(tool), initial = resumed.messages, conversationId = id, guard = guard)
+            assertEquals(GenerationStopReason.RUN_STEP_LIMIT, again.outcome.reason)
+            assertEquals(1, provider.requests.size)
+        } finally { AgentTaskPolicy.clear(id.toString()) }
+    }
+
+    @Test fun hardBudgetStopsBeforeToolSideEffects() = runBlocking {
+        var executed = false
+        val provider = FixtureProvider().apply { response = { listOf(call("fixture_write")) } }
+        val tool = Tool(name = "fixture_write", description = "fixture", parameters = { InputSchema.Obj(buildJsonObject {}) },
+            execute = { executed = true; text("unexpected") })
+        val result = drive(provider, MessageQueue(), listOf(tool), guard = {
+            if (provider.requests.isNotEmpty()) GenerationStopReason.BUDGET_LIMIT else null
+        })
+        assertFalse(executed)
+        assertEquals(1, provider.requests.size)
+        assertEquals(GenerationStopReason.BUDGET_LIMIT, result.outcome.reason)
+    }
+
     private suspend fun withChatFixture(block: suspend (ChatService, FixtureProvider, Uuid, ConversationRepository) -> Unit) {
         val koin = GlobalContext.get()
         val store = koin.get<SettingsStore>()
@@ -233,11 +299,35 @@ class LiveSteeringInstrumentedTest {
         }
     }
 
+    @Test fun staleApprovalDoesNotStartAnotherModelTurn() = runBlocking {
+        withChatFixture { service, provider, id, _ ->
+            provider.stream = {
+                emit(StreamChunk.TextStart("text"))
+                emit(StreamChunk.TextDelta("text", "Done"))
+                emit(StreamChunk.TextEnd("text"))
+                emit(StreamChunk.Finish("stop"))
+            }
+            service.sendMessage(id, text("Task"))
+            service.getGenerationJobStateFlow(id).first { it == null }
+            assertEquals(1, provider.requests.size)
+            service.handleToolApproval(id, "stale-tool", approved = true)
+            service.getGenerationJobStateFlow(id).first { it == null }
+            assertEquals(1, provider.requests.size)
+        }
+    }
+
     @Test fun openingActiveChildPreservesStreamAndBackgroundInitializationKeepsSelectedAssistant() = runBlocking {
         withChatFixture { service, provider, id, repo ->
             val store = GlobalContext.get().get<SettingsStore>()
             val selected = store.settingsFlow.value.assistantId
             val parent = Uuid.random()
+            val childAssistant = service.getConversationFlow(id).value.assistantId.toString()
+            GlobalContext.get().get<me.rerere.rikkahub.subagent.SubAgentRegistry>().addPending(
+                me.rerere.rikkahub.subagent.SubAgentRun(id.toString(), parent.toString(), childAssistant,
+                    "fixture", "child task", null, null, false, timeoutSeconds = 30, maxTrips = 5,
+                    status = me.rerere.rikkahub.subagent.SubAgentStatus.RUNNING,
+                    startedAtMs = System.currentTimeMillis(), conversationId = id.toString()))
+            AgentTaskPolicy.set(id.toString(), ScopedAgentPolicy(5, deadlineAtMs = System.currentTimeMillis() + 30_000))
             service.updateConversationState(id) { it.copy(parentConversationId = parent, subAgentRunId = id.toString()) }
             service.saveConversation(id, service.getConversationFlow(id).value)
             service.initializeConversation(id, selectAssistant = false)

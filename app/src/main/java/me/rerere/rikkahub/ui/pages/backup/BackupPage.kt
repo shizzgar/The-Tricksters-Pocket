@@ -62,6 +62,8 @@ fun BackupPage(vm: BackupVM = koinViewModel()) {
                 .fillMaxSize()
                 .padding(contentPadding)
         ) {
+            me.rerere.rikkahub.ui.pages.backup.components.BackupProtectionCard()
+            me.rerere.rikkahub.ui.pages.backup.components.TraceStorageCard()
             SecondaryScrollableTabRow(
                 selectedTabIndex = pagerState.currentPage,
                 containerColor = CustomColors.topBarColors.containerColor,

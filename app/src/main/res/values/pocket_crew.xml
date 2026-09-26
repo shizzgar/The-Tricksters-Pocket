@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="crew_model">Model: %1$s</string>
+    <string name="crew_not_selected">not selected</string>
+    <string name="crew_workspace">Workspace: %1$s</string>
+    <string name="crew_workspace_termux">Termux workspace: %1$s</string>
+    <string name="crew_termux_configured">Termux enabled</string>
+    <string name="crew_no_workspace">No workspace</string>
+    <string name="crew_read_only">Read-only tools</string>
+    <string name="crew_standard_access">Configured permissions</string>
+    <string name="crew_search_on">Search enabled</string>
+    <string name="crew_search_off">Search off</string>
+    <string name="crew_skills">%1$d skills enabled</string>
+    <string name="crew_issue_model">Select a model</string>
+    <string name="crew_issue_provider">Model provider is disabled</string>
+    <string name="crew_issue_chat_model">Select a chat model</string>
+    <string name="crew_issue_tools">Tool calling is not enabled for this model</string>
+    <string name="crew_issue_workspace">Linked workspace is missing</string>
+    <string name="crew_issue_workspace_broken">Workspace needs repair</string>
+    <string name="crew_issue_execution">Connect a workspace or enable Termux for execution</string>
+    <string name="crew_issue_skills">Enabled skills are missing</string>
+    <string name="crew_issue_skills_unknown">Skill installation has not been checked</string>
+    <string name="crew_open_doctor">Check environment in Doctor</string>
+    <string name="crew_configuration_note">Configuration only. Doctor checks device permissions and services; model credentials and external connections still require a live request.</string>
+    <string name="crew_configured">Configured · live connectivity not tested</string>
+    <string name="crew_readiness_title">%1$s · readiness</string>
+    <string name="crew_read_only_description">Only explicitly supported inspection tools are available. Shell commands, scripts, builds, tests, file writes and MCP tools are blocked. Turn this off to permit tools you separately enable; normal approval rules still apply.</string>
+</resources>

@@ -9,6 +9,8 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.encodeToJsonElement
+import me.rerere.rikkahub.skills.js.SkillSecretsStore
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.datastore.migration.SettingsJsonMigrator
@@ -35,7 +37,13 @@ class BackupManager(
 ) {
     private val restoreMutex = Mutex()
 
-    suspend fun createBackup(includeDatabase: Boolean, includeFiles: Boolean): File = withContext(Dispatchers.IO) {
+    suspend fun createBackup(
+        includeDatabase: Boolean,
+        includeFiles: Boolean,
+        includeCredentials: Boolean = BackupSecurityStore(context).includeCredentials,
+        password: String = if (includeCredentials) BackupSecurityStore(context).password() else "",
+    ): File = withContext(Dispatchers.IO) {
+        require(!includeCredentials || password.length >= 8) { "Set an encryption password before exporting credentials" }
         val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"))
         val archive = File.createTempFile("backup_${timestamp}_", ".zip", context.cacheDir)
         val staging = Files.createTempDirectory(context.cacheDir.toPath(), "backup-").toFile()
@@ -43,12 +51,24 @@ class BackupManager(
             val settings = settingsStore.settingsFlowRaw.first()
             ZipOutputStream(FileOutputStream(archive)).use { zip ->
                 zip.putNextEntry(ZipEntry("settings.json"))
-                zip.write(json.encodeToString(settings).toByteArray(Charsets.UTF_8))
+                val settingsJson = json.encodeToJsonElement(settings)
+                zip.write((if (includeCredentials) settingsJson else BackupCredentials.strip(settingsJson)).toString().toByteArray(Charsets.UTF_8))
                 zip.closeEntry()
                 if (includeDatabase) {
                     val snapshot = File(staging, SQLiteConfiguration.DATABASE_NAME)
                     DatabaseBackup.createSnapshot(database.openHelper.writableDatabase, snapshot)
+                    DatabaseBackup.protectSshCredentials(context, snapshot, includeCredentials)
                     addFile(zip, snapshot, DatabaseBackup.ARCHIVE_DATABASE)
+                }
+                if (includeCredentials) {
+                    zip.putNextEntry(ZipEntry("skill-secrets.json"))
+                    zip.write(SkillSecretsStore(context).portableSnapshot().toByteArray(Charsets.UTF_8))
+                    zip.closeEntry()
+                }
+                File(context.filesDir, "projects.json").takeIf { it.isFile }?.let { addFile(zip, it, "projects.json") }
+                if (includeDatabase) {
+                    File(context.filesDir, "task-results").listFiles().orEmpty()
+                        .filter { it.isFile && it.extension == "json" }.forEach { addFile(zip, it, "task-results/${it.name}") }
                 }
                 if (includeFiles) {
                     for (folder in listOf(FileFolders.UPLOAD, FileFolders.SKILLS, FileFolders.FONTS, FileFolders.IMAGES)) {
@@ -64,6 +84,18 @@ class BackupManager(
                     }
                 }
             }
+            if (includeCredentials) {
+                val plain = File(staging, "plain.zip")
+                check(archive.renameTo(plain))
+                val chars = password.toCharArray()
+                try {
+                    ZipOutputStream(FileOutputStream(archive)).use { zip ->
+                        zip.putNextEntry(ZipEntry(PortableBackupCipher.ENTRY))
+                        plain.inputStream().use { PortableBackupCipher.encrypt(it, zip, chars) }
+                        zip.closeEntry()
+                    }
+                } finally { chars.fill('\u0000'); plain.delete() }
+            }
             archive
         } catch (e: Throwable) {
             archive.delete()
@@ -73,7 +105,8 @@ class BackupManager(
         }
     }
 
-    suspend fun stageRestore(archive: File, includeDatabase: Boolean, includeFiles: Boolean) =
+    suspend fun stageRestore(archive: File, includeDatabase: Boolean, includeFiles: Boolean,
+        password: String = BackupSecurityStore(context).password()) =
         withContext(Dispatchers.IO) {
             restoreMutex.withLock {
                 val restore = pendingRestore(context)
@@ -84,16 +117,39 @@ class BackupManager(
                     val stagedWal = File(stagedDatabase.path + "-wal")
                     val seen = mutableSetOf<String>()
                     var restoredEntries = 0
-                    ZipFile(archive).use { zip ->
+                    // Authentication completes before any parsing or publication of the staged restore.
+                    var encryptedArchive = false
+                    val plain = File(staging, "authenticated.zip")
+                    val inputArchive = ZipFile(archive).use { outer ->
+                        val encrypted = outer.getEntry(PortableBackupCipher.ENTRY)
+                        if (encrypted == null) archive else {
+                            require(outer.size() == 1) { "Encrypted backup has unexpected entries" }
+                            val chars = password.toCharArray()
+                            try {
+                                outer.getInputStream(encrypted).use { input -> plain.outputStream().use { output ->
+                                    PortableBackupCipher.decrypt(input, output, chars)
+                                } }
+                            } finally { chars.fill('\u0000') }
+                            encryptedArchive = true
+                            plain
+                        }
+                    }
+                    var extractedBytes = 0L
+                    ZipFile(inputArchive).use { zip ->
                         for (entry in zip.entries()) {
                             currentCoroutineContext().ensureActive()
                             if (entry.isDirectory) continue
                             val target = when (entry.name) {
                                 "settings.json" -> File(staging, "settings.json")
+                                "projects.json" -> File(payload, "files/projects.json")
+                                "skill-secrets.json" -> if (encryptedArchive) File(staging, "skill-secrets.json") else null
                                 DatabaseBackup.ARCHIVE_DATABASE -> if (includeDatabase) stagedDatabase else null
                                 DatabaseBackup.WAL -> if (includeDatabase) stagedWal else null
                                 DatabaseBackup.SHM -> null // Rebuilt by SQLite; never restore shared-memory state.
-                                else -> if (includeFiles && isAttachment(entry.name)) {
+                                else -> if (includeDatabase && entry.name.startsWith("task-results/") &&
+                                    entry.name.substringAfter('/').matches(Regex("[a-fA-F0-9-]{36}\\.json"))) {
+                                    PendingRestore.resolveInside(File(payload, "files"), entry.name)
+                                } else if (includeFiles && isAttachment(entry.name)) {
                                     PendingRestore.resolveInside(File(payload, "files"), entry.name)
                                 } else null
                             } ?: continue
@@ -103,7 +159,15 @@ class BackupManager(
                             }
                             zip.getInputStream(entry).use { input ->
                                 FileOutputStream(target).use { output ->
-                                    input.copyTo(output)
+                                    val buffer = ByteArray(64 * 1024)
+                                    while (true) {
+                                        currentCoroutineContext().ensureActive()
+                                        val count = input.read(buffer)
+                                        if (count < 0) break
+                                        extractedBytes += count
+                                        require(extractedBytes <= 4L * 1024 * 1024 * 1024) { "Expanded backup exceeds 4 GiB" }
+                                        output.write(buffer, 0, count)
+                                    }
                                     output.fd.sync()
                                 }
                             }
@@ -126,6 +190,7 @@ class BackupManager(
                             room.close()
                         }
                         DatabaseBackup.removeSidecars(stagedDatabase)
+                        DatabaseBackup.protectSshCredentials(context, stagedDatabase, includeCredentials = true, forRestore = true)
                     }
 
                     val settingsFile = File(staging, "settings.json")
@@ -133,8 +198,36 @@ class BackupManager(
                         val settings = json.decodeFromString<Settings>(SettingsJsonMigrator.migrate(settingsFile.readText()))
                         require(!settings.init) { "Backup contains uninitialized settings" }
                         // Persist the migrated value once, including generated IDs, for restart/retry consistency.
-                        PendingRestore.writeDurably(settingsFile, json.encodeToString(settings))
+                        PendingRestore.writeDurably(settingsFile, me.rerere.rikkahub.data.security.DeviceSecretCipher.encrypt(json.encodeToString(settings)))
                     }
+                    File(payload, "files/task-results").listFiles().orEmpty().forEach { metadata ->
+                        me.rerere.rikkahub.data.task.TaskArtifactStore.validateBackupDocument(metadata.readText(), metadata.nameWithoutExtension)
+                    }
+                    val projectsFile = File(payload, "files/projects.json")
+                    if (projectsFile.isFile) {
+                        val projects = json.decodeFromString<List<me.rerere.rikkahub.data.repository.PocketProject>>(projectsFile.readText())
+                        fun validId(value: String) = java.util.UUID.fromString(value).toString() == value
+                        require(projects.size <= 10_000 && projects.map { it.id }.distinct().size == projects.size) { "Invalid project metadata" }
+                        projects.forEach { project ->
+                            require(validId(project.id) && project.name.isNotBlank()) { "Invalid project" }
+                            project.workspaceId?.let { require(validId(it)) }
+                            project.conversationIds.forEach { require(validId(it)) }
+                            project.files.forEach { reference ->
+                                require(reference.relativePath.startsWith("upload/")) { "Invalid project attachment" }
+                                PendingRestore.resolveInside(File(payload, "files"), reference.relativePath)
+                            }
+                        }
+                    }
+                    val skillSecrets = File(staging, "skill-secrets.json")
+                    if (skillSecrets.isFile) {
+                        val encoded = SkillSecretsStore(context).preparePortableRestore(skillSecrets.readText())
+                        val target = File(payload, "files/private_credentials/skill-secrets.json")
+                        check(target.parentFile!!.isDirectory || target.parentFile!!.mkdirs())
+                        PendingRestore.writeDurably(target, encoded)
+                        skillSecrets.delete()
+                    }
+                    // Never leave a decrypted portable archive in durable restore state.
+                    plain.delete()
                     currentCoroutineContext().ensureActive()
                     restore.publish(staging)
                 } finally {
@@ -168,7 +261,7 @@ class BackupManager(
         /** Must finish before Koin, Room, SettingsStore or any background consumers are initialized. */
         suspend fun applyPendingRestore(context: Context, json: Json): Boolean = withContext(Dispatchers.IO) {
             pendingRestore(context).apply { settingsJson ->
-                SettingsStore.restoreBeforeInitialization(context, json.decodeFromString<Settings>(settingsJson))
+                SettingsStore.restoreBeforeInitialization(context, json.decodeFromString<Settings>(me.rerere.rikkahub.data.security.DeviceSecretCipher.decrypt(settingsJson)))
             }
         }
     }

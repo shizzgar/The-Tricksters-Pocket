@@ -93,6 +93,9 @@ fun SkillDetailPage(skillName: String) {
 @Composable
 private fun SkillTesterSheet(skillName: String, onDismiss: () -> Unit) {
     val runner = koinInject<SkillTestRunner>()
+    val manager = koinInject<me.rerere.rikkahub.data.files.SkillManager>()
+    var previousPrompt by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(skillName) { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { previousPrompt = manager.testHistory(skillName).read().lastOrNull()?.prompt } }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var prompt by rememberSaveable { mutableStateOf("") }
     val stateFlow = remember { MutableStateFlow<SkillTestRunner.TestRunState>(SkillTestRunner.TestRunState.Idle) }
@@ -121,6 +124,8 @@ private fun SkillTesterSheet(skillName: String, onDismiss: () -> Unit) {
                 }
             }
 
+            Text(stringResource(R.string.pocket_skill_test_disclaimer), style = MaterialTheme.typography.bodySmall)
+            previousPrompt?.let { previous -> TextButton(onClick = { prompt = previous }) { Text(stringResource(R.string.pocket_skill_test_repeat)) } }
             OutlinedTextField(
                 value = prompt,
                 onValueChange = { prompt = it },

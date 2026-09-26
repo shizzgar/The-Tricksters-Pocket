@@ -195,6 +195,10 @@ class ImportedDatabaseReconcilerTest {
             listOf("parent_conversation_id", "subagent_run_id", "parent_tool_call_id").forEach {
                 raw.execSQL("ALTER TABLE ConversationEntity DROP COLUMN `$it`")
             }
+            // The fixture emulates upstream, before Pocket memory provenance existed.
+            listOf("source_conversation_id", "source_message_id", "updated_at", "revision", "history", "deleted").forEach {
+                raw.execSQL("ALTER TABLE MemoryEntity DROP COLUMN `$it`")
+            }
             if (!withShellCompatibilityColumn) {
                 // SQLite has no portable DROP COLUMN across the SQLite versions bundled with
                 // every supported Android version, so rebuild the table without it instead.
@@ -245,6 +249,10 @@ class ImportedDatabaseReconcilerTest {
             raw.execSQL("DROP INDEX IF EXISTS index_ConversationEntity_subagent_run_id")
             listOf("parent_conversation_id", "subagent_run_id", "parent_tool_call_id").forEach {
                 raw.execSQL("ALTER TABLE ConversationEntity DROP COLUMN `$it`")
+            }
+            // The fixture emulates upstream, before Pocket memory provenance existed.
+            listOf("source_conversation_id", "source_message_id", "updated_at", "revision", "history", "deleted").forEach {
+                raw.execSQL("ALTER TABLE MemoryEntity DROP COLUMN `$it`")
             }
             raw.execSQL(
                 "UPDATE room_master_table SET identity_hash = ? WHERE id = 42",

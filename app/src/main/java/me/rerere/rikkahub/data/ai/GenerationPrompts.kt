@@ -21,6 +21,8 @@ internal fun buildMemoryPrompt(memories: List<AssistantMemory>) =
                 add(buildJsonObject {
                     put("id", memory.id)
                     put("content", memory.content)
+                    put("revision", memory.revision)
+                    put("scope", memory.scope)
                 })
             }
         }

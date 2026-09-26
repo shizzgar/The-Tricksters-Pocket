@@ -1,6 +1,6 @@
 {
-  "version": 1,
-  "updated_at": "2026-05-07",
+  "version": 2,
+  "updated_at": "2026-09-26",
   "skills": [
     {
       "name": "auto-reply",
@@ -120,6 +120,36 @@
       "license": "Apache-2.0",
       "size_kb": 7884,
       "compatibility": "js",
+      "is_bundled": true
+    },
+    {
+      "name": "devbro-workflow",
+      "title": "DevBro · Source development",
+      "description": "Inspect repositories, reproduce bugs, implement changes and provide reproducible checks.",
+      "category": "development",
+      "license": "Apache-2.0",
+      "size_kb": 8,
+      "compatibility": "workspace / Termux",
+      "is_bundled": true
+    },
+    {
+      "name": "opsbro-workflow",
+      "title": "OpsBro · Environments and services",
+      "description": "Inspect Linux and Termux environments, repair services and prepare reversible operational changes.",
+      "category": "development",
+      "license": "Apache-2.0",
+      "size_kb": 8,
+      "compatibility": "workspace / Termux",
+      "is_bundled": true
+    },
+    {
+      "name": "verifybro-workflow",
+      "title": "VerifyBro · Independent verification",
+      "description": "Check acceptance criteria and artifacts with evidence; distinguish verified results, failures and unverified claims.",
+      "category": "development",
+      "license": "Apache-2.0",
+      "size_kb": 8,
+      "compatibility": "workspace / Termux",
       "is_bundled": true
     }
   ]

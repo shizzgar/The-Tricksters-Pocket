@@ -66,6 +66,10 @@ fun AssistantMemoryPage(id: String) {
     val assistant by vm.assistant.collectAsStateWithLifecycle()
     val memories by vm.memories.collectAsStateWithLifecycle()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val navigator = me.rerere.rikkahub.ui.context.LocalNavController.current
+    val memoryError by vm.memoryMutationError.collectAsStateWithLifecycle()
+    val toaster = me.rerere.rikkahub.ui.context.LocalToaster.current
+    androidx.compose.runtime.LaunchedEffect(memoryError) { memoryError?.let { toaster.show(it) } }
 
     Scaffold(
         topBar = {
@@ -75,6 +79,11 @@ fun AssistantMemoryPage(id: String) {
                 },
                 navigationIcon = {
                     BackButton()
+                },
+                actions = {
+                    androidx.compose.material3.TextButton(onClick = {
+                        navigator.navigate(me.rerere.rikkahub.Screen.MemoryLedger(if (assistant.useGlobalMemory) me.rerere.rikkahub.data.repository.MemoryRepository.GLOBAL_MEMORY_ID else id))
+                    }) { Text(stringResource(R.string.pocket_memory_history)) }
                 },
                 scrollBehavior = scrollBehavior,
                 colors = CustomColors.topBarColors,

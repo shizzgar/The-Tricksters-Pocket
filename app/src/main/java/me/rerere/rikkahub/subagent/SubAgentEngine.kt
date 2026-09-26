@@ -2,6 +2,12 @@ package me.rerere.rikkahub.subagent
 
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
+import me.rerere.rikkahub.data.ai.AgentTaskPolicy
+import me.rerere.rikkahub.data.ai.ScopedAgentPolicy
+import me.rerere.rikkahub.data.ai.GenerationStopReason
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -243,6 +249,7 @@ class SubAgentEngine(
      * here simply skips the ledger write (best-effort — the ledger never breaks a run).
      */
     private val ledgerIds = java.util.concurrent.ConcurrentHashMap<String, String>()
+    private val deliveries = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
     sealed class DispatchResult {
         data class Ok(val run: SubAgentRun) : DispatchResult()
@@ -276,21 +283,6 @@ class SubAgentEngine(
         }
         val cleaned = (validation as SubAgentRequestValidator.Result.Ok).request
 
-        // Concurrency cap. Global first (cheaper), then per-assistant.
-        if (registry.globalActiveCount() >= SubAgentDefaults.GLOBAL_CONCURRENCY_CAP) {
-            return@withContext DispatchResult.Reject(
-                "global_cap_reached",
-                "max ${SubAgentDefaults.GLOBAL_CONCURRENCY_CAP} concurrent sub-agents across all assistants"
-            )
-        }
-        val perAssistantCap = currentAssistantCap(parentAssistantId)
-        if (registry.activeCountForAssistant(parentAssistantId) >= perAssistantCap) {
-            return@withContext DispatchResult.Reject(
-                "assistant_cap_reached",
-                "this assistant's max_concurrent_sub_agents cap of $perAssistantCap is reached"
-            )
-        }
-
         val runId = Uuid.random().toString()
         val now = System.currentTimeMillis()
         val initialRun = SubAgentRun(
@@ -309,7 +301,9 @@ class SubAgentEngine(
             startedAtMs = now,
             parentToolCallId = kotlin.coroutines.coroutineContext[me.rerere.rikkahub.data.ai.tools.ExecutingToolCall]?.id,
         )
-        registry.addPending(initialRun)
+        if (!registry.tryReserve(initialRun, currentAssistantCap(parentAssistantId))) {
+            return@withContext DispatchResult.Reject("concurrency_cap_reached", "No child execution slot is available; wait for an active child to finish")
+        }
 
         // Phase 24 — open the cross-pillar ledger row. domain_id is the sub-agent run id.
         // The row starts in `queued` (the execution coroutine hasn't been launched yet);
@@ -329,16 +323,21 @@ class SubAgentEngine(
         )
         ledgerIds[runId] = ledgerId
 
-        val executionJob = appScope.launch(Dispatchers.IO) {
+        val executionJob = appScope.launch(Dispatchers.IO, start = CoroutineStart.LAZY) {
             try { executeRun(runId, parentAssistantId, parentChatId, cleaned) }
             catch (failure: Throwable) {
                 withContext(kotlinx.coroutines.NonCancellable) {
                     markTerminal(runId, if (failure is kotlinx.coroutines.CancellationException) SubAgentStatus.CANCELLED else SubAgentStatus.FAILED,
                         failure.message ?: "Child chat initialization failed")
                 }
-            } finally { registry.clearJob(runId) }
+            } finally {
+                registry.clearJob(runId, kotlin.coroutines.coroutineContext[kotlinx.coroutines.Job])
+                withContext(kotlinx.coroutines.NonCancellable) {
+                    registry.get(runId)?.takeUnless { it.status.isActive() }?.let { notifyParentIfBackground(it.parentChatId, it) }
+                }
+            }
         }
-        registry.setJob(runId, executionJob)
+        if (registry.setJob(runId, executionJob)) executionJob.start()
 
         if (cleaned.runInBackground) {
             // Return immediately; final status delivered via registry observation.
@@ -348,7 +347,8 @@ class SubAgentEngine(
             try {
                 executionJob.join()
             } catch (cancelled: kotlinx.coroutines.CancellationException) {
-                registry.requestCancel(runId)
+                // Stop-this-chat detaches the foreground wait; only Stop-task-tree cancels children.
+                registry.update(runId) { it.copy(runInBackground = true) }
                 throw cancelled
             }
             DispatchResult.Ok(registry.get(runId) ?: initialRun)
@@ -363,6 +363,9 @@ class SubAgentEngine(
         }
         if (message.isBlank() || message.length > 32000) return buildJsonObject { put("error", "invalid_message"); put("detail", "message must contain 1–32000 characters") }
         chatService.initializeConversation(child.id, selectAssistant = false)
+        try { ensureChildTurn(child) } catch (e: IllegalStateException) {
+            return buildJsonObject { put("error", "run_unavailable"); put("detail", e.message) }
+        }
         chatService.sendMessage(child.id, listOf(UIMessagePart.Text(message)))
         return buildJsonObject { put("id", runId); put("conversation_id", child.id.toString()); put("accepted", true) }
     }
@@ -373,9 +376,12 @@ class SubAgentEngine(
         val child = conversationRepo.getConversationForSubAgent(runId)
         if (run?.parentChatId != parentChatId && child?.parentConversationId?.toString() != parentChatId) return false
         val requested = registry.requestCancel(runId)
-        val active = child != null && chatService.getGenerationJobStateFlow(child.id).first() != null
+        val active = child != null && (chatService.getGenerationJobStateFlow(child.id).first() != null ||
+            run?.status?.isActive() == true || child.currentMessages.any { message ->
+                message.parts.any { it is UIMessagePart.Tool && it.isPending }
+            })
         if (active) chatService.stopGeneration(child!!.id)
-        if (requested) registry.update(runId) { it.copy(status = SubAgentStatus.CANCELLED, finishedAtMs = System.currentTimeMillis()) }
+        if (requested || active) markTerminal(runId, SubAgentStatus.CANCELLED, "Stopped by user")
         return requested || active
     }
 
@@ -386,7 +392,7 @@ class SubAgentEngine(
             val run = registry.get(id)
             val busy = chatService.getGenerationJobStateFlow(child.id).first() != null
             val status = run?.status?.name ?: agentRunRepo.getByDomainId(AgentRunKind.SubAgent, id, 1).firstOrNull()?.status ?: "saved"
-            if (activeOnly && !busy && status.uppercase() !in setOf("QUEUED", "PENDING", "RUNNING")) return@mapNotNull null
+            if (activeOnly && !busy && status.uppercase() !in setOf("QUEUED", "PENDING", "RUNNING", "WAITING_APPROVAL", "AWAITING_APPROVAL")) return@mapNotNull null
             buildJsonObject {
                 put("id", id); put("conversation_id", child.id.toString()); put("label", child.title.removePrefix("[Sub-agent] "))
                 put("status", status); put("conversation_busy", busy)
@@ -474,11 +480,14 @@ class SubAgentEngine(
                 return
             }
         }
-        // Keep the profile task instructions visible in the child chat. An explicit
-        // per-run system override is persisted separately on the conversation.
-        val effectiveTask = profile?.systemPrompt?.trim()?.takeIf { it.isNotEmpty() }
-            ?.let { "$it\n\n${request.task}" }
-            ?: request.task
+        if (!request.systemPrompt.isNullOrBlank() && !executionAssistant.allowConversationSystemPrompt) {
+            markTerminal(runId, SubAgentStatus.FAILED, "system_prompt override is disabled for this assistant; enable conversation system prompts or omit the override")
+            return
+        }
+        val effectiveTask = request.task
+        // A named profile is user-configured system guidance, never disguised as user input.
+        val systemPrompt = request.systemPrompt?.takeIf { it.isNotBlank() }
+            ?: listOf(executionAssistant.systemPrompt, profile?.systemPrompt.orEmpty()).filter { it.isNotBlank() }.joinToString("\n\n")
         val conv = Conversation.ofId(
             id = Uuid.parse(runId),
             assistantId = executionAssistant.id,
@@ -498,7 +507,12 @@ class SubAgentEngine(
         conversationRepo.insertConversation(conv)
         chatService.initializeConversation(conv.id, selectAssistant = false)
         registry.update(runId) { it.copy(conversationId = conv.id.toString()) }
-        me.rerere.rikkahub.data.ai.AgentTaskPolicy.setStepLimit(conv.id.toString(), request.maxTrips)
+        AgentTaskPolicy.set(conv.id.toString(), ScopedAgentPolicy(
+            maxSteps = request.maxTrips,
+            deadlineAtMs = (registry.get(runId)?.startedAtMs ?: System.currentTimeMillis()) + request.timeoutSeconds * 1000L,
+            allowedTools = request.tools?.toSet(), readOnly = executionAssistant.readOnlyTools,
+            systemPrompt = systemPrompt,
+        ))
             me.rerere.ai.provider.GenerationTrace.record(parentChatId, "subagent.started", buildJsonObject {
                 put("run_id", runId); put("child_conversation", conv.id.toString()); put("task", effectiveTask)
                 put("max_steps", request.maxTrips); put("timeout_seconds", request.timeoutSeconds)
@@ -514,48 +528,7 @@ class SubAgentEngine(
                 append("When you have finished, end with one short paragraph in plain text that summarises what you did and what you found. Do NOT stop on a tool call — finish with assistant text. The dispatcher harvests only your final text reply, so this paragraph is the entire response the parent sees.")
             }
             chatService.sendMessage(conv.id, listOf(UIMessagePart.Text(taskWithWrapup)))
-            // The naive form `withTimeoutOrNull { …first { it == null } }` followed by a
-            // `finished == null` check is BROKEN: `.first { it == null }` returns the matched
-            // value — which IS null on successful completion (the Job? went to null when the
-            // LLM finished). So `finished == null` was true on BOTH timeout AND success, and
-            // every sub-agent looked TIMED_OUT despite actually finishing. Use a Unit sentinel
-            // so the two outcomes are distinguishable.
-            val completed: Unit? = withTimeoutOrNull(request.timeoutSeconds * 1000L) {
-                chatService.getGenerationJobStateFlow(conv.id).first { it == null }
-                Unit
-            }
-            val timedOut = finishSubAgentWait(completed = completed != null) {
-                runCatching { chatService.stopGeneration(conv.id) }
-                    .onFailure { Log.w(TAG, "sub-agent timeout: stopGeneration failed for $runId", it) }
-            }
-            if (timedOut) {
-                markTerminal(runId, SubAgentStatus.TIMED_OUT, "exceeded ${request.timeoutSeconds}-second cap")
-                notifyParentIfBackground(parentChatId, registry.get(runId))
-                return
-            }
-            // Harvest the assistant's final text from the conversation. Best-effort —
-            // we read the latest persisted state of the conversation and concatenate any
-            // text parts from the last assistant message. This mirrors how the
-            // CronJobWorker treats LLM-mode jobs.
-            val finalText = harvestFinalText(conv.id)
-            val taskState = chatService.agentTaskState(conv.id)
-            if (taskState != null && taskState.reason != me.rerere.rikkahub.data.ai.GenerationStopReason.COMPLETED) {
-                registry.update(runId) { it.copy(result = finalText, tripCount = taskState.steps.toInt()) }
-                markTerminal(runId, SubAgentStatus.FAILED, "generation_paused: ${taskState.reason}")
-                notifyParentIfBackground(parentChatId, registry.get(runId))
-                return
-            }
-            registry.update(runId) {
-                it.copy(
-                    status = SubAgentStatus.SUCCEEDED,
-                    result = finalText,
-                    finishedAtMs = System.currentTimeMillis(),
-                )
-            }
-            ledgerIds.remove(runId)?.let {
-                agentRunRepo.markTerminal(it, AgentRunStatus.succeeded)
-            }
-            notifyParentIfBackground(parentChatId, registry.get(runId))
+            supervise(runId, conv.id, 0)
         } catch (t: Throwable) {
             Log.w(TAG, "sub-agent run failed", t)
             if (t is kotlinx.coroutines.CancellationException) {
@@ -568,26 +541,205 @@ class SubAgentEngine(
             }
             if (t !is kotlinx.coroutines.CancellationException) notifyParentIfBackground(parentChatId, registry.get(runId))
         } finally {
-            me.rerere.rikkahub.data.ai.AgentTaskPolicy.clear(conv.id.toString())
-            registry.clearJob(runId)
+            registry.clearJob(runId, kotlin.coroutines.coroutineContext[kotlinx.coroutines.Job])
         }
     }
 
-    private suspend fun markTerminal(runId: String, status: SubAgentStatus, error: String?) {
+    /** All child entry points, including direct chat follow-ups, reserve the same execution slot. */
+    suspend fun ensureChildTurn(conversation: Conversation) = withContext(Dispatchers.IO) {
+        val id = conversation.subAgentRunId ?: return@withContext
+        val previous = registry.get(id)
+            ?: error("This legacy child has no durable run policy; create a new dispatch before executing tools")
+        val policy = AgentTaskPolicy.get(conversation.id.toString())
+            ?: error("Child policy is unavailable; redispatch the task")
+        if (previous.status.isActive()) {
+            check(!policy.stopped) { "Child run stopped" }
+            if (!registry.hasJob(id)) startSupervisor(id, conversation.id)
+            return@withContext
+        }
+        val interrupted = previous.status == SubAgentStatus.PROCESS_LOST
+        if (interrupted) {
+            check(System.currentTimeMillis() < policy.deadlineAtMs && !policy.stopped) { "Original child deadline expired or run was stopped; dispatch a new task" }
+        }
+        registry.queueCompletion(previous)
+        val now = System.currentTimeMillis()
+        val next = previous.copy(status = SubAgentStatus.RUNNING, result = null, error = null, finishedAtMs = null,
+            startedAtMs = if (interrupted) previous.startedAtMs else now,
+            executionEpoch = previous.executionEpoch + if (interrupted) 0 else 1,
+            runInBackground = true, tripCount = if (interrupted) previous.tripCount else 0)
+        check(registry.tryReserve(next, currentAssistantCap(previous.parentAssistantId))) { "All child execution slots are occupied" }
+        try {
+            ledgerIds[id] = agentRunRepo.open(AgentRunKind.SubAgent, id, conversation.parentConversationId?.toString(),
+                metadata = buildJsonObject { put("execution_epoch", next.executionEpoch); put("label", next.label) })
+            if (!interrupted) AgentTaskPolicy.set(conversation.id.toString(), policy.copy(usedSteps = 0,
+                stopped = false, deadlineAtMs = now + previous.timeoutSeconds * 1000L))
+            startSupervisor(id, conversation.id, replace = true)
+        } catch (e: Exception) {
+            markTerminal(id, SubAgentStatus.FAILED, e.message)
+            throw e
+        }
+    }
+
+    private fun startSupervisor(runId: String, conversationId: Uuid, replace: Boolean = false) {
+        if (!replace && registry.hasJob(runId)) return
+        val epoch = registry.get(runId)?.executionEpoch ?: return
+        val previous = registry.job(runId)
+        val job = appScope.launch(Dispatchers.IO, start = CoroutineStart.LAZY) {
+            try {
+                previous?.join()
+                supervise(runId, conversationId, epoch)
+            }
+            catch (c: CancellationException) { throw c }
+            catch (e: Exception) {
+                if (registry.get(runId)?.executionEpoch == epoch) markTerminal(runId, SubAgentStatus.FAILED, e.message)
+            }
+            finally { registry.clearJob(runId, kotlin.coroutines.coroutineContext[kotlinx.coroutines.Job]) }
+        }
+        if (registry.setJob(runId, job, replace)) job.start()
+    }
+
+    /** WAITING_APPROVAL is nonterminal, and the persisted deadline continues to apply. */
+    private suspend fun supervise(runId: String, conversationId: Uuid, epoch: Int) {
+        // Send/resume may still be attaching its generation job on another dispatcher.
+        delay(100)
+        while (true) {
+            val run = registry.get(runId) ?: return
+            if (!run.status.isActive() || run.executionEpoch != epoch) return
+            val policy = AgentTaskPolicy.get(conversationId.toString()) ?: error("Child policy missing")
+            if (System.currentTimeMillis() >= policy.deadlineAtMs) {
+                chatService.stopGeneration(conversationId)
+                markTerminal(runId, SubAgentStatus.TIMED_OUT, "Child deadline exceeded", epoch)
+                break
+            }
+            val busy = chatService.getGenerationJobStateFlow(conversationId).first() != null
+            val task = chatService.agentTaskState(conversationId)
+            val child = chatService.getConversationFlow(conversationId).value
+            val usage = child.let(::executionUsage)
+            val status = if (task?.reason == GenerationStopReason.WAITING_APPROVAL && !busy)
+                SubAgentStatus.WAITING_APPROVAL else SubAgentStatus.RUNNING
+            val changed = run.status != status || run.tripCount != policy.usedSteps ||
+                (usage != null && (run.tokensIn != usage.inputTokens || run.tokensOut != usage.outputTokens || run.usageKnown != (usage.messageCount > 0)))
+            if (changed) {
+                registry.update(runId) { if (it.executionEpoch != epoch || !it.status.isActive()) it else it.copy(status = status, tripCount = policy.usedSteps,
+                    tokensIn = usage?.inputTokens ?: it.tokensIn, tokensOut = usage?.outputTokens ?: it.tokensOut,
+                    usageKnown = usage.messageCount > 0, usageIncomplete = usage.unmeasuredMessages > 0) }
+                ledgerFor(runId)?.let { agentRunRepo.setStatus(it, if (status == SubAgentStatus.WAITING_APPROVAL) AgentRunStatus.awaiting_approval else AgentRunStatus.running) }
+            }
+            if (!busy && task != null && task.reason != GenerationStopReason.WAITING_APPROVAL) {
+                val terminal = when (task.reason) {
+                    GenerationStopReason.COMPLETED -> SubAgentStatus.SUCCEEDED
+                    GenerationStopReason.CANCELLED -> SubAgentStatus.CANCELLED
+                    GenerationStopReason.TASK_DEADLINE -> SubAgentStatus.TIMED_OUT
+                    GenerationStopReason.PROCESS_LOST -> SubAgentStatus.PROCESS_LOST
+                    else -> SubAgentStatus.FAILED
+                }
+                registry.update(runId) { if (it.executionEpoch != epoch || !it.status.isActive()) it else it.copy(result = harvestFinalTextSafe(child), tripCount = policy.usedSteps) }
+                markTerminal(runId, terminal, task.reason?.takeUnless { it == GenerationStopReason.COMPLETED }?.name, epoch)
+                break
+            }
+            delay(1000)
+        }
+        notifyParentIfBackground(registry.get(runId)?.parentChatId, registry.get(runId))
+    }
+
+    /** Called at the task boundary before the queue can start a later user turn. */
+    suspend fun childTurnSettled(child: Conversation, reason: GenerationStopReason) = withContext(Dispatchers.IO) {
+        val id = child.subAgentRunId ?: return@withContext
+        val run = registry.get(id) ?: return@withContext
+        if (!run.status.isActive()) return@withContext
+        val policy = AgentTaskPolicy.get(child.id.toString())
+        val usage = executionUsage(child)
+        registry.update(id) { it.copy(tripCount = policy?.usedSteps ?: it.tripCount,
+            tokensIn = usage.inputTokens, tokensOut = usage.outputTokens, usageKnown = usage.messageCount > 0, usageIncomplete = usage.unmeasuredMessages > 0,
+            result = if (reason == GenerationStopReason.WAITING_APPROVAL) it.result else harvestFinalTextSafe(child)) }
+        if (reason == GenerationStopReason.WAITING_APPROVAL) {
+            registry.update(id) { it.copy(status = SubAgentStatus.WAITING_APPROVAL) }
+            ledgerFor(id)?.let { agentRunRepo.setStatus(it, AgentRunStatus.awaiting_approval) }
+            return@withContext
+        }
+        val terminal = when (reason) {
+            GenerationStopReason.COMPLETED -> SubAgentStatus.SUCCEEDED
+            GenerationStopReason.CANCELLED -> SubAgentStatus.CANCELLED
+            GenerationStopReason.TASK_DEADLINE -> SubAgentStatus.TIMED_OUT
+            GenerationStopReason.PROCESS_LOST -> SubAgentStatus.PROCESS_LOST
+            else -> SubAgentStatus.FAILED
+        }
+        markTerminal(id, terminal, reason.takeUnless { it == GenerationStopReason.COMPLETED }?.name)
+        notifyParentIfBackground(run.parentChatId, registry.get(id))
+    }
+
+    private fun executionUsage(child: Conversation): me.rerere.rikkahub.costguards.TokenBudgetTracker.Totals {
+        val history = me.rerere.rikkahub.costguards.TokenBudgetTracker.aggregate(child)
+        val aux = me.rerere.rikkahub.costguards.AuxiliaryTokenUsageStore.totals(child.id.toString())
+        return history.copy(inputTokens = history.inputTokens + aux.inputTokens,
+            outputTokens = history.outputTokens + aux.outputTokens, totalTokens = history.totalTokens + aux.totalTokens,
+            messageCount = history.messageCount + aux.messageCount, unmeasuredMessages = history.unmeasuredMessages + aux.unmeasuredMessages)
+    }
+
+    private fun harvestFinalTextSafe(child: Conversation?): String = child?.currentMessages
+        ?.lastOrNull { it.role.name.equals("assistant", true) }?.parts?.filterIsInstance<UIMessagePart.Text>()
+        ?.joinToString("\n") { it.text }.orEmpty()
+
+    private suspend fun ledgerFor(runId: String): String? = ledgerIds[runId]
+        ?: agentRunRepo.getByDomainId(AgentRunKind.SubAgent, runId, 1).firstOrNull()?.id
+
+    suspend fun stopChildrenForParent(parentConversationId: String) {
+        registry.runs.value.values.filter { it.parentChatId == parentConversationId && it.status.isActive() }.forEach { run ->
+            AgentTaskPolicy.stop(run.conversationId ?: run.id)
+            registry.requestCancel(run.id)
+            markTerminal(run.id, SubAgentStatus.CANCELLED, "Task tree stopped")
+        }
+    }
+
+    suspend fun stopSupervision(conversationId: String) {
+        val run = registry.runs.value.values.firstOrNull { it.conversationId == conversationId || it.id == conversationId } ?: return
+        registry.requestCancel(run.id)
+        markTerminal(run.id, SubAgentStatus.CANCELLED, "Stopped by user")
+    }
+
+    /** Called once after hydration. Never auto-executes interrupted external actions. */
+    suspend fun recover() {
+        registry.pendingCompletions().forEach { notifyParentIfBackground(it.parentChatId, it) }
+        registry.runs.value.values.toList().forEach { run ->
+            val policy = AgentTaskPolicy.get(run.conversationId ?: run.id)
+            if (run.status == SubAgentStatus.WAITING_APPROVAL && policy != null) {
+                chatService.ensureHydrated(Uuid.parse(run.conversationId ?: run.id))
+                if (System.currentTimeMillis() >= policy.deadlineAtMs) {
+                    chatService.stopGeneration(Uuid.parse(run.conversationId ?: run.id))
+                    markTerminal(run.id, SubAgentStatus.TIMED_OUT, "Deadline elapsed while the app was closed")
+                } else startSupervisor(run.id, Uuid.parse(run.conversationId ?: run.id))
+            } else if (run.status == SubAgentStatus.PROCESS_LOST) {
+                ledgerFor(run.id)?.let { agentRunRepo.markTerminal(it, AgentRunStatus.process_lost, run.error) }
+            }
+            val saved = registry.get(run.id) ?: return@forEach
+            if (!saved.status.isActive() && saved.status != SubAgentStatus.PROCESS_LOST) notifyParentIfBackground(saved.parentChatId, saved)
+        }
+    }
+
+    private suspend fun markTerminal(runId: String, status: SubAgentStatus, error: String?, expectedEpoch: Int? = null) {
+        val existing = registry.get(runId) ?: return
+        val epoch = expectedEpoch ?: existing.executionEpoch
+        if (existing.executionEpoch != epoch) return
+        // Resolve the old ledger row before publishing terminal state: a new epoch may
+        // reserve its slot immediately after the publication below.
+        val terminalLedgerId = ledgerFor(runId)
+        if (registry.get(runId)?.executionEpoch != epoch) return
         registry.update(runId) {
-            it.copy(
+            if (it.executionEpoch != epoch) it else it.copy(
                 status = status,
                 error = error,
                 finishedAtMs = System.currentTimeMillis(),
+                resultDeliveredEpoch = if (!it.runInBackground) it.executionEpoch else it.resultDeliveredEpoch,
             )
         }
         // Phase 24 — mirror the terminal status into the cross-pillar ledger. TIMED_OUT and
         // FAILED both map to `failed`; CANCELLED maps to `cancelled`. (SUCCEEDED never
         // routes through here — it transitions the ledger row inline in executeRun.)
-        ledgerIds.remove(runId)?.let { ledgerId ->
+        terminalLedgerId?.let { ledgerId ->
             val ledgerStatus = when (status) {
                 SubAgentStatus.CANCELLED -> AgentRunStatus.cancelled
                 SubAgentStatus.SUCCEEDED -> AgentRunStatus.succeeded
+                SubAgentStatus.PROCESS_LOST -> AgentRunStatus.process_lost
                 else -> AgentRunStatus.failed
             }
             agentRunRepo.markTerminal(ledgerId, ledgerStatus, error)
@@ -611,11 +763,12 @@ class SubAgentEngine(
      * safe steering boundary; no in-flight tool is interrupted.
      */
     private suspend fun notifyParentIfBackground(parentChatId: String?, run: SubAgentRun?) {
-        if (parentChatId == null || run == null) return
+        if (parentChatId == null || run == null || run.status.isActive() || run.status == SubAgentStatus.PROCESS_LOST) return
         me.rerere.ai.provider.GenerationTrace.record(parentChatId, "subagent.result", buildJsonObject {
             put("run_id", run.id); put("status", run.status.name); put("result", run.result); put("error", run.error)
         })
-        if (!run.runInBackground) return
+        if (!run.runInBackground || run.resultDeliveredEpoch >= run.executionEpoch) return
+        registry.queueCompletion(run)
         val parentUuid = runCatching { Uuid.parse(parentChatId) }.getOrNull() ?: return
         if (HeadlessConversations.isHeadless(parentUuid)) return
 
@@ -633,8 +786,27 @@ class SubAgentEngine(
         }.trimEnd()
 
         runCatching {
-            if (conversationRepo.getConversationById(parentUuid) == null) return
-            chatService.sendMessage(parentUuid, listOf(UIMessagePart.Text(message)))
+            if (conversationRepo.getConversationById(parentUuid) == null) {
+                registry.acknowledgeCompletion(run.id, run.executionEpoch)
+                return
+            }
+            val deliveryId = Uuid.parse(java.util.UUID.nameUUIDFromBytes("child-result:${run.id}:${run.executionEpoch}".toByteArray()).toString())
+            if (chatService.enqueueAgentCompletion(parentUuid, deliveryId, message)) {
+                registry.acknowledgeCompletion(run.id, run.executionEpoch)
+            } else if (deliveries.add(deliveryId.toString())) {
+                appScope.launch(Dispatchers.IO) {
+                    try {
+                        repeat(60) {
+                            delay(1000)
+                            val saved = conversationRepo.getConversationById(parentUuid)
+                            if (saved == null || saved.messageNodes.any { node -> node.messages.any { it.id == deliveryId } }) {
+                                registry.acknowledgeCompletion(run.id, run.executionEpoch)
+                                return@launch
+                            }
+                        }
+                    } finally { deliveries.remove(deliveryId.toString()) }
+                }
+            }
         }.onFailure {
             Log.w(TAG, "failed to notify parent $parentChatId of subagent completion", it)
         }

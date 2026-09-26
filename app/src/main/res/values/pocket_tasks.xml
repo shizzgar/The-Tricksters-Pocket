@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="task_dashboard">Task and results</string>
+    <string name="task_goal">Goal</string>
+    <string name="task_criteria">Acceptance criteria</string>
+    <string name="task_save_brief">Save task</string>
+    <string name="task_team">Team</string>
+    <string name="task_results">Results and changes</string>
+    <string name="task_results_empty">No registered results yet. Files written by workspace tools appear here; agents can register completed shell outputs with register_artifact.</string>
+    <string name="task_message">Open chat / send message</string>
+    <string name="task_stop_one">Stop this chat</string>
+    <string name="task_stop_all">Stop whole task</string>
+    <string name="task_verify">Verify with VerifyBro</string>
+    <string name="task_verify_missing">VerifyBro is unavailable. Restore the built-in assistant to request a review.</string>
+    <string name="task_projects">Projects</string>
+    <string name="task_open">Open</string>
+    <string name="task_export">Save a copy</string>
+    <string name="task_share">Share</string>
+    <string name="task_show_diff">Show changes</string>
+    <string name="task_unverified">Registered · contents not yet verified</string>
+    <string name="task_unavailable">File unavailable or changed</string>
+    <string name="task_queued">%1$d queued messages</string>
+    <string name="task_status_idle">Idle</string>
+    <string name="task_status_running">Working</string>
+    <string name="task_status_pending">Waiting to start</string>
+    <string name="task_status_approval">Waiting for your approval</string>
+    <string name="task_status_network">Waiting for network</string>
+    <string name="task_status_paused">Paused</string>
+    <string name="task_status_completed">Completed</string>
+    <string name="task_status_failed">Failed</string>
+    <string name="task_status_cancelled">Stopped</string>
+    <string name="task_missing">This conversation is unavailable.</string>
+    <string name="task_limit">This task is very large; showing the first 512 chats.</string>
+    <string name="task_export_done">Copy saved</string>
+    <string name="task_source">%1$s · %2$d bytes</string>
+    <string name="task_file_error">Could not open, save or share the file: %1$s</string>
+    <string name="task_brief_saved">Goal and criteria saved</string>
+    <string name="task_workspace">Workspace: %1$s</string>
+    <string name="task_result_source_chat">Source chat</string>
+</resources>

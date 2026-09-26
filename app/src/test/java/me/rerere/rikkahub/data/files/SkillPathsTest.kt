@@ -118,4 +118,11 @@ class SkillPathsTest {
             root.deleteRecursively()
         }
     }
+    @org.junit.Test
+    fun `scalar metadata preserves YAML booleans and versions while string names remain strict`() {
+        val meta = SkillFrontmatterParser.parse("---\nname: test-skill\ndescription: test\nauto_load: true\nversion: 2\nrequires-tools: [read_file, workspace_shell]\n---")
+        org.junit.Assert.assertEquals("true", meta.scalar("auto_load"))
+        org.junit.Assert.assertEquals("2", meta.scalar("version"))
+        org.junit.Assert.assertEquals(listOf("read_file", "workspace_shell"), meta.list("requires-tools"))
+    }
 }

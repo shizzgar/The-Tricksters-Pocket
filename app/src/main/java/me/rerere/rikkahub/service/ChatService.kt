@@ -401,6 +401,7 @@ class ChatService(
     private val toolApprovalPreferences: me.rerere.rikkahub.data.preferences.ToolApprovalPreferences,
     private val workspaceRepository: WorkspaceRepository,
     private val folderRepository: FolderRepository,
+    private val projectRepository: me.rerere.rikkahub.data.repository.ProjectRepository? = null,
 ) {
     // workspace 系统提示注入 (依赖 workspaceRepository, 故在类内构造)
     private val workspaceReminderTransformer = WorkspaceReminderTransformer(workspaceRepository)
@@ -511,6 +512,13 @@ class ChatService(
 
     // 前台状态管理
     private val journal = SessionJournal.at(context.filesDir)
+    init {
+        me.rerere.rikkahub.data.ai.AgentTaskPolicy.initialize(context.filesDir)
+        me.rerere.rikkahub.costguards.AuxiliaryTokenUsageStore.initialize(context.filesDir)
+    }
+    private val subAgentEngine: me.rerere.rikkahub.subagent.SubAgentEngine by lazy {
+        org.koin.java.KoinJavaComponent.getKoin().get<me.rerere.rikkahub.subagent.SubAgentEngine>()
+    }
     private val activeAgentTasks = ConcurrentHashMap<Uuid, AgentTaskRecord>()
     private val taskMutexes = ConcurrentHashMap<Uuid, Mutex>()
     private val recoveryStarted = java.util.concurrent.atomic.AtomicBoolean(false)
@@ -529,12 +537,19 @@ class ChatService(
     private fun restoreAgentTasks() {
         if (!recoveryStarted.compareAndSet(false, true)) return
         appScope.launch(Dispatchers.IO) {
+            subAgentEngine.recover()
             if (!settingsStore.settingsFlow.first().networkSetting.generationRuntime.resumeTasksAfterRestart) return@launch
             journal.unfinished().forEach { task ->
                 val id = runCatching { Uuid.parse(task.conversationId) }.getOrNull() ?: return@forEach
                 if (getOrCreateSession(id).getJob() != null) return@forEach
                 ensureHydrated(id)
                 val current = getConversationFlow(id).value
+                if (current.subAgentRunId != null) {
+                    // Child execution needs an explicit recovery decision; never replay uncertain tools.
+                    journal.saveTask(task.copy(status = "paused", reason = GenerationStopReason.PROCESS_LOST,
+                        detail = "Child run interrupted. Review tool outcomes and resume explicitly; original policy and deadline remain."))
+                    return@forEach
+                }
                 if (task.checkpoint == null || task.checkpoint != conversationCheckpoint(current.currentMessages)) {
                     journal.saveTask(task.copy(status = "paused", reason = GenerationStopReason.PROCESS_LOST,
                         detail = "Saved conversation differs from the task checkpoint; review before resuming."))
@@ -846,6 +861,26 @@ class ChatService(
         }
     }
 
+    /** Durable run outbox supplies a stable id; crash/retry cannot duplicate the parent message. */
+    suspend fun enqueueAgentCompletion(conversationId: Uuid, deliveryId: Uuid, text: String): Boolean {
+        if (conversationRepo.getConversationById(conversationId)?.messageNodes?.any { node -> node.messages.any { it.id == deliveryId } } == true) return true
+        ensureHydrated(conversationId)
+        val session = getOrCreateSession(conversationId)
+        synchronized(session) {
+            if (session.state.value.messageNodes.any { node -> node.messages.any { it.id == deliveryId } }) return false
+            if (session.submittingMessage?.id != deliveryId) {
+                session.messageQueue.enqueue(listOf(UIMessagePart.Text(text)), answer = true,
+                    steerActiveTask = session.getJob() != null, id = deliveryId)
+                dispatchNextQueuedMessage(conversationId)
+            }
+        }
+        // Acknowledgement is checked on the next recovery too; the durable outbox remains
+        // pending until the exact message id is present in the persisted conversation.
+        return conversationRepo.getConversationById(conversationId)?.messageNodes?.any { node ->
+            node.messages.any { it.id == deliveryId }
+        } == true
+    }
+
     /** Enqueue immediately; the result belongs to this item even after edits or later turns. */
     fun enqueueVoiceMessage(conversationId: Uuid, text: String): Deferred<String?> {
         val session = getOrCreateSession(conversationId)
@@ -996,7 +1031,7 @@ class ChatService(
                 callerConversationId = conversationId.toString(),
                 isHeadless = false,  // gated above
             ),
-        )
+        ).let { me.rerere.rikkahub.data.ai.AgentToolPolicy.filter(it, conversationId.toString(), assistant.readOnlyTools) }
         val tool = tools.firstOrNull { it.name == match.toolName } ?: run {
             android.util.Log.d("FastPathRouter", "matched intent=${match.intent} but tool=${match.toolName} not registered for assistant; falling through")
             return false
@@ -1180,66 +1215,43 @@ class ChatService(
         // skips the Pending → handleToolApproval path entirely.
         val priorGenerationJob = session.getJob()
 
-        // Commit the broader-scope grant on a NonCancellable scope BEFORE the cancellable
-        // mutation block. Previous design ran grantAlways() inside the cancellable
-        // appScope.launch — a rapid second tap would cancel the first job and silently
-        // drop the persisted Always-Allow grant; the user thinks they granted it, the next
-        // prompt reappears. NonCancellable + before-launch-completion guarantees the write.
-        if (approved && toolName != null && scope != ApprovalScope.Once) {
-            appScope.launch(NonCancellable) {
-                runCatching {
-                    // Smart-cast on the surrounding `if` excluded Once already, so only
-                    // ChatScope and Always remain — the when is exhaustive without else.
-                    when (scope) {
-                        ApprovalScope.ChatScope -> me.rerere.rikkahub.data.ai.tools
-                            .ToolApprovalAllowList.grantForChat(conversationId, toolName)
-                        ApprovalScope.Always -> grantAlwaysScope(conversationId, toolName)
-                        ApprovalScope.Once -> Unit
-                    }
-                }.onFailure { Log.w(TAG, "approval grant write failed", it) }
-            }
-        }
-
         val releaseForegroundWork = foregroundWorkTracker.acquire()
         val job = appScope.launch {
+            var changedPendingApproval = false
             try {
                 awaitForegroundWorkReady()
-                convMutex.withLock {
-                    // Hydrate from disk if the in-memory session is empty (post-restart
-                    // path). Without this, the snapshot read below sees an empty
-                    // Conversation and the saveConversation downstream OVERWRITES the
-                    // persisted Pending tool with empty content — silent data loss.
-                    ensureHydrated(conversationId)
-
-                    afterPreviousGeneration(priorGenerationJob) {
+                // Join before acquiring the write mutex: the predecessor may need that
+                // mutex to persist its final tool result. Double taps never start a new turn.
+                afterPreviousGeneration(priorGenerationJob) {
+                    convMutex.withLock {
+                        ensureHydrated(conversationId)
                         val conversation = session.state.value
-                        // Ignore double taps and stale approvals for completed or inactive tools.
-                        if (conversation.currentMessages.none { message ->
-                                message.getTools().any { it.toolCallId == toolCallId && it.isPending }
-                            }) return@afterPreviousGeneration
+                        val pending = conversation.currentMessages.flatMap { it.getTools() }
+                            .firstOrNull { it.toolCallId == toolCallId && it.isPending } ?: return@withLock
                         val newApprovalState = when {
                             answer != null -> ToolApprovalState.Answered(answer)
                             approved -> ToolApprovalState.Approved
                             else -> ToolApprovalState.Denied(reason)
                         }
-
-                        // Update the tool approval state on the SPECIFIC tool that was
-                        // approved (already confirmed Pending above).
                         val updatedNodes = conversation.messageNodes.map { node ->
-                            node.copy(
-                                messages = node.messages.map { msg ->
-                                    msg.copy(
-                                        parts = msg.parts.map { part ->
-                                            if (part is UIMessagePart.Tool && part.toolCallId == toolCallId) {
-                                                part.copy(approvalState = newApprovalState)
-                                            } else part
-                                        }
-                                    )
-                                }
-                            )
+                            node.copy(messages = node.messages.map { msg ->
+                                msg.copy(parts = msg.parts.map { part ->
+                                    if (part is UIMessagePart.Tool && part.toolCallId == toolCallId && part.isPending)
+                                        part.copy(approvalState = newApprovalState) else part
+                                })
+                            })
                         }
-                        val updatedConversation = conversation.copy(messageNodes = updatedNodes)
-                        saveConversation(conversationId, updatedConversation)
+                        withContext(NonCancellable) {
+                            saveConversation(conversationId, conversation.copy(messageNodes = updatedNodes))
+                            if (approved && scope != ApprovalScope.Once && (toolName == null || pending.toolName == toolName)) {
+                                when (scope) {
+                                    ApprovalScope.ChatScope -> me.rerere.rikkahub.data.ai.tools.ToolApprovalAllowList.grantForChat(conversationId, pending.toolName)
+                                    ApprovalScope.Always -> grantAlwaysScope(conversationId, pending.toolName)
+                                    ApprovalScope.Once -> Unit
+                                }
+                            }
+                        }
+                        changedPendingApproval = true
                     }
                 }
                 // Outside the mutex: kick off the resume generation if no tools remain pending.
@@ -1250,7 +1262,7 @@ class ChatService(
                         part is UIMessagePart.Tool && part.isPending
                     }
                 }
-                if (!pendingNow) {
+                if (changedPendingApproval && !pendingNow) {
                     handleMessageComplete(conversationId)
                 }
                 _generationDoneFlow.emit(conversationId)
@@ -1384,6 +1396,9 @@ class ChatService(
                 toolPart to tool
             }
 
+            checkExecutionBudget(conversationId, reserveStep = false)?.let {
+                return RerunToolResult.Failure("Execution stopped: ${it.name}")
+            }
             val startedAt = System.currentTimeMillis()
             val output = try {
                 if (toolPart.toolName.startsWith("termux_")) {
@@ -1465,7 +1480,8 @@ class ChatService(
         model: Model,
         settings: Settings,
     ): List<Tool> = buildList {
-        if (me.rerere.rikkahub.data.ai.tools.shouldUseExternalWebSearch(assistant, model)) {
+        val effectiveAssistant = projectRepository?.effectiveAssistant(conversationId, assistant, settings) ?: assistant
+        if (me.rerere.rikkahub.data.ai.tools.shouldUseExternalWebSearch(effectiveAssistant, model)) {
             addAll(createSearchTools(settings))
         }
         val invocationCtx = me.rerere.rikkahub.data.ai.tools.ToolInvocationContext(
@@ -1474,10 +1490,12 @@ class ChatService(
             isHeadless = me.rerere.rikkahub.data.ai.tools.HeadlessConversations.isHeadless(conversationId),
             isSubAgent = conversation.subAgentRunId != null,
             modelCanSeeImages = Modality.IMAGE in model.inputModalities,
-            termuxWorkspace = assistant.workspaceId?.let { workspaceRepository.getById(it.toString()) }?.termuxContext(conversation.workspaceCwd),
+            termuxWorkspace = effectiveAssistant.workspaceId?.let { workspaceRepository.getById(it.toString()) }?.termuxContext(conversation.workspaceCwd),
         )
-        addAll(localTools.getTools(assistant.localTools, invocationCtx))
-        addAll(createWorkspaceToolsIfReady(assistant.workspaceId?.toString(), conversation.workspaceCwd))
+        addAll(localTools.getTools(effectiveAssistant.localTools, invocationCtx))
+        addAll(createWorkspaceToolsIfReady(effectiveAssistant.workspaceId?.toString(), conversation.workspaceCwd))
+        addAll(me.rerere.rikkahub.data.ai.tools.TaskArtifactTools.create(conversationId, effectiveAssistant,
+            workspaceRepository, me.rerere.rikkahub.data.task.TaskArtifactStore.at(context.filesDir)))
         mcpManager.getAllAvailableTools().forEach { (serverId, serverName, mcpTool) ->
             if (serverName.isEmpty() || !serverName.all { it in 'a'..'z' || it in 'A'..'Z' || it in '0'..'9' }) return@forEach
             val mcpToolName = me.rerere.rikkahub.data.ai.mcp.buildMcpToolName(serverId, serverName, mcpTool.name)
@@ -1494,6 +1512,25 @@ class ChatService(
                 )
             )
         }
+    }.let { me.rerere.rikkahub.data.ai.AgentToolPolicy.filter(it, conversationId.toString(), assistant.readOnlyTools) }
+
+    private suspend fun checkExecutionBudget(id: Uuid, reserveStep: Boolean): GenerationStopReason? {
+        val policy = me.rerere.rikkahub.data.ai.AgentTaskPolicy.get(id.toString())
+        if (policy?.stopped == true) return GenerationStopReason.CANCELLED
+        if (policy != null && System.currentTimeMillis() >= policy.deadlineAtMs) return GenerationStopReason.TASK_DEADLINE
+        val live = getConversationFlow(id).value
+        var root = live
+        val visited = mutableSetOf(root.id)
+        while (root.parentConversationId != null && visited.add(root.parentConversationId!!)) {
+            root = conversationRepo.getConversationById(root.parentConversationId!!) ?: break
+        }
+        val settings = settingsStore.settingsFlow.value
+        val owner = settings.getAssistantById(root.assistantId)
+        val snapshot = me.rerere.rikkahub.costguards.TokenBudgetTracker.taskSnapshot(live, conversationRepo,
+            owner?.tokenBudgetSoftCap, owner?.tokenBudgetHardCap)
+        if (snapshot.status == me.rerere.rikkahub.costguards.TokenBudgetTracker.BudgetStatus.OVER_HARD)
+            return GenerationStopReason.BUDGET_LIMIT
+        return if (reserveStep) me.rerere.rikkahub.data.ai.AgentTaskPolicy.reserveStep(id.toString()) else null
     }
 
     // ---- 处理消息补全 ----
@@ -1545,7 +1582,10 @@ class ChatService(
         var reservedInput = emptyList<QueuedMessage>()
         var steeringBoundary = "before_model_request"
         val current = getConversationFlow(conversationId).value
-        val task = (resumed ?: AgentTaskRecord(conversationId.toString())).copy(
+        if (current.subAgentRunId != null) subAgentEngine.ensureChildTurn(current)
+        val previous = if (current.subAgentRunId != null) journal.task(conversationId.toString()) else null
+        val task = (resumed ?: previous?.takeIf { it.reason == GenerationStopReason.WAITING_APPROVAL || it.reason == GenerationStopReason.PROCESS_LOST }
+            ?: AgentTaskRecord(conversationId.toString())).copy(
             status = "running", reason = null, detail = null,
             checkpoint = conversationCheckpoint(current.currentMessages),
             recoverAutomatically = autonomous && config.resumeTasksAfterRestart,
@@ -1592,13 +1632,16 @@ class ChatService(
                     GenerationStopReason.NO_PROGRESS else result.reason
                 updateAgentTask(conversationId, task.runId) { it.copy(
                     status = if (waitingForNetwork) "waiting_network" else if (continueTask) "running" else if (reason == GenerationStopReason.COMPLETED) "completed" else "paused",
-                    reason = reason, cycles = it.cycles + 1, loopGuardTrips = cycleState.loopGuardTrips, steps = it.steps + result.steps, checkpoint = after,
+                    reason = reason, cycles = it.cycles + 1, loopGuardTrips = cycleState.loopGuardTrips, steps = me.rerere.rikkahub.data.ai.AgentTaskPolicy.get(conversationId.toString())?.usedSteps?.toLong() ?: (it.steps + result.steps), checkpoint = after,
                 ) }
                 journal.append(conversationId.toString(), "task.checkpoint", buildJsonObject {
                     put("run_id", task.runId); put("reason", reason.name); put("continuing", continueTask)
                     put("steps", result.steps); put("checkpoint", after)
                 })
-                if (!continueTask) break
+                if (!continueTask) {
+                    subAgentEngine.childTurnSettled(getConversationFlow(conversationId).value, reason)
+                    break
+                }
                 if (waitingForNetwork) {
                     networkFailures++
                     val delayMs = minOf(300_000L, 5_000L * (1L shl networkFailures.coerceAtMost(6)))
@@ -1653,8 +1696,12 @@ class ChatService(
         // this generation was queued (multi-assistant crosstalk). Everything downstream
         // (model, memories, tools, sender name) keys off this resolved assistant.
         val initialConversation = getConversationFlow(conversationId).value
-        val assistant = settings.getAssistantById(initialConversation.assistantId)
+        val project = projectRepository?.projectForConversation(conversationId)
+        val baseAssistant = settings.getAssistantById(initialConversation.assistantId)
             ?: settings.getCurrentAssistant()
+        val assistant = projectRepository?.effectiveAssistant(conversationId, baseAssistant, settings) ?: baseAssistant
+        val taskRoot = projectRepository?.taskRoot(conversationId) ?: conversationId
+        val taskBrief = me.rerere.rikkahub.data.task.TaskArtifactStore.at(context.filesDir).brief(taskRoot.toString())
         val model = settings.findModelById(
             initialConversation.chatModelId ?: assistant.chatModelId ?: settings.chatModelId
         )
@@ -1687,6 +1734,7 @@ class ChatService(
         }
         val useExternalWebSearch = shouldUseExternalWebSearch(assistant, model)
 
+        checkExecutionBudget(conversationId, reserveStep = false)?.let { return GenerationSliceOutcome(it) }
         val generationResult = runCatching {
             // reset suggestions
             updateConversation(conversationId, initialConversation.copy(chatSuggestions = emptyList()))
@@ -1758,8 +1806,8 @@ class ChatService(
                 generationProgress = session.generationProgress,
                 autonomousCycle = autonomousCycle,
                 manageUiLifecycle = manageUiLifecycle,
-                maxSteps = me.rerere.rikkahub.data.ai.AgentTaskPolicy.stepLimit(conversationId.toString())
-                    ?: me.rerere.rikkahub.data.ai.limits.ToolRuntimeLimits.maxToolSteps,
+                maxSteps = me.rerere.rikkahub.data.ai.limits.ToolRuntimeLimits.maxToolSteps,
+                executionGuard = { reserveStep -> checkExecutionBudget(conversationId, reserveStep) },
                 cycleState = cycleState,
                 onStopped = { outcome = it },
                 shouldYieldToQueuedMessage = {
@@ -1774,8 +1822,13 @@ class ChatService(
                 // anything else) gets its runtime context into the system prompt without
                 // having to plumb a parameter all the way through sendMessage. Returns null
                 // for in-app conversations that didn't register one.
-                systemAddendum = me.rerere.rikkahub.data.ai.tools
-                    .ConversationSystemAddendum.get(conversationId),
+                systemAddendum = listOfNotNull(
+                    me.rerere.rikkahub.data.ai.tools.ConversationSystemAddendum.get(conversationId),
+                    project?.promptContext(),
+                    taskBrief.takeIf { it.goal.isNotBlank() || it.acceptanceCriteria.isNotBlank() }?.let {
+                        "Task goal: ${it.goal}\nAcceptance criteria: ${it.acceptanceCriteria}"
+                    },
+                ).joinToString("\n\n").ifBlank { null },
                 isToolAutoApproved = { toolName ->
                     // YOLO mode ("I AM STUPID" toggle in Settings → Tool approvals): every
                     // tool auto-approves. User opted into this explicitly. HARDLINE still
@@ -1818,6 +1871,12 @@ class ChatService(
                 },
                 awaitToolResultPersistence = true,
                 onAfterToolExecution = { generatedMessages ->
+                    try {
+                        me.rerere.rikkahub.data.task.TaskArtifactStore.at(context.filesDir).captureToolOutputs(
+                            getConversationFlow(conversationId).value, assistant,
+                            generatedMessages.lastOrNull()?.parts.orEmpty(), workspaceRepository)
+                    } catch (e: CancellationException) { throw e }
+                    catch (e: Exception) { addError(e, conversationId) }
                     if (messageRange != null || !settings.enableAutoCompaction) {
                         null
                     } else {
@@ -1866,11 +1925,11 @@ class ChatService(
                 conversationModeInjectionIds = conversation.modeInjectionIds,
                 conversationLorebookIds = conversation.lorebookIds,
                 workspaceCwd = conversation.workspaceCwd,
-                memories = if (assistant.useGlobalMemory) {
+                memories = (if (assistant.useGlobalMemory) {
                     memoryRepository.getGlobalMemories()
                 } else {
                     memoryRepository.getMemoriesOfAssistant(assistant.id.toString())
-                },
+                }) + (project?.let { memoryRepository.getMemoriesOfAssistant(MemoryRepository.projectScope(it.id)) } ?: emptyList()),
                 inputTransformers = buildList {
                     addAll(inputTransformers)
                     add(templateTransformer)
@@ -1906,6 +1965,8 @@ class ChatService(
                     )
                     addAll(localTools.getTools(assistant.localTools, invocationCtx))
                     addAll(createWorkspaceToolsIfReady(assistant.workspaceId?.toString(), conversation.workspaceCwd))
+        addAll(me.rerere.rikkahub.data.ai.tools.TaskArtifactTools.create(conversationId, assistant,
+            workspaceRepository, me.rerere.rikkahub.data.task.TaskArtifactStore.at(context.filesDir)))
                     mcpManager.getAllAvailableTools().also { allTools ->
                         // Upstream name validation: a server name that isn't pure
                         // English+digits would produce an invalid `mcp__<name>__tool`
@@ -2150,7 +2211,7 @@ class ChatService(
             Logging.log(TAG, "handleMessageComplete: $it")
             Logging.log(TAG, it.stackTraceToString())
         }.onSuccess {
-            if (outcome.reason == GenerationStopReason.USER_MESSAGE ||
+            if (outcome.reason != GenerationStopReason.COMPLETED ||
                 autonomousCycle && outcome.reason.canContinueAutomatically()) return@onSuccess
             val finalConversation = getConversationFlow(conversationId).value
 
@@ -2174,7 +2235,8 @@ class ChatService(
                 generateTitle(conversationId, finalConversation)
             }
         }
-        return if (generationResult.isFailure) GenerationSliceOutcome(GenerationStopReason.FAILED, outcome.steps) else outcome
+        val executionLimit = generationResult.exceptionOrNull() as? me.rerere.rikkahub.data.ai.AgentExecutionLimitException
+        return if (generationResult.isFailure) GenerationSliceOutcome(executionLimit?.stopReason ?: GenerationStopReason.FAILED, outcome.steps) else outcome
     }
 
     private suspend fun createWorkspaceToolsIfReady(workspaceId: String?, cwd: String? = null): List<Tool> {
@@ -2295,6 +2357,7 @@ class ChatService(
         conversation: Conversation,
         force: Boolean = false
     ) = withContext(Dispatchers.IO) {
+        if (conversation.subAgentRunId != null) return@withContext
         val shouldGenerate = when {
             force -> true
             conversation.title.isBlank() -> true
@@ -2326,6 +2389,7 @@ class ChatService(
                 return@runCatching
             }
 
+            if (checkExecutionBudget(conversationId, reserveStep = true) != null) { applyTitle(fallback); return@runCatching }
             val providerHandler = providerManager.getProviderByType(provider)
             val result = providerHandler.generateText(
                 providerSetting = provider,
@@ -2342,6 +2406,7 @@ class ChatService(
                     priority = me.rerere.ai.provider.GenerationPriority.TITLE),
             )
 
+            me.rerere.rikkahub.costguards.AuxiliaryTokenUsageStore.record(conversationId.toString(), Uuid.random().toString(), result.usage ?: result.message.usage)
             applyTitle(result.message.toText().trim().ifBlank { fallback })
         }.onFailure {
             if (it is CancellationException) throw it
@@ -2363,6 +2428,7 @@ class ChatService(
         conversationId: Uuid,
         conversation: Conversation,
     ) = withContext(Dispatchers.IO) {
+        if (conversation.subAgentRunId != null) return@withContext
         runCatching {
             val settings = settingsStore.settingsFlow.first()
             if (!settings.enableSuggestion) return@runCatching
@@ -2379,6 +2445,7 @@ class ChatService(
                 )
             }
 
+            if (checkExecutionBudget(conversationId, reserveStep = true) != null) return@runCatching
             val providerHandler = providerManager.getProviderByType(provider)
             val result = providerHandler.generateText(
                 providerSetting = provider,
@@ -2393,6 +2460,7 @@ class ChatService(
                 params = backgroundTextGenerationParams(model, settings.fastModelReasoningLevel,
                     sessionId = "$conversationId:suggestions:${conversation.currentMessages.lastOrNull()?.id ?: Uuid.random()}"),
             )
+            me.rerere.rikkahub.costguards.AuxiliaryTokenUsageStore.record(conversationId.toString(), Uuid.random().toString(), result.usage ?: result.message.usage)
             val suggestions =
                 result.message.toText().split("\n").map { it.trim() }
                     .filter { it.isNotBlank() }
@@ -2949,6 +3017,9 @@ class ChatService(
 
             repeat(2) { attempt ->
                 val result = runtimeLimits.request {
+                    checkExecutionBudget(conversation.id, reserveStep = true)?.let {
+                        throw me.rerere.rikkahub.data.ai.AgentExecutionLimitException(it)
+                    }
                     providerHandler.generateText(
                         providerSetting = provider,
                         messages = listOf(
@@ -2968,6 +3039,7 @@ class ChatService(
                     )
                 }
 
+                me.rerere.rikkahub.costguards.AuxiliaryTokenUsageStore.record(conversation.id.toString(), Uuid.random().toString(), result.usage ?: result.message.usage)
                 if (attempt == 0 && result.finishReason in setOf("length", "max_tokens")) return@repeat
                 check(result.finishReason !in setOf("length", "max_tokens", "content_filter")) {
                     "Compaction answer was cut off (${result.finishReason}); original context has been preserved"
@@ -3755,8 +3827,24 @@ class ChatService(
         updateConversation(conversationId, currentConversation.copy(messageNodes = updatedNodes))
     }
 
+    /** Stop the chosen task and every durable descendant, including paused approvals/follow-ups. */
+    suspend fun stopTaskTree(conversationId: Uuid): Int {
+        val visited = mutableSetOf<Uuid>()
+        suspend fun stop(id: Uuid) {
+            if (!visited.add(id)) return
+            me.rerere.rikkahub.data.ai.AgentTaskPolicy.stop(id.toString())
+            subAgentEngine.stopChildrenForParent(id.toString())
+            subAgentEngine.stopSupervision(id.toString())
+            stopGeneration(id)
+            conversationRepo.observeChildConversations(id).first().forEach { stop(it.id) }
+        }
+        stop(conversationId)
+        return visited.size
+    }
+
     // 停止当前会话生成任务（不清理会话缓存）
     suspend fun stopGeneration(conversationId: Uuid) {
+        me.rerere.rikkahub.data.ai.AgentTaskPolicy.stop(conversationId.toString())
         // Persist Stop even when a recovery coroutine has not acquired its in-memory task yet.
         runCatching {
             updateAgentTask(conversationId) { if (it.status == "completed") it else it.copy(status = "cancelled", reason = GenerationStopReason.CANCELLED) }

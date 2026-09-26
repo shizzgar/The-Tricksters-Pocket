@@ -19,8 +19,9 @@ import org.koin.dsl.module
 import java.io.File
 
 val repositoryModule = module {
+    single { me.rerere.rikkahub.data.repository.ProjectRepository(get(), get()) }
     single {
-        ConversationRepository(get(), get(), get(), get(), get(), get(), get())
+        ConversationRepository(get(), get(), get(), get(), get(), get(), get(), get())
     }
 
     single {

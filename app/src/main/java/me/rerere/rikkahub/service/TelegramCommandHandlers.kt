@@ -207,7 +207,7 @@ internal suspend fun TelegramBotService.handleStopCommand(chatId: Long) {
         try { client.sendMessage(chatId, "🛑 Could not resolve the conversation id. Try /new.") } catch (_: Throwable) {}
         return
     }
-    chatService.stopGeneration(convId)
+    val stoppedChats = chatService.stopTaskTree(convId)
     // ALSO cancel the handleLlmTurn coroutine if it's parked waiting for a new
     // generation that won't come (typical when /stop is sent during the gap between
     // approval iterations). Without this, the per-chat mutex stays held forever.
@@ -218,11 +218,7 @@ internal suspend fun TelegramBotService.handleStopCommand(chatId: Long) {
     clearClarifyForChat(chatId)
     // Phase 11: cascading /stop. Cancel every active sub-agent dispatched from this
     // parent conversation. Spec hard constraint 8: "every model stops" — single tick.
-    val cancelledSubAgents = runCatching {
-        org.koin.java.KoinJavaComponent.getKoin()
-            .get<me.rerere.rikkahub.subagent.SubAgentRegistry>()
-            .cancelAllForParent(convId.toString())
-    }.getOrDefault(0)
+    val cancelledSubAgents = (stoppedChats - 1).coerceAtLeast(0)
     val msg = if (cancelledSubAgents > 0) {
         "🛑 Generation cancelled (also stopped $cancelledSubAgents sub-agent${if (cancelledSubAgents == 1) "" else "s"}). Send a new message when you're ready."
     } else {

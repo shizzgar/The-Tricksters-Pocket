@@ -1,0 +1,39 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+  <string name="pocket_projects">Проекты</string>
+  <string name="pocket_new">Создать</string>
+  <string name="pocket_edit">Изменить</string>
+  <string name="pocket_name">Название</string>
+  <string name="pocket_no_project">Все / без проекта</string>
+  <string name="pocket_project_help">Проект связывает чаты, общие инструкции, знания и файлы с рабочей средой. Дочерние чаты наследуют проект. Изменения применяются при следующем запуске.</string>
+  <string name="pocket_project_no_workspace">Рабочая среда ассистента</string>
+  <string name="pocket_project_edit">Настройки проекта</string>
+  <string name="pocket_project_link">Добавить этот чат</string>
+  <string name="pocket_project_linked">Чат добавлен</string>
+  <string name="pocket_project_unlink">Убрать прямую привязку к проекту</string>
+  <string name="pocket_project_add_files">Добавить файлы проекта</string>
+  <string name="pocket_instructions">Инструкции проекта</string>
+  <string name="pocket_knowledge">Знания проекта</string>
+  <string name="pocket_memory">Память и источники</string>
+  <string name="pocket_memory_help">Факты относятся к ассистенту, общей памяти или проекту. Изменения и забывание можно отменить через историю. У старых записей источник и дата не сохранены.</string>
+  <string name="pocket_memory_deleted">Забыто · доступно в истории</string>
+  <string name="pocket_memory_revision">Ревизия %1$d</string>
+  <string name="pocket_memory_legacy">Дата источника неизвестна</string>
+  <string name="pocket_memory_source">Открыть исходное сообщение</string>
+  <string name="pocket_memory_forget">Забыть</string>
+  <string name="pocket_memory_history">История и источники</string>
+  <string name="pocket_memory_restore">Восстановить эту ревизию</string>
+  <string name="pocket_share_files">Импортировано файлов: %1$d / %2$d</string>
+  <string name="pocket_share_new">Новый чат с ассистентом</string>
+  <string name="pocket_share_existing">Недавние чаты · с их текущим проектом</string>
+  <string name="pocket_load_more">Загрузить ещё</string>
+  <string name="pocket_search_filters">Фильтры поиска</string>
+  <string name="pocket_search_all">Все</string>
+  <string name="pocket_search_text">Сообщения</string>
+  <string name="pocket_search_tools">Инструменты</string>
+  <string name="pocket_search_files">Файлы</string>
+  <string name="pocket_search_children">Включить дочерние чаты проекта</string>
+  <string name="pocket_search_after">С даты</string>
+  <string name="pocket_search_before">По дату включительно</string>
+  <string name="pocket_search_tool_name">Точное имя инструмента (необязательно)</string>
+</resources>

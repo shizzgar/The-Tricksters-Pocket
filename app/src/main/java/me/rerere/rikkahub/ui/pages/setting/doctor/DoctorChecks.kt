@@ -19,6 +19,9 @@ import me.rerere.rikkahub.data.ai.tools.local.PermissionHelper
 import me.rerere.rikkahub.data.datastore.AutoCompactionThresholdMode
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.datastore.getCurrentAssistant
+import me.rerere.rikkahub.data.model.assistantReadiness
+import me.rerere.rikkahub.ui.components.ai.summary
+import me.rerere.rikkahub.ui.components.ai.issueText
 import me.rerere.rikkahub.data.db.AppDatabase
 import me.rerere.rikkahub.data.files.SkillManager
 import me.rerere.rikkahub.data.repository.ConversationRepository
@@ -183,7 +186,10 @@ class DoctorChecks(
         // decide whether a missing capability is actually a problem worth flagging.
         val settings = runCatching { settingsStore.settingsFlow.first() }.getOrNull()
         val assistants = settings?.assistants.orEmpty()
-        val enabled: Set<LocalToolOption> = assistants.flatMap { it.localTools }.toSet()
+        val workspaceIds = assistants.mapNotNull { it.workspaceId?.toString() }.toSet()
+        val needsWorkspaceTermux = database.workspaceDao().getAll().any { it.id in workspaceIds && it.termuxPath != null }
+        val enabled: Set<LocalToolOption> = assistants.flatMap { it.localTools }.toSet() +
+            if (needsWorkspaceTermux) setOf(LocalToolOption.Termux) else emptySet()
 
         buildList {
             addAll(permissionChecks(enabled))
@@ -637,6 +643,21 @@ class DoctorChecks(
             val settings = settingsStore.settingsFlow.first()
             val assistants = settings.assistants
             val defaultAssistant = settings.getCurrentAssistant()
+            val workspaces = database.workspaceDao().getAll()
+            val installedSkills = skillManager?.let { manager -> runCatching { manager.listSkills().map { it.name }.toSet() }.getOrNull() }
+            assistants.forEach { assistant ->
+                val readiness = assistantReadiness(assistant, settings, workspaces, installedSkills)
+                add(DoctorCheck(
+                    id = "assistant.readiness.${assistant.id}",
+                    category = DoctorCategory.AssistantInfo,
+                    label = context.getString(R.string.crew_readiness_title, assistant.name),
+                    detail = readiness.summary(context) + "\n" +
+                        (if (readiness.configured) context.getString(R.string.crew_configured) else readiness.issueText(context)) +
+                        "\n" + context.getString(R.string.crew_configuration_note),
+                    severity = if (readiness.configured) Severity.INFO else Severity.WARN,
+                    fix = FixAction.OpenAppRoute(context.getString(R.string.doctor_fix_open_assistants), AppRouteKey.Assistant),
+                ))
+            }
 
             // Row 1: default assistant name + id
             add(

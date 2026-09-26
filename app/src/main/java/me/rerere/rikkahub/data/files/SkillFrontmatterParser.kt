@@ -50,6 +50,12 @@ class SkillFrontmatter internal constructor(
     private val values: Map<String, Any?>,
 ) {
     operator fun get(key: String): String? = values[key] as? String
+    fun scalar(key: String): String? = values[key]?.takeIf { it is String || it is Number || it is Boolean }?.toString()
+    fun list(key: String): List<String> = when (val value = values[key]) {
+        is List<*> -> value.filterIsInstance<String>()
+        is String -> value.split(',').map(String::trim).filter(String::isNotEmpty)
+        else -> emptyList()
+    }
 
     companion object {
         internal val Empty = SkillFrontmatter(emptyMap())

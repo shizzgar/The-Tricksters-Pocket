@@ -197,7 +197,7 @@ fun SkillsPage() {
             vm.importFromLocalFile(uri) { success, message ->
                 showImportDialog = false
                 if (success) {
-                    toaster.show(context.getString(R.string.skills_page_import_success, message))
+                    if (vm.pendingImport.value == null) toaster.show(context.getString(R.string.skills_page_import_success, message))
                 } else {
                     val key = mapImportErrorKeyToString(context, message)
                     toaster.show(context.getString(R.string.skills_page_import_failed, key))
@@ -213,7 +213,7 @@ fun SkillsPage() {
                 vm.importSkillFromGitHub(repoUrl) { success, message ->
                     showImportDialog = false
                     if (success) {
-                        toaster.show(context.getString(R.string.skills_page_import_success, message))
+                        if (vm.pendingImport.value == null) toaster.show(context.getString(R.string.skills_page_import_success, message))
                     } else {
                         toaster.show(context.getString(R.string.skills_page_import_failed, message))
                     }
@@ -252,7 +252,7 @@ fun SkillsPage() {
             onInstall = { entry, onDone ->
                 vm.installFromCatalog(entry) { success, message ->
                     if (success) {
-                        toaster.show(context.getString(R.string.skills_page_import_success, message))
+                        if (vm.pendingImport.value == null) toaster.show(context.getString(R.string.skills_page_import_success, message))
                     } else {
                         val key = mapImportErrorKeyToString(context, message)
                         toaster.show(context.getString(R.string.skill_catalog_install_failed, key))
@@ -263,6 +263,17 @@ fun SkillsPage() {
             onDismiss = { showCatalog = false },
         )
     }
+    val proposal by vm.pendingImport.collectAsStateWithLifecycle()
+    val installBusy by vm.installBusy.collectAsStateWithLifecycle()
+    proposal?.let { preview ->
+        SkillImportPreview(preview, installBusy, vm::dismissImport) { choice, copyName ->
+            vm.acceptImport(choice, copyName) { ok, message ->
+                toaster.show(if (ok) context.getString(R.string.skills_page_import_success, message)
+                    else context.getString(R.string.skills_page_import_failed, message))
+            }
+        }
+    }
+
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -360,14 +371,14 @@ private fun CatalogRow(
             )
             FilledTonalButton(
                 onClick = onInstall,
-                enabled = !installed && !installing,
+                enabled = !installing,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 4.dp),
             ) {
                 Text(
                     when {
-                        installed -> stringResource(R.string.skill_catalog_installed)
+                        installed -> stringResource(R.string.pocket_skill_review_update)
                         installing -> stringResource(R.string.skill_catalog_installing)
                         else -> stringResource(R.string.skill_catalog_install)
                     }

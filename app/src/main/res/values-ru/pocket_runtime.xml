@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pocket_runtime_waiting_approval">Ожидает подтверждения инструмента</string>
+</resources>

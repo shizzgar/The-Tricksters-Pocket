@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.withTimeoutOrNull
+import me.rerere.rikkahub.skills.*
 import me.rerere.rikkahub.skills.CatalogEntry
 import me.rerere.rikkahub.skills.SkillCatalog
 import me.rerere.rikkahub.skills.SkillUrlImporter
@@ -43,6 +44,40 @@ class SkillsVM(
     }
     private val _skills = MutableStateFlow<List<SkillMetadata>>(emptyList())
     val skills = _skills.asStateFlow()
+
+    private val _pendingImport = MutableStateFlow<SkillImportProposal?>(null)
+    internal val pendingImport = _pendingImport.asStateFlow()
+    private val _installBusy = MutableStateFlow(false)
+    internal val installBusy = _installBusy.asStateFlow()
+    internal fun dismissImport() { if (!_installBusy.value) _pendingImport.value = null }
+    private fun stageImport(name: String, files: Map<String, ByteArray>, source: String): SkillMetadata {
+        check(_pendingImport.value == null) { "Finish or cancel the current import first" }
+        val proposal = skillManager.lifecycle().preview(name, files, source)
+        _pendingImport.value = proposal
+        val meta = SkillFrontmatterParser.parse(requireNotNull(files["SKILL.md"]).toString(Charsets.UTF_8))
+        return SkillMetadata(name = name, description = meta["description"].orEmpty(), skillDir = File(""))
+    }
+    private fun previewImporter(source: String) = urlImporter.withSaver(object : SkillSaver {
+        override fun saveSkill(name: String, content: String): SkillMetadata {
+            return stageImport(name, mapOf("SKILL.md" to content.toByteArray()), source)
+        }
+    })
+    internal fun acceptImport(choice: SkillInstallChoice, copyName: String?, onResult: (Boolean, String) -> Unit) {
+        val proposal = _pendingImport.value ?: return
+        if (_installBusy.value) return
+        _installBusy.value = true
+        viewModelScope.launch(Dispatchers.IO) {
+            val result = runCatching {
+                val name = skillManager.lifecycle().install(proposal, choice, copyName)
+                skillManager.invalidateSkill(name)
+                _skills.value = skillManager.listSkills()
+                _pendingImport.value = null
+                name
+            }
+            _installBusy.value = false
+            withContext(Dispatchers.Main) { onResult(result.isSuccess, result.getOrElse { it.message ?: "Import failed" }) }
+        }
+    }
 
     /**
      * Phase 19D — flow-derived snapshot of currently-installed skill names. The catalog
@@ -89,7 +124,11 @@ class SkillsVM(
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val info = parseGitHubUrl(repoUrl) ?: run {
-                    withContext(Dispatchers.Main) { onResult(false, "Invalid GitHub repository URL") }
+                    val result = previewImporter(repoUrl).importFromUrl(repoUrl)
+                    withContext(Dispatchers.Main) { when (result) {
+                        is SkillUrlImporter.Result.Ok -> onResult(true, result.metadata.name)
+                        is SkillUrlImporter.Result.Err -> onResult(false, result.detail)
+                    } }
                     return@launch
                 }
 
@@ -131,11 +170,7 @@ class SkillsVM(
                     fileContents[relativePath] = content
                 }
 
-                val saved = skillManager.saveSkillFileBytesAtomically(name, fileContents)
-                if (!saved) {
-                    withContext(Dispatchers.Main) { onResult(false, "Failed to save skill files") }
-                    return@launch
-                }
+                stageImport(name, fileContents, repoUrl)
 
                 _skills.value = skillManager.listSkills()
                 withContext(Dispatchers.Main) { onResult(true, name) }
@@ -193,12 +228,8 @@ class SkillsVM(
     fun installFromCatalog(entry: CatalogEntry, onResult: (success: Boolean, message: String) -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
             if (entry.isBundled) {
-                // #84: the skill may have been on disk already, or the user deleted it and
-                // this tap is a deliberate reinstall — reinstallBundledSkill() clears any
-                // deletion record and reseeds, and is a no-op when there was nothing to clear.
-                skillManager.reinstallBundledSkill(entry.name)
-                _skills.value = skillManager.listSkills()
-                withContext(Dispatchers.Main) { onResult(true, entry.name) }
+                val result = runCatching { stageImport(entry.name, skillManager.bundledFiles(entry.name), "bundled:${entry.name}") }
+                withContext(Dispatchers.Main) { onResult(result.isSuccess, result.getOrNull()?.name ?: result.exceptionOrNull()?.message.orEmpty()) }
                 return@launch
             }
             val url = entry.sourceUrl
@@ -207,7 +238,7 @@ class SkillsVM(
                 return@launch
             }
             val result = withTimeoutOrNull(30_000) {
-                urlImporter.importFromUrl(url)
+                previewImporter(url).importFromUrl(url)
             }
             val (ok, msg) = when (result) {
                 null -> false to "skill_catalog_install_failed"
@@ -273,7 +304,7 @@ class SkillsVM(
             return false to "skill_import_empty_file"
         }
         val sourceLabel = queryDisplayName(uri) ?: "local_file"
-        val result = urlImporter.importFromText(text, sourceLabel = sourceLabel)
+        val result = previewImporter(sourceLabel).importFromText(text, sourceLabel = sourceLabel)
         return when (result) {
             is SkillUrlImporter.Result.Ok -> true to result.metadata.name
             is SkillUrlImporter.Result.Err -> false to result.detail
@@ -308,8 +339,8 @@ class SkillsVM(
             val skillName = frontmatter["name"]?.takeIf { it.isNotBlank() }
                 ?: return false to "skill_import_missing_skill_md"
             val files = me.rerere.rikkahub.skills.SkillPackage.readFiles(rootDir)
-            val saved = skillManager.saveSkillFileBytesAtomically(skillName, files)
-            return if (saved) true to skillName else false to "skill_import_unsupported_file_type"
+            stageImport(skillName, files, queryDisplayName(uri) ?: "local ZIP")
+            return true to skillName
         } finally {
             runCatching { workDir.deleteRecursively() }
         }

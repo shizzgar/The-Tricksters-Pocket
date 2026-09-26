@@ -51,6 +51,70 @@ class PocketExperienceInstrumentedTest {
         compose.onNodeWithText("scripts/check.py").assertIsDisplayed()
         capture("pocket-skill-code")
     }
+    @Test fun taskDashboardShowsChildResultsAndPreparesIndependentVerification() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val koin = org.koin.core.context.GlobalContext.get()
+        val repository = koin.get<me.rerere.rikkahub.data.repository.ConversationRepository>()
+        val workspaces = koin.get<me.rerere.rikkahub.data.repository.WorkspaceRepository>()
+        val store = me.rerere.rikkahub.data.task.TaskArtifactStore.at(context.filesDir)
+        val parentId = kotlin.uuid.Uuid.random()
+        val childId = kotlin.uuid.Uuid.random()
+        val parent = Conversation.ofId(parentId, me.rerere.rikkahub.data.datastore.createOrchbroAssistant().id).copy(title = "Build a checked release")
+        val child = Conversation.ofId(childId, me.rerere.rikkahub.data.datastore.createDevbroAssistant().id).copy(title = "Implement the release", parentConversationId = parentId)
+        lateinit var workspace: me.rerere.rikkahub.data.db.entity.WorkspaceEntity
+        lateinit var artifact: me.rerere.rikkahub.data.task.TaskArtifact
+        kotlinx.coroutines.runBlocking {
+            workspace = workspaces.create("Task QA " + parentId.toString().take(8))
+            workspaces.writeText(workspace.id, "result.txt", "verified fixture", false)
+            repository.insertConversation(parent)
+            repository.insertConversation(child)
+            store.saveBrief(parentId.toString(), me.rerere.rikkahub.data.task.TaskBrief("Build a checked release", "Tests and signature must pass"))
+            artifact = store.register(childId.toString(), child.assistantId.toString(), workspace.id, "/workspace/result.txt", workspaces, "Release evidence", diff = "--- a/result.txt\n+++ b/result.txt\n@@ -0,0 +1 @@\n+verified fixture")
+        }
+        val stack = mutableListOf<NavKey>(Screen.Chat(parentId.toString()), Screen.TaskDashboard(parentId.toString()))
+        val navigator = Navigator(stack)
+        try {
+            compose.setContent { CompositionLocalProvider(
+                LocalNavController provides navigator,
+                me.rerere.rikkahub.ui.context.LocalSettings provides me.rerere.rikkahub.data.datastore.Settings(assistants = listOf(
+                    me.rerere.rikkahub.data.datastore.createOrchbroAssistant(), me.rerere.rikkahub.data.datastore.createDevbroAssistant(), me.rerere.rikkahub.data.datastore.createVerifybroAssistant(),
+                )),
+            ) { RikkahubTheme { me.rerere.rikkahub.ui.pages.chat.TaskDashboardScreen(parentId) } } }
+            compose.waitUntil(10_000) { compose.onAllNodesWithText("Build a checked release").fetchSemanticsNodes().isNotEmpty() }
+            capture("pocket-task-dashboard")
+            compose.onNodeWithTag("task-dashboard-list").performScrollToNode(hasText(context.getString(me.rerere.rikkahub.R.string.task_results)))
+            // LazyColumn does not compose off-screen result cards. Scroll while the async
+            // conversation/artifact snapshot settles, then verify the actual visible card.
+            compose.waitUntil(10_000) {
+                runCatching {
+                    compose.onNodeWithTag("task-dashboard-list").performScrollToNode(hasText("Release evidence"))
+                    compose.onNodeWithText("Release evidence").assertIsDisplayed()
+                    true
+                }.getOrDefault(false)
+            }
+            compose.onNodeWithText("Release evidence").assertIsDisplayed()
+            compose.onNodeWithText("SHA-256: " + artifact.sha256, substring = true).assertIsDisplayed()
+            capture("pocket-task-results")
+            val verify = context.getString(me.rerere.rikkahub.R.string.task_verify)
+            compose.onNodeWithTag("task-dashboard-list").performScrollToNode(hasText(verify))
+            compose.onNodeWithText(verify).performClick()
+            compose.waitUntil(10_000) { stack.last() is Screen.Chat }
+            val review = stack.last() as Screen.Chat
+            assertTrue(review.text!!.contains("Tests and signature must pass"))
+            assertTrue(review.text!!.contains(artifact.sha256))
+            assertTrue(review.text!!.contains(childId.toString()))
+            kotlinx.coroutines.runBlocking {
+                val reviewChat = requireNotNull(repository.getConversationById(kotlin.uuid.Uuid.parse(review.id)))
+                assertEquals(parentId, reviewChat.parentConversationId)
+                repository.deleteConversation(reviewChat)
+            }
+        } finally { kotlinx.coroutines.runBlocking {
+            repository.deleteConversation(child)
+            repository.deleteConversation(parent)
+            workspaces.delete(workspace.id)
+        } }
+    }
+
     @Test fun childCardOpensNestedChatAndNewAvatarsDecode() {
         val child = Conversation.ofId(assistantId = kotlin.uuid.Uuid.random(), id = kotlin.uuid.Uuid.random(), newConversation = true).copy(title = "ThinkBro · Compare options")
         val stack = mutableListOf<NavKey>(Screen.Chat("parent", text = "Keep this entry"))

@@ -25,12 +25,18 @@ data class TracePage(val records: List<TraceRecord>, val before: Long?, val tota
 class SessionJournal(private val root: File, private val clock: () -> Long = System::currentTimeMillis) {
     private val lock = Any()
     private val json = Json { ignoreUnknownKeys = true }
+    private val deleted = mutableSetOf<String>()
     private val heads = mutableMapOf<String, TraceRecord?>()
     private val changes = MutableStateFlow(0L)
     val revision = changes.asStateFlow()
-    private fun directory(id: String): File {
+    private fun directory(id: String, create: Boolean = true): File {
         require(runCatching { java.util.UUID.fromString(id).toString() == id }.getOrDefault(false))
-        return File(root, id).apply { check(isDirectory || mkdirs()) { "Cannot create private session journal" } }
+        return File(root, id).apply {
+            if (create) {
+                check(id !in deleted) { "This chat was deleted; its trace cannot be recreated" }
+                check(isDirectory || mkdirs()) { "Cannot create private session journal" }
+            }
+        }
     }
     private fun digest(bytes: ByteArray) = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
     private fun atomic(file: File, bytes: ByteArray) {
@@ -108,7 +114,7 @@ class SessionJournal(private val root: File, private val clock: () -> Long = Sys
             val result = ArrayDeque<TraceRecord>()
             var total = 0L
             var error: String? = null
-            val file = File(directory(id), "events.jsonl")
+            val file = File(directory(id, create = false), "events.jsonl")
             if (file.exists()) file.useLines { lines -> lines.forEach { line ->
                 readerContext.ensureActive()
                 val record = runCatching { json.decodeFromString<TraceRecord>(line) }.getOrElse { error = "Incomplete or damaged event record"; return@forEach }
@@ -143,7 +149,7 @@ class SessionJournal(private val root: File, private val clock: () -> Long = Sys
 
     private fun payloadLocked(id: String, record: TraceRecord): String {
         require(record.payloadHash.matches(Regex("[a-f0-9]{64}")))
-        val file = File(directory(id), "payloads/${record.payloadHash}.json.gz")
+        val file = File(directory(id, create = false), "payloads/${record.payloadHash}.json.gz")
         val bytes = GZIPInputStream(file.inputStream()).use { it.readBytes() }
         check(digest(bytes) == record.payloadHash) { "Trace payload hash mismatch" }
         return bytes.toString(Charsets.UTF_8)
@@ -154,13 +160,52 @@ class SessionJournal(private val root: File, private val clock: () -> Long = Sys
         changes.value++
     } }
     suspend fun task(id: String): AgentTaskRecord? = withContext(Dispatchers.IO) { synchronized(lock) {
-        File(directory(id), "task.json").takeIf { it.exists() }?.let { json.decodeFromString<AgentTaskRecord>(it.readText()) }
+        File(directory(id, create = false), "task.json").takeIf { it.exists() }?.let { json.decodeFromString<AgentTaskRecord>(it.readText()) }
     } }
     suspend fun unfinished(): List<AgentTaskRecord> = withContext(Dispatchers.IO) { synchronized(lock) {
         root.listFiles().orEmpty().filter { it.isDirectory }.mapNotNull { dir ->
             runCatching { json.decodeFromString<AgentTaskRecord>(File(dir, "task.json").readText()) }.getOrNull()
         }.filter { it.status in setOf("running", "waiting_network") && it.recoverAutomatically }
     } }
+
+    suspend fun storageBytes(id: String? = null): Long = withContext(Dispatchers.IO) {
+        val dir = if (id == null) root else directory(id, create = false)
+        dir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+    }
+
+    /** Removing a chat also forbids a still-finishing task from recreating its private journal. */
+    suspend fun delete(id: String) = clear(id, preventFutureWrites = true)
+
+    /** Old journals from deleted chats, including versions predating coordinated cleanup. */
+    suspend fun cleanupOrphans(existingConversationIds: Set<String>): Int = withContext(Dispatchers.IO) {
+        val cutoff = clock() - 10 * 60_000L
+        val candidates = synchronized(lock) {
+            root.listFiles().orEmpty().filter { dir ->
+                dir.isDirectory && dir.name !in existingConversationIds && dir.lastModified() < cutoff &&
+                    runCatching { java.util.UUID.fromString(dir.name).toString() == dir.name }.getOrDefault(false)
+            }.map { it.name }
+        }
+        candidates.forEach { delete(it) }
+        candidates.size
+    }
+
+    /** Explicit user cleanup; a future generation may start a fresh journal. */
+    suspend fun clear(id: String, preventFutureWrites: Boolean = false) = withContext(Dispatchers.IO) {
+        synchronized(lock) {
+            val dir = directory(id, create = false)
+            if (preventFutureWrites) deleted.add(id)
+            check(!dir.exists() || dir.deleteRecursively()) { "Cannot delete the session trace" }
+            heads.remove(id)
+            synchronized(legacySummaries) { legacySummaries.clear() }
+            changes.value++
+        }
+    }
+
+    /** Strict allow-list, never a regex over potentially private prompt/tool content. */
+    suspend fun diagnosticPreview(id: String, limit: Int = 200): String {
+        val page = page(id, limit = limit.coerceIn(1, 200))
+        return diagnosticSummary(page)
+    }
 
     /** Export the entire recorded conversation, independently of Trajectory's display window. */
     suspend fun exportArchive(

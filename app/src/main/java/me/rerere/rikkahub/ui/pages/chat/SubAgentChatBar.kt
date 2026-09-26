@@ -32,7 +32,7 @@ internal fun SubAgentChatBar(conversation: Conversation) {
         value = conversation.parentConversationId?.let { repository.getConversationById(it) }
     }
     var showChildren by remember(conversation.id) { mutableStateOf(false) }
-    if (conversation.parentConversationId != null || children.isNotEmpty()) {
+    run {
         Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                 if (conversation.parentConversationId != null) {
@@ -42,8 +42,11 @@ internal fun SubAgentChatBar(conversation: Conversation) {
                         }
                     }) { Text(if (parent == null) stringResource(R.string.pocket_chat_missing) else stringResource(R.string.pocket_parent_chat, parent!!.title), maxLines = 1, overflow = TextOverflow.Ellipsis) }
                 }
+                TextButton(onClick = { navigator.navigate(Screen.TaskDashboard(conversation.id.toString())) }) {
+                    Text(stringResource(R.string.task_dashboard))
+                }
                 if (children.isNotEmpty()) TextButton(onClick = { showChildren = true }) {
-                    val active = children.count { statuses[it.subAgentRunId]?.uppercase() in setOf("PENDING", "QUEUED", "RUNNING") }
+                    val active = children.count { statuses[it.subAgentRunId]?.uppercase() in setOf("PENDING", "QUEUED", "RUNNING", "WAITING_APPROVAL", "AWAITING_APPROVAL") }
                     Text(stringResource(R.string.pocket_child_count, children.size, active))
                 }
             }

@@ -21,7 +21,9 @@ fun buildMemoryTools(
     json: Json,
     onCreation: suspend (String) -> AssistantMemory,
     onUpdate: suspend (Int, String) -> AssistantMemory,
-    onDelete: suspend (Int) -> Unit
+    onDelete: suspend (Int) -> Unit,
+    onScopedCreation: (suspend (String, String) -> AssistantMemory)? = null,
+    onRevisionUpdate: (suspend (Int, String, Int?) -> AssistantMemory)? = null,
 ): List<Tool> = listOf(
     Tool(
         name = "memory_tool",
@@ -46,6 +48,15 @@ fun buildMemoryTools(
         parameters = {
             InputSchema.Obj(
                 properties = buildJsonObject {
+                    put("scope", buildJsonObject {
+                        put("type", "string")
+                        put("enum", buildJsonArray { add("assistant"); add("global"); add("project") })
+                        put("description", "Scope for new facts. Project facts belong to the current project; global facts apply everywhere. Default is the configured assistant memory scope.")
+                    })
+                    put("expected_revision", buildJsonObject {
+                        put("type", "integer")
+                        put("description", "Revision from the memory record; prevents overwriting a concurrent edit.")
+                    })
                     put("action", buildJsonObject {
                         put("type", "string")
                         put(
@@ -76,13 +87,16 @@ fun buildMemoryTools(
             val payload = when (action) {
                 "create" -> {
                     val content = params["content"]?.jsonPrimitive?.contentOrNull ?: error("content is required")
-                    json.encodeToJsonElement(AssistantMemory.serializer(), onCreation(content))
+                    val scope = params["scope"]?.jsonPrimitive?.contentOrNull
+                    val created = if (scope != null && onScopedCreation != null) onScopedCreation(scope, content) else onCreation(content)
+                    json.encodeToJsonElement(AssistantMemory.serializer(), created.copy(history = emptyList()))
                 }
 
                 "edit" -> {
                     val id = params["id"]?.jsonPrimitive?.intOrNull ?: error("id is required")
                     val content = params["content"]?.jsonPrimitive?.contentOrNull ?: error("content is required")
-                    json.encodeToJsonElement(AssistantMemory.serializer(), onUpdate(id, content))
+                    val revision = params["expected_revision"]?.jsonPrimitive?.intOrNull
+                    json.encodeToJsonElement(AssistantMemory.serializer(), (onRevisionUpdate?.invoke(id, content, revision) ?: onUpdate(id, content)).copy(history = emptyList()))
                 }
 
                 "delete" -> {

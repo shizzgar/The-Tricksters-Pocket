@@ -1,6 +1,10 @@
 package me.rerere.rikkahub.skills
 
 import android.util.Log
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
@@ -39,8 +43,7 @@ import kotlin.uuid.Uuid
  *
  * Hard timeout: 2 minutes by default (overridable for tests). If the generation hasn't
  * settled by then, the run returns [TestRunState.Error] with code `tester_timeout` and
- * lets the underlying generation continue (cancellation is best-effort — ChatService's
- * own session lifecycle eventually releases it).
+ * stops the test generation during cleanup before removing the ephemeral chat.
  *
  * Testability seams: the [Driver] interface abstracts everything the runner needs from
  * the `ChatService` + `ConversationRepository` + `SettingsStore` triplet. JVM tests
@@ -52,6 +55,8 @@ class SkillTestRunner(
     private val driver: Driver,
     private val skillBodyReader: (String) -> String?,
     private val timeoutMs: Long = DEFAULT_TIMEOUT_MS,
+    private val captureSkill: ((String) -> CapturedSkill?)? = null,
+    private val recordResult: ((String, String, String, String, TestRunState) -> Unit)? = null,
 ) {
 
     /** Production Koin convenience constructor — equivalent to passing [defaultDriver]. */
@@ -65,6 +70,18 @@ class SkillTestRunner(
         driver = defaultDriver(chatService, conversationRepo, settingsStore),
         skillBodyReader = { name -> skillManager.readSkillBody(name) },
         timeoutMs = timeoutMs,
+        captureSkill = { name ->
+            skillManager.getSkillDir(name)?.let { root -> SkillPackageLocks.withLock(root) {
+                val workspace = skillManager.workspace(name)
+                val revision = workspace.snapshot().revision
+                CapturedSkill(skillManager.readSkillBody(name), revision)
+            } }
+        },
+        recordResult = { name, revision, assistant, prompt, state ->
+            val outcome = when (state) { is TestRunState.Done -> "response_received"; is TestRunState.Error -> state.error; else -> "unknown" }
+            val output = when (state) { is TestRunState.Done -> state.text; is TestRunState.Error -> state.detail.orEmpty(); else -> "" }
+            skillManager.testHistory(name).append(SkillTestRecord(revision, assistant, prompt, System.currentTimeMillis(), outcome, output))
+        },
     )
 
     companion object {
@@ -117,6 +134,7 @@ class SkillTestRunner(
             }
 
             override suspend fun cleanup(conv: Conversation) {
+                runCatching { chatService.stopGeneration(conv.id) }
                 runCatching { chatService.dropSession(conv.id) }
                 runCatching { conversationRepo.deleteConversation(conv) }
             }
@@ -137,6 +155,8 @@ class SkillTestRunner(
         suspend fun cleanup(conv: Conversation)
     }
 
+    data class CapturedSkill(val body: String?, val revision: String)
+
     data class HarvestResult(val text: String, val imageUrls: List<String>)
 
     sealed class TestRunState {
@@ -156,8 +176,11 @@ class SkillTestRunner(
         // IOException) for oversized files; reads can also fail with a plain IOException.
         // Catch both here so the body read surfaces a clean terminal Error instead of an
         // unhandled exception escaping the flow.
+        var revision = "unknown"
         val skillBody = try {
-            skillBodyReader(skillName)
+            withContext(Dispatchers.IO) {
+                if (captureSkill == null) skillBodyReader(skillName) else captureSkill.invoke(skillName)?.let { revision = it.revision; it.body }
+            }
         } catch (e: SkillManager.SkillFileTooLargeException) {
             emit(TestRunState.Error("skill_too_large", "skill body exceeds the size cap (${e.lengthBytes} bytes)"))
             return@flow
@@ -188,6 +211,11 @@ class SkillTestRunner(
         // checking HeadlessConversations.isHeadless during dispatch would otherwise
         // race the mark.
         var registered = false
+        suspend fun finish(state: TestRunState) {
+            withContext(Dispatchers.IO) { runCatching { recordResult?.invoke(skillName, revision, assistantId.toString(), prompt, state) }
+                .onFailure { runCatching { Log.w(TAG, "Could not save skill test history", it) } } }
+            emit(state)
+        }
         try {
             driver.startConversation(conv)
             HeadlessConversations.mark(conv.id)
@@ -207,26 +235,31 @@ class SkillTestRunner(
 
             val finishedInTime = driver.awaitGenerationDone(conv.id, timeoutMs)
             if (!finishedInTime) {
-                emit(TestRunState.Error("tester_timeout", "exceeded ${timeoutMs / 1_000}s cap"))
+                finish(TestRunState.Error("tester_timeout", "exceeded ${timeoutMs / 1_000}s cap"))
                 return@flow
             }
 
             val harvested = driver.harvest(conv.id)
             if (harvested.text.isBlank() && harvested.imageUrls.isEmpty()) {
-                emit(TestRunState.Error("no_response", "the model returned no text or image parts"))
+                finish(TestRunState.Error("no_response", "the model returned no text or image parts"))
             } else {
-                emit(TestRunState.Done(harvested.text, harvested.imageUrls))
+                finish(TestRunState.Done(harvested.text, harvested.imageUrls))
             }
+        } catch (cancelled: CancellationException) {
+            withContext(NonCancellable + Dispatchers.IO) {
+                runCatching { recordResult?.invoke(skillName, revision, assistantId.toString(), prompt, TestRunState.Error("cancelled", "Test was cancelled")) }
+            }
+            throw cancelled
         } catch (t: Throwable) {
             // Log via a runCatching so JVM tests (which don't stub android.util.Log) don't
             // explode. The error envelope below carries the same info to the UI.
             runCatching { Log.w(TAG, "runOnce failed for $skillName", t) }
-            emit(TestRunState.Error(t::class.simpleName ?: "unknown", t.message))
+            finish(TestRunState.Error(t::class.simpleName ?: "unknown", t.message))
         } finally {
             if (registered) {
                 HeadlessConversations.unmark(conv.id)
             }
-            runCatching { driver.cleanup(conv) }
+            withContext(NonCancellable) { runCatching { driver.cleanup(conv) } }
         }
     }
 }

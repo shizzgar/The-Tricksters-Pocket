@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="task_dashboard">Задача и результаты</string>
+    <string name="task_goal">Цель</string>
+    <string name="task_criteria">Критерии приёмки</string>
+    <string name="task_save_brief">Сохранить задачу</string>
+    <string name="task_team">Команда</string>
+    <string name="task_results">Результаты и изменения</string>
+    <string name="task_results_empty">Зарегистрированных результатов пока нет. Здесь появятся файлы, записанные инструментами workspace; готовые результаты shell-команд агент может добавить через register_artifact.</string>
+    <string name="task_message">Открыть чат / написать</string>
+    <string name="task_stop_one">Остановить этот чат</string>
+    <string name="task_stop_all">Остановить всю задачу</string>
+    <string name="task_verify">Проверить с VerifyBro</string>
+    <string name="task_verify_missing">VerifyBro недоступен. Восстановите встроенного ассистента для проверки.</string>
+    <string name="task_projects">Проекты</string>
+    <string name="task_open">Открыть</string>
+    <string name="task_export">Сохранить копию</string>
+    <string name="task_share">Поделиться</string>
+    <string name="task_show_diff">Показать изменения</string>
+    <string name="task_unverified">Зарегистрирован · содержимое ещё не проверено</string>
+    <string name="task_unavailable">Файл недоступен или изменён</string>
+    <string name="task_queued">Сообщений в очереди: %1$d</string>
+    <string name="task_status_idle">Ожидает задачу</string>
+    <string name="task_status_running">Работает</string>
+    <string name="task_status_pending">Ожидает запуска</string>
+    <string name="task_status_approval">Ждёт вашего разрешения</string>
+    <string name="task_status_network">Ждёт сеть</string>
+    <string name="task_status_paused">Приостановлен</string>
+    <string name="task_status_completed">Завершён</string>
+    <string name="task_status_failed">Ошибка</string>
+    <string name="task_status_cancelled">Остановлен</string>
+    <string name="task_missing">Этот чат недоступен.</string>
+    <string name="task_limit">Очень большая задача: показаны первые 512 чатов.</string>
+    <string name="task_export_done">Копия сохранена</string>
+    <string name="task_source">%1$s · %2$d байт</string>
+    <string name="task_file_error">Не удалось открыть, сохранить или отправить файл: %1$s</string>
+    <string name="task_brief_saved">Цель и критерии сохранены</string>
+    <string name="task_workspace">Workspace: %1$s</string>
+    <string name="task_result_source_chat">Исходный чат</string>
+</resources>

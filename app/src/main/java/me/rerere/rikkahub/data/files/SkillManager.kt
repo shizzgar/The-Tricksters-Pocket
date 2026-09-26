@@ -232,7 +232,7 @@ class SkillManager(
     }
 
     internal fun workspace(name: String): SkillWorkspace = SkillWorkspace(
-        listSkills().firstOrNull { it.name == name }?.skillDir ?: requireNotNull(resolveSkillDir(name)),
+        requireNotNull(resolveSkillDir(name)),
         File(context.filesDir, "skill_workbench"), name,
     )
 
@@ -284,61 +284,34 @@ class SkillManager(
         )
     }
 
-    fun saveSkillFileBytesAtomically(skillName: String, files: Map<String, ByteArray>): Boolean {
-        val root = resolveSkillDir(skillName) ?: return false
-        return SkillPackageLocks.withLock(root) {
-            saveSkillFileBytesLocked(skillName, files).also { if (it) invalidateSkill(skillName) }
+    /** Import/save defaults to create-only. Updates must use a reviewed, revision-bound proposal. */
+    fun saveSkillFileBytesAtomically(skillName: String, files: Map<String, ByteArray>): Boolean = runCatching {
+        createPackage(skillName, files)
+        true
+    }.getOrDefault(false)
+
+    internal fun lifecycle() = me.rerere.rikkahub.skills.SkillLifecycle(getSkillsDir(), File(context.filesDir, "skill_workbench"))
+    internal fun testHistory(name: String): me.rerere.rikkahub.skills.SkillTestHistory {
+        require(me.rerere.rikkahub.skills.SkillLifecycle.validName(name))
+        return me.rerere.rikkahub.skills.SkillTestHistory(File(context.filesDir, "skill_workbench/$name/tests.json"))
+    }
+    internal fun bundledFiles(name: String): Map<String, ByteArray> {
+        require(name in bundledSkillNames())
+        val files = linkedMapOf<String, ByteArray>()
+        fun walk(path: String) {
+            context.assets.list("default-skills/$name/$path").orEmpty().forEach { child ->
+                val relative = listOf(path, child).filter(String::isNotBlank).joinToString("/")
+                val asset = "default-skills/$name/$relative"
+                if (isAssetDirectory(asset)) walk(relative) else files[relative] = context.assets.open(asset).use { it.readBytes() }
+            }
         }
+        walk("")
+        return files
     }
 
     fun invalidateSkill(skillName: String) {
         val root = resolveSkillDir(skillName) ?: return
         bodyCache.keys.removeAll { it.startsWith(root.absolutePath + File.separator) }
-    }
-
-    private fun saveSkillFileBytesLocked(skillName: String, files: Map<String, ByteArray>): Boolean {
-        val skillsDir = getSkillsDir()
-        val targetDir = resolveSkillDir(skillName) ?: return false
-        val stagingDir = createTempSkillDir(skillsDir, skillName, "staging") ?: return false
-        var backupDir: File? = null
-
-        try {
-            for ((relativePath, content) in files) {
-                val target = SkillPaths.resolveSkillFile(stagingDir, relativePath) ?: return false
-                target.parentFile?.mkdirs()
-                target.writeBytes(content)
-            }
-
-            if (!stagingDir.resolve("SKILL.md").exists()) return false
-
-            if (targetDir.exists()) {
-                backupDir = createTempSkillDir(skillsDir, skillName, "backup") ?: return false
-                if (!targetDir.renameTo(backupDir)) return false
-            }
-
-            if (!stagingDir.renameTo(targetDir)) {
-                if (backupDir != null && !targetDir.exists()) {
-                    backupDir.renameTo(targetDir)
-                }
-                return false
-            }
-
-            backupDir?.deleteRecursively()
-            return true
-        } catch (e: Exception) {
-            Log.w(TAG, "saveSkillFilesAtomically: Failed to save $skillName", e)
-            if (backupDir != null && !targetDir.exists()) {
-                backupDir.renameTo(targetDir)
-            }
-            return false
-        } finally {
-            if (stagingDir.exists()) {
-                stagingDir.deleteRecursively()
-            }
-            if (backupDir?.exists() == true && targetDir.exists()) {
-                backupDir.deleteRecursively()
-            }
-        }
     }
 
     fun deleteSkillFile(skillName: String, relativePath: String): Boolean {
@@ -356,94 +329,54 @@ class SkillManager(
      */
     suspend fun seedDefaultSkillsIfNeeded() {
         SkillWorkspace.recoverAll(getSkillsDir(), File(context.filesDir, "skill_workbench"))
-        val assetRoot = "default-skills"
-        val assetMgr = context.assets
-        val skillNames = try {
-            assetMgr.list(assetRoot).orEmpty()
-        } catch (e: Exception) {
-            Log.w(TAG, "seedDefaultSkillsIfNeeded: cannot list assets", e)
-            return
-        }
-        // #84: names the user explicitly deleted. Read once per pass; deleteSkill() /
-        // reinstallBundledSkill() are the only writers, both persisted before this can run.
-        // settingsFlow starts as Settings.dummy() (init = true, empty set) until DataStore
-        // loads, and this runs at process start, so wait for the real value.
-        val deletedBundledSkills = settingsStore.settingsFlow.first { !it.init }.deletedBundledSkills
-        for (skillName in skillNames) {
-            val targetDir = SkillPaths.resolveSkillDir(getSkillsDir(), skillName) ?: continue
-            val deletedByUser = skillName in deletedBundledSkills
-
-            // Read the bundled SKILL.md once to decide what to do.
-            val bundledSkillMd = runCatching {
-                assetMgr.open("$assetRoot/$skillName/SKILL.md").bufferedReader().use { it.readText() }
-            }.getOrNull()
-            val isCoreSkill = bundledSkillMd?.let { content ->
-                SkillFrontmatterParser.parse(content)["auto_load"]?.equals("true", ignoreCase = true) == true
-            } == true
-
-            // Files edited in the workbench belong to the user, including bundled core skills.
-            if (targetDir.resolve(".user-edited").exists()) continue
-
-            val sentinel = targetDir.resolve(".seeded")
-            val coreVersionFile = targetDir.resolve(".core-bundled-hash")
-
-            if (isCoreSkill) {
-                // Core skills (auto_load=true) re-seed whenever the bundled content changes
-                // — typically across an APK upgrade. This keeps SOUL/HEARTBEAT/TOOLS in
-                // sync with the app version while still allowing the user to edit between
-                // upgrades (their edits stick until we ship a new bundled version). Core
-                // skills are always ours to manage, so the sentinel does not gate this.
-                val bundledHash = computeBundledSkillHash(assetRoot, skillName)
-                val currentHash = if (coreVersionFile.exists()) coreVersionFile.readText().trim() else ""
-                val decision = decideSeedAction(
-                    ownedByUs = true,
-                    targetDirExists = targetDir.exists(),
-                    targetDirNonEmpty = false, // unused when ownedByUs is true
-                    bundledHash = bundledHash,
-                    storedHash = currentHash,
-                    deletedByUser = deletedByUser,
-                )
-                if (decision == SeedDecision.SKIP) continue
-                try {
-                    if (targetDir.exists()) targetDir.deleteRecursively()
-                    copyAssetSkill(assetRoot, skillName, targetDir)
-                    sentinel.writeText(System.currentTimeMillis().toString())
-                    coreVersionFile.writeText(bundledHash)
-                    Log.i(TAG, "seedDefaultSkillsIfNeeded: re-seeded core skill $skillName (hash=$bundledHash)")
-                } catch (e: Exception) {
-                    Log.w(TAG, "seedDefaultSkillsIfNeeded: failed to re-seed core skill $skillName", e)
-                }
-                continue
-            }
-
-            // Non-core (lazy) skills: seeded once, then re-seeded only when the bundled
-            // content changes AND the directory is one we seeded ourselves (tracked by the
-            // .seeded sentinel, reusing the same .core-bundled-hash file the core path uses).
-            // A directory that exists with no sentinel is user-owned — the user may have
-            // manually installed and then deleted the skill, or created a same-named one —
-            // and is never overwritten, preserving the original "seed once, then leave
-            // alone" contract for anything we did not create ourselves.
-            val bundledHash = computeBundledSkillHash(assetRoot, skillName)
-            val storedHash = if (coreVersionFile.exists()) coreVersionFile.readText().trim() else ""
-            val decision = decideSeedAction(
-                ownedByUs = sentinel.exists(),
-                targetDirExists = targetDir.exists(),
-                targetDirNonEmpty = targetDir.exists() && targetDir.listFiles()?.isNotEmpty() == true,
-                bundledHash = bundledHash,
-                storedHash = storedHash,
-                deletedByUser = deletedByUser,
-            )
-            if (decision == SeedDecision.SKIP) continue
+        val deleted = settingsStore.settingsFlow.first { !it.init }.deletedBundledSkills
+        for (name in bundledSkillNames()) {
+            if (name in deleted) continue
+            val root = resolveSkillDir(name) ?: continue
             try {
-                if (targetDir.exists()) targetDir.deleteRecursively()
-                copyAssetSkill(assetRoot, skillName, targetDir)
-                sentinel.writeText(System.currentTimeMillis().toString())
-                coreVersionFile.writeText(bundledHash)
-                Log.i(TAG, "seedDefaultSkillsIfNeeded: seeded $skillName (hash=$bundledHash)")
-            } catch (e: Exception) {
-                Log.w(TAG, "seedDefaultSkillsIfNeeded: failed to seed $skillName", e)
+                SkillPackageLocks.withLock(root) {
+                    val bundledHash = computeBundledSkillHash("default-skills", name)
+                    val storedHash = root.resolve(".core-bundled-hash").takeIf { it.isFile }?.readText()?.trim()
+                    if (root.exists()) {
+                        // The sentinel proves ownership, not integrity. Check every current byte too:
+                        // external editors/imports from older versions may not have set .user-edited.
+                        if (!root.resolve(".seeded").exists() || root.resolve(".user-edited").exists()) return@withLock
+                        if (storedHash.isNullOrBlank() || bundledHash == storedHash || legacyDiskHash(root) != storedHash) return@withLock
+                    }
+                    val files = bundledFiles(name)
+                    val origin = kotlinx.serialization.json.buildJsonObject {
+                        put("source", kotlinx.serialization.json.JsonPrimitive("bundled:$name"))
+                        put("installedAt", kotlinx.serialization.json.JsonPrimitive(System.currentTimeMillis()))
+                    }.toString()
+                    if (root.exists()) {
+                        val workspace = SkillWorkspace(root, File(context.filesDir, "skill_workbench"), name)
+                        workspace.replacePackage(files, workspace.snapshot().revision, origin)
+                    } else SkillWorkspace.create(root, File(context.filesDir, "skill_workbench"), name, files, origin)
+                    root.resolve(".user-edited").delete()
+                    root.resolve(".seeded").writeText(System.currentTimeMillis().toString())
+                    root.resolve(".core-bundled-hash").writeText(bundledHash)
+                    invalidateSkill(name)
+                }
+            } catch (e: Exception) { Log.w(TAG, "Could not refresh bundled skill $name", e) }
+        }
+    }
+
+    /** Match the historical bundled hash format, while excluding only app-owned sentinels. */
+    private fun legacyDiskHash(root: File): String {
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+        fun walk(dir: File) {
+            dir.listFiles().orEmpty().sortedBy { it.name }.forEach { child ->
+                require(!java.nio.file.Files.isSymbolicLink(child.toPath()))
+                if (child.isDirectory) walk(child) else if (child.name !in SkillWorkspace.internalNames) {
+                    digest.update(child.name.toByteArray())
+                    child.inputStream().use { input -> val bytes = ByteArray(8192); while (true) {
+                        val count = input.read(bytes); if (count < 0) break; digest.update(bytes, 0, count)
+                    } }
+                }
             }
         }
+        walk(root)
+        return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
     /**
@@ -548,7 +481,7 @@ class SkillManager(
                 name = name,
                 description = description,
                 compatibility = frontmatter["compatibility"],
-                autoLoad = frontmatter["auto_load"]?.equals("true", ignoreCase = true) == true,
+                autoLoad = frontmatter.scalar("auto_load")?.equals("true", ignoreCase = true) == true,
                 autoLoadPath = frontmatter["auto_load_path"]?.takeIf { it.isNotBlank() },
                 skillDir = skillDir,
             )
@@ -575,16 +508,12 @@ internal fun deletedBundledSkillsAfterDelete(
 ): Set<String> = if (isBundled) current + deletedName else current
 
 /**
- * Pure decision for whether a bundled skill directory should be (re)written from assets.
- * Shared by both the core (`auto_load: true`) and non-core seeding branches of
- * [SkillManager.seedDefaultSkillsIfNeeded] so they cannot drift apart, and extracted out of
- * [SkillManager] itself so it is testable without a [android.content.Context] /
- * `AssetManager`.
+ * Legacy ownership/deletion decision retained for compatibility checks. Actual seeding
+ * additionally verifies current package bytes against the stored bundled hash; a sentinel
+ * by itself never permits overwriting user changes.
  *
- * @param ownedByUs whether this directory is ours to overwrite: always `true` for core
- * skills (they are unconditionally ours to manage), or `sentinel.exists()` for non-core
- * skills (a directory that exists with no `.seeded` sentinel was never created by us and is
- * user-owned).
+ * @param ownedByUs whether a valid bundled sentinel exists. Core skills also belong to
+ * the user once edited.
  * @param targetDirNonEmpty ignored when [ownedByUs] is `true`.
  * @param deletedByUser #84: `true` when this skill's name is in [me.rerere.rikkahub.data.datastore.Settings.deletedBundledSkills]
  * (the user explicitly deleted it via [SkillManager.deleteSkill]). Checked first and skips

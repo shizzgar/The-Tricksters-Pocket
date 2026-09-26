@@ -1,0 +1,20 @@
+<resources>
+    <string name="pocket_backup_protection">Backup protection</string>
+    <string name="pocket_backup_without_credentials">Saved credentials excluded</string>
+    <string name="pocket_backup_encrypted">Password encrypted, including credentials</string>
+    <string name="pocket_backup_configure">Configure</string>
+    <string name="pocket_backup_scope">Applies to local, WebDAV and S3 backups.</string>
+    <string name="pocket_backup_password">Archive password</string>
+    <string name="pocket_backup_password_help">At least 8 characters for encrypted export. For import, enter the password used for that archive. It is kept encrypted on this device. Keep your own copy: it cannot be recovered.</string>
+    <string name="pocket_backup_content_notice">The standard archive removes saved provider, SSH and integration credentials, custom request parameters and URL query parameters. Messages and files may still contain private data. Encrypted archives include selected data and skill keys; account sign-in sessions must be added again.</string>
+    <string name="pocket_backup_apply">Apply</string>
+    <string name="pocket_trace_storage">Trace storage: %1$s</string>
+    <string name="pocket_trace_clear">Clear trace</string>
+    <string name="pocket_trace_clear_title">Delete this trace?</string>
+    <string name="pocket_trace_clear_body">Recorded requests, responses and tool payloads for this chat will be deleted. Chat messages stay. Export anything you need first.</string>
+    <string name="pocket_trace_diagnostic">Diagnostic summary</string>
+    <string name="pocket_trace_diagnostic_notice">Preview the exact export below. Only event types, timing, counters and outcomes are included; prompts, tool arguments, output, files and credentials are omitted. Up to 200 recent events from this chat. This summary cannot reproduce the raw trace.</string>
+    <string name="pocket_trace_export_summary">Export summary</string>
+    <string name="pocket_trace_orphans">Remove orphaned traces</string>
+    <string name="pocket_trace_orphans_notice">Deletes old traces whose chats no longer exist. Existing chats and their traces are kept. New journals from the last 10 minutes are skipped.</string>
+</resources>

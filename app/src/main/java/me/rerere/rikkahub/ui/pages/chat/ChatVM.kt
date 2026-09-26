@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -131,6 +132,23 @@ class ChatVM(
     val currentChatModel = kotlinx.coroutines.flow.combine(settings, conversation) { settings, chat ->
         chat.chatModelId?.let { settings.findModelById(it) } ?: settings.getCurrentChatModel()
     }.stateIn(viewModelScope, SharingStarted.Lazily, null)
+
+    /** One shared view drives both gauges; observing the summary resets old provider usage immediately. */
+    val contextUsage: StateFlow<me.rerere.rikkahub.data.ai.ContextUsageSnapshot?> = combine(
+        conversation, settings, conversationRepo.observeCompaction(_conversationId), generationProgress, conversationJob,
+    ) { chat, settings, compaction, progress, job ->
+        val assistant = settings.getAssistantById(chat.assistantId) ?: settings.getCurrentAssistant()
+        val model = settings.findModelById(chat.chatModelId ?: assistant.chatModelId ?: settings.chatModelId)
+        val active = job?.isActive == true
+        val liveStartedAt = progress?.let {
+            java.time.Instant.ofEpochMilli(System.currentTimeMillis() -
+                ((System.nanoTime() / 1_000_000) - it.startedAt).coerceAtLeast(0))
+        }
+        me.rerere.rikkahub.data.ai.ContextUsageCalculator.snapshot(
+            chat, assistant, settings, model, compaction, streaming = active,
+            liveUsage = progress?.usage.takeIf { active && chat.currentMessages.lastOrNull()?.modelId == model?.id }, liveRequestStartedAt = liveStartedAt,
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     // 错误状态
     val errors: StateFlow<List<ChatError>> = chatService.errors

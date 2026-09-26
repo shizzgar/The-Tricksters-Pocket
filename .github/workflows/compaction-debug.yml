@@ -52,16 +52,19 @@ jobs:
           python3 -B -m unittest discover -s tests -p 'test_bro_skill_packages.py' -v
           python3 -B app/src/main/assets/default-skills/rebro-frida/assets/rebro-frida-pack/tools/verify.py
       - name: Run HTTP and provider tests
-        run: bash ./gradlew --no-daemon --max-workers=2 :common:testDebugUnitTest :ai:testDebugUnitTest :search:testDebugUnitTest
+        run: bash ./gradlew --no-daemon --build-cache --max-workers=2 :common:testDebugUnitTest :ai:testDebugUnitTest :search:testDebugUnitTest :workspace:testDebugUnitTest
       - name: Run runtime, Termux presentation and settings tests
         run: >-
-          bash ./gradlew --no-daemon --max-workers=2 :app:testDebugUnitTest
+          bash ./gradlew --no-daemon --build-cache --max-workers=2 :app:testDebugUnitTest
           --tests 'me.rerere.rikkahub.data.ai.GenerationLoopResumeToolSelectionTest'
           --tests 'me.rerere.rikkahub.data.db.ImportedDatabaseReconcilerTest'
           --tests 'me.rerere.rikkahub.data.ai.tools.local.JavascriptToolTest'
           --tests 'me.rerere.rikkahub.ui.theme.RebroThemeTest'
           --tests 'me.rerere.rikkahub.data.ai.CompactionRuntimeTest'
           --tests 'me.rerere.rikkahub.data.ai.AgentTaskRuntimeTest'
+          --tests 'me.rerere.rikkahub.data.ai.AgentTaskPolicyTest'
+          --tests 'me.rerere.rikkahub.data.ai.ContextUsageSnapshotTest'
+          --tests 'me.rerere.rikkahub.costguards.*Test'
           --tests 'me.rerere.rikkahub.data.ai.SessionJournalTest'
           --tests 'me.rerere.rikkahub.data.ai.TraceArchiveTest'
           --tests 'me.rerere.rikkahub.data.ai.LiveSteeringTest'
@@ -105,8 +108,20 @@ jobs:
           --tests 'me.rerere.rikkahub.data.repository.TermuxWorkspacePathTest'
           --tests 'me.rerere.rikkahub.data.ai.transformers.WorkspaceReminderTransformerTest'
           --tests 'me.rerere.rikkahub.data.ai.tools.WorkspaceToolsTest'
+          --tests 'me.rerere.rikkahub.data.datastore.TechnicalAssistantsTest'
+          --tests 'me.rerere.rikkahub.data.model.AssistantReadinessTest'
+          --tests 'me.rerere.rikkahub.skills.SkillLifecycleTest'
+          --tests 'me.rerere.rikkahub.skills.SkillTestRunnerTest'
+          --tests 'me.rerere.rikkahub.data.task.TaskArtifactStoreTest'
+          --tests 'me.rerere.rikkahub.data.sync.BackupCredentialsTest'
+          --tests 'me.rerere.rikkahub.data.sync.PortableBackupCipherTest'
+          --tests 'me.rerere.rikkahub.data.ai.TraceDiagnosticSummaryTest'
+          --tests 'me.rerere.rikkahub.ui.pages.share.handler.SharedPayloadTest'
+          --tests 'me.rerere.rikkahub.data.repository.MemoryRevisionTest'
+          --tests 'me.rerere.rikkahub.data.db.fts.WorkSearchTest'
+          --tests 'me.rerere.rikkahub.data.files.SkillPathsTest'
       - name: Build debug APKs
-        run: bash ./gradlew --no-daemon --max-workers=2 :app:assembleDebug
+        run: bash ./gradlew --no-daemon --build-cache --max-workers=2 :app:assembleDebug
       - name: Exercise trajectory on an Android emulator and capture screens
         timeout-minutes: 20
         shell: bash
@@ -132,18 +147,19 @@ jobs:
           adb shell settings put global transition_animation_scale 0
           adb shell settings put global animator_duration_scale 0
           adb shell input keyevent 82
-          bash ./gradlew --no-daemon --max-workers=2 :app:assembleDebugAndroidTest
+          bash ./gradlew --no-daemon --build-cache --max-workers=2 :app:assembleDebugAndroidTest
           adb install -r app/build/outputs/apk/debug/*x86_64*.apk
           adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
           mkdir -p build/trajectory-qa
           test_status=0
-          adb shell am instrument -w -r -e class me.rerere.rikkahub.ui.pages.chat.TrajectoryInstrumentedTest,me.rerere.rikkahub.ui.pages.extensions.skills.SkillWorkbenchInstrumentedTest,me.rerere.rikkahub.ui.pages.assistant.detail.ToolAccessInstrumentedTest,me.rerere.rikkahub.ui.pages.chat.TracePayloadInstrumentedTest,me.rerere.rikkahub.data.datastore.RebroAssistantInstrumentedTest,me.rerere.rikkahub.data.datastore.NetbroAssistantInstrumentedTest,me.rerere.rikkahub.service.LiveSteeringInstrumentedTest,me.rerere.rikkahub.data.db.ImportedDatabaseReconcilerTest,me.rerere.rikkahub.data.db.migrations.Migration_30_31_Test,me.rerere.rikkahub.data.db.migrations.Migration_31_32_Test,me.rerere.rikkahub.data.db.migrations.Migration_32_33_Test,me.rerere.rikkahub.ui.components.message.tools.PocketExperienceInstrumentedTest,me.rerere.rikkahub.ui.theme.RebroBrandInstrumentedTest,me.rerere.rikkahub.ui.pages.extensions.workspace.TermuxWorkspaceUiInstrumentedTest,me.rerere.rikkahub.data.ai.tools.local.JavascriptInstrumentedTest excp.rikkahub.debug.test/androidx.test.runner.AndroidJUnitRunner | tee build/trajectory-qa/instrumentation.txt || test_status=$?
-          grep -Fq 'OK (41 tests)' build/trajectory-qa/instrumentation.txt || test_status=1
+          adb shell am instrument -w -r -e class me.rerere.rikkahub.ui.pages.chat.TrajectoryInstrumentedTest,me.rerere.rikkahub.ui.pages.extensions.skills.SkillWorkbenchInstrumentedTest,me.rerere.rikkahub.ui.pages.assistant.detail.ToolAccessInstrumentedTest,me.rerere.rikkahub.ui.pages.chat.TracePayloadInstrumentedTest,me.rerere.rikkahub.data.datastore.RebroAssistantInstrumentedTest,me.rerere.rikkahub.data.datastore.NetbroAssistantInstrumentedTest,me.rerere.rikkahub.service.LiveSteeringInstrumentedTest,me.rerere.rikkahub.data.db.ImportedDatabaseReconcilerTest,me.rerere.rikkahub.data.db.migrations.Migration_30_31_Test,me.rerere.rikkahub.data.db.migrations.Migration_31_32_Test,me.rerere.rikkahub.data.db.migrations.Migration_32_33_Test,me.rerere.rikkahub.data.db.migrations.Migration_33_34_Test,me.rerere.rikkahub.data.sync.BackupManagerTest,me.rerere.rikkahub.data.security.DeviceSecretCipherInstrumentedTest,me.rerere.rikkahub.context.SharedPayloadInstrumentedTest,me.rerere.rikkahub.context.ProjectMemorySearchInstrumentedTest,me.rerere.rikkahub.ui.components.ai.ContextUsageInstrumentedTest,me.rerere.rikkahub.ui.components.message.tools.PocketExperienceInstrumentedTest,me.rerere.rikkahub.ui.theme.RebroBrandInstrumentedTest,me.rerere.rikkahub.ui.pages.extensions.workspace.TermuxWorkspaceUiInstrumentedTest,me.rerere.rikkahub.data.ai.tools.local.JavascriptInstrumentedTest excp.rikkahub.debug.test/androidx.test.runner.AndroidJUnitRunner | tee build/trajectory-qa/instrumentation.txt || test_status=$?
+          adb logcat -d -v threadtime > build/trajectory-qa/logcat.txt || true
+          grep -Eq '^OK \([0-9]+ tests?\)' build/trajectory-qa/instrumentation.txt || test_status=1
           adb shell wm size 1920x1200
           adb shell wm density 160
           adb shell am instrument -w -r -e class me.rerere.rikkahub.ui.pages.extensions.skills.SkillWorkbenchWideInstrumentedTest excp.rikkahub.debug.test/androidx.test.runner.AndroidJUnitRunner | tee build/trajectory-qa/wide-instrumentation.txt || test_status=$?
           grep -Fq 'OK (1 test)' build/trajectory-qa/wide-instrumentation.txt || test_status=1
-          for name in trajectory-waterfall trajectory-flow trajectory-inspector trajectory-russian-dark skill-workbench-files skill-workbench-editor skill-workbench-binary-ru skill-workbench-wide tool-access-russian trajectory-tools-compact trajectory-messages-compact trajectory-full-export rebro-theme-dark rebro-theme-light termux-workspace-create bro-subagent-profiles pocket-skill-markdown pocket-skill-code pocket-child-chat; do
+          for name in trajectory-waterfall trajectory-flow trajectory-inspector trajectory-russian-dark skill-workbench-files skill-workbench-editor skill-workbench-binary-ru skill-workbench-wide tool-access-russian trajectory-tools-compact trajectory-messages-compact trajectory-full-export rebro-theme-dark rebro-theme-light termux-workspace-create bro-subagent-profiles pocket-skill-markdown pocket-skill-code pocket-child-chat pocket-task-dashboard pocket-task-results pocket-context-ring-and-details pocket-context-after-compaction; do
             adb exec-out run-as excp.rikkahub.debug cat "files/trajectory-qa/$name.png" > "build/trajectory-qa/$name.png" || test_status=1
           done
           cp /tmp/trajectory-emulator.log build/trajectory-qa/emulator.log
@@ -185,6 +201,7 @@ jobs:
             common/build/test-results/
             ai/build/test-results/
             search/build/test-results/
+            workspace/build/test-results/
             app/build/test-results/
             app/schemas/
             app/build/generated/ksp/

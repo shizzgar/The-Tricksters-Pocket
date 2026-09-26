@@ -9,7 +9,7 @@
    Why deny-by-default: this app stores LLM-agent state that includes
    credentials we cannot afford to walk off the device. Specifically:
      - SSH host secrets (passwords + private keys) live in the Room DB
-       under `databases/`. Plaintext today (encrypting at rest is queued).
+       under `databases/`. Device-bound encryption keys do not transfer.
      - The Telegram bot token lives in `datastore/telegram_bot.preferences_pb`.
      - LLM provider API keys live in the settings DataStore under
        `datastore/`.

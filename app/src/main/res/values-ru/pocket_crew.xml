@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="crew_model">Модель: %1$s</string>
+    <string name="crew_not_selected">не выбрана</string>
+    <string name="crew_workspace">Workspace: %1$s</string>
+    <string name="crew_workspace_termux">Workspace Termux: %1$s</string>
+    <string name="crew_termux_configured">Termux включён</string>
+    <string name="crew_no_workspace">Workspace не выбран</string>
+    <string name="crew_read_only">Инструменты только для чтения</string>
+    <string name="crew_standard_access">Настроенные разрешения</string>
+    <string name="crew_search_on">Поиск включён</string>
+    <string name="crew_search_off">Поиск выключен</string>
+    <string name="crew_skills">Скиллов включено: %1$d</string>
+    <string name="crew_issue_model">Выберите модель</string>
+    <string name="crew_issue_provider">Провайдер модели выключен</string>
+    <string name="crew_issue_chat_model">Выберите чат-модель</string>
+    <string name="crew_issue_tools">Для модели не включены вызовы инструментов</string>
+    <string name="crew_issue_workspace">Привязанный workspace не найден</string>
+    <string name="crew_issue_workspace_broken">Workspace требует восстановления</string>
+    <string name="crew_issue_execution">Для выполнения подключите workspace или включите Termux</string>
+    <string name="crew_issue_skills">Не найдены включённые скиллы</string>
+    <string name="crew_issue_skills_unknown">Установка скиллов ещё не проверена</string>
+    <string name="crew_open_doctor">Проверить окружение в Doctor</string>
+    <string name="crew_configuration_note">Здесь показана конфигурация. Doctor проверит разрешения и службы; ключи модели и внешние подключения требуют отдельного запроса.</string>
+    <string name="crew_configured">Настроен · подключение ещё не проверено</string>
+    <string name="crew_readiness_title">%1$s · готовность</string>
+    <string name="crew_read_only_description">Доступны только явно поддерживаемые инструменты просмотра. Shell, скрипты, сборки, тесты, запись файлов и MCP заблокированы. Выключение режима разрешает отдельно включённые инструменты; обычные подтверждения сохраняются.</string>
+</resources>

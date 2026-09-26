@@ -114,12 +114,13 @@ private fun createReadFileTool(
         if (path.isImagePath()) {
             workspaceRepository.readImageInRootfs(workspaceId, path)
         } else {
-            val text = workspaceRepository.readTextInRootfs(workspaceId, path)
+            val snapshot = workspaceRepository.readRootfsTextSnapshot(workspaceId, path)
             listOf(
                 UIMessagePart.Text(
                     buildJsonObject {
                         put("path", path)
-                        put("text", text)
+                        put("text", snapshot.text)
+                        put("revision", snapshot.revision)
                     }.toString()
                 )
             )
@@ -145,6 +146,10 @@ private fun createWriteFileTool(
                     put("type", "string")
                     put("description", "UTF-8 text content to write")
                 })
+                put("expected_revision", buildJsonObject {
+                    put("type", "string")
+                    put("description", "Revision returned by workspace_read_file; required when replacing an existing file. A conflict requires re-reading.")
+                })
                 put("overwrite", buildJsonObject {
                     put("type", "boolean")
                     put("description", "Whether to overwrite an existing file. Defaults to true.")
@@ -159,8 +164,12 @@ private fun createWriteFileTool(
         val path = params.absolutePath("path")
         val text = params.string("text") ?: error("text is required")
         val overwrite = params["overwrite"]?.jsonPrimitive?.contentOrNull?.toBooleanStrictOrNull() ?: true
-        val entry = workspaceRepository.writeTextInRootfs(workspaceId, path, text, overwrite)
-        listOf(UIMessagePart.Text(entry.toJson().toString()))
+        val entry = workspaceRepository.writeRootfsTextChecked(workspaceId, path, text, overwrite, params.string("expected_revision"))
+        listOf(UIMessagePart.Text(buildJsonObject {
+            entry.toJson().forEach { (key, value) -> put(key, value) }
+            put("workspace_id", workspaceId)
+            put("revision", me.rerere.workspace.RevisionCheckedFiles.revision(text.toByteArray(Charsets.UTF_8)))
+        }.toString()))
     },
 )
 
@@ -180,6 +189,10 @@ private fun createEditFileTool(
         InputSchema.Obj(
             properties = buildJsonObject {
                 putPathProperty(required = true)
+                put("expected_revision", buildJsonObject {
+                    put("type", "string")
+                    put("description", "Revision from workspace_read_file. If supplied, stale edits are rejected.")
+                })
                 put("old_text", buildJsonObject {
                     put("type", "string")
                     put("description", "Exact text to replace")
@@ -205,21 +218,23 @@ private fun createEditFileTool(
         val replaceAll = params["replace_all"]?.jsonPrimitive?.contentOrNull?.toBooleanStrictOrNull() ?: false
         require(oldText.isNotEmpty()) { "old_text must not be empty" }
 
-        val snapshot = if (workspaceRepository.getById(workspaceId)?.termuxPath != null)
-            workspaceRepository.readTextSnapshot(workspaceId, me.rerere.workspace.WorkspaceStorageArea.FILES, path) else null
-        val original = snapshot?.text ?: workspaceRepository.readTextInRootfs(workspaceId, path)
+        val snapshot = workspaceRepository.readRootfsTextSnapshot(workspaceId, path)
+        require(params.string("expected_revision")?.let { it == snapshot.revision } != false) { "Revision conflict: reload the file before editing" }
+        val original = snapshot.text
         // 逐级尝试 exact -> line_trimmed -> block_anchor 替换器, 见 TextReplacers.kt
         val result = try {
             replaceText(original, oldText, newText, replaceAll)
         } catch (e: IllegalArgumentException) {
             error("${e.message} (path: $path)")
         }
-        val entry = workspaceRepository.writeTextInRootfs(workspaceId, path, result.updated, overwrite = true, expectedRevision = snapshot?.revision)
+        val entry = workspaceRepository.writeRootfsTextChecked(workspaceId, path, result.updated, overwrite = true, expectedRevision = snapshot.revision)
         val diff = generateUnifiedDiff(original, result.updated, entry.path)
         listOf(
             UIMessagePart.Text(
                 text = buildJsonObject {
                     put("path", entry.path)
+                    put("workspace_id", workspaceId)
+                    put("revision", me.rerere.workspace.RevisionCheckedFiles.revision(result.updated.toByteArray(Charsets.UTF_8)))
                     put("replacements", result.replacements)
                     if (result.strategy != ExactReplacer.name) put("matchStrategy", result.strategy)
                     put("sizeBytes", entry.sizeBytes)
@@ -541,39 +556,6 @@ private suspend fun WorkspaceRepository.readImageInRootfs(
             }.toString()
         ),
     )
-}
-
-private suspend fun WorkspaceRepository.writeTextInRootfs(
-    workspaceId: String,
-    path: String,
-    text: String,
-    overwrite: Boolean,
-    expectedRevision: String? = null,
-): WorkspaceFileEntry {
-    if (getById(workspaceId)?.termuxPath != null) {
-        return writeText(workspaceId, path, text, overwrite, expectedRevision)
-    }
-    val pathArg = path.shellQuote()
-    val result = runRootfsCommand(
-        workspaceId = workspaceId,
-        action = "Write file",
-        command = """
-            if [ -e $pathArg ] && [ ${(!overwrite).shellFlag()} = 1 ]; then
-              printf '%s\n' ${"File already exists: $path".shellQuote()} >&2
-              exit 1
-            fi
-            if [ -e $pathArg ] && [ ! -f $pathArg ]; then
-              printf '%s\n' ${"Path is not a file: $path".shellQuote()} >&2
-              exit 1
-            fi
-            parent=${'$'}(dirname -- $pathArg) || exit 1
-            mkdir -p -- "${'$'}parent" || exit 1
-            cat > $pathArg || exit 1
-            ${statEntryCommand(path)}
-        """.trimIndent(),
-        stdin = text.toByteArray(Charsets.UTF_8),
-    )
-    return result.stdout.parseRootfsEntry()
 }
 
 private suspend fun WorkspaceRepository.createFolderInRootfs(

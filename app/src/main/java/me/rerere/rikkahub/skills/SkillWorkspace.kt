@@ -86,6 +86,12 @@ internal class SkillWorkspace(private val root: File, stateRoot: File, private v
         require("SKILL.md" !in sources) { "SKILL.md cannot be deleted" }
         sources.forEach { path -> val file = resolve(dir, path); require(file.exists()); check(file.deleteRecursively()) { "Could not remove $path" } }
     }
+    fun replacePackage(files: Map<String, ByteArray>, revision: String, origin: String? = null): SkillSnapshot = mutate(revision) { dir ->
+        require(files.isNotEmpty() && files.size <= SkillPackage.MAX_FILES && files.values.sumOf { it.size.toLong() } <= SkillPackage.MAX_BYTES)
+        dir.listFiles().orEmpty().forEach { check(it.deleteRecursively()) }
+        files.forEach { (path, bytes) -> val target = resolve(dir, path); target.parentFile!!.mkdirs(); target.writeBytes(bytes) }
+        if (origin != null) File(dir, ".pocket-origin.json").writeText(origin)
+    }
     fun restore(revision: String): SkillSnapshot = locked {
         require(backup.isDirectory) { "No previous version is available" }
         mutate(revision) { dir ->
@@ -125,7 +131,7 @@ internal class SkillWorkspace(private val root: File, stateRoot: File, private v
             require(meta["name"] == name) { "Keep the skill name '$name' in SKILL.md" }
             require(!meta["description"].isNullOrBlank()) { "SKILL.md requires a description" }
         }
-        fun create(root: File, stateRoot: File, name: String, files: Map<String, ByteArray>): SkillSnapshot = SkillPackageLocks.withLock(root) {
+        fun create(root: File, stateRoot: File, name: String, files: Map<String, ByteArray>, origin: String? = null): SkillSnapshot = SkillPackageLocks.withLock(root) {
             require(name.matches(Regex("[a-z0-9][a-z0-9_-]{0,39}"))) { "Use a skill name of 1–40 lowercase letters, digits, underscores or hyphens" }
             val state = File(stateRoot, root.name)
             recover(root, state)
@@ -142,6 +148,7 @@ internal class SkillWorkspace(private val root: File, stateRoot: File, private v
                     target.writeBytes(bytes)
                 }
                 validateManifest(stage, name)
+                if (origin != null) File(stage, ".pocket-origin.json").writeText(origin)
                 File(stage, ".user-edited").writeText("1")
                 snapshotOf(stage)
                 check(root.parentFile!!.mkdirs() || root.parentFile!!.isDirectory)
@@ -151,7 +158,7 @@ internal class SkillWorkspace(private val root: File, stateRoot: File, private v
         }
         const val MAX_EDIT_BYTES = 256 * 1024
         const val MAX_HEX_EDIT_BYTES = 64 * 1024
-        val internalNames = setOf(".seeded", ".core-bundled-hash", ".user-edited", ".rikkahub-manifest.json")
+        val internalNames = setOf(".seeded", ".core-bundled-hash", ".user-edited", ".rikkahub-manifest.json", ".pocket-origin.json")
         fun decodeText(bytes: ByteArray): String? = runCatching {
             require(bytes.none { (it.toInt() and 255) < 32 && it !in byteArrayOf(9, 10, 13) })
             Charsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT).onUnmappableCharacter(CodingErrorAction.REPORT).decode(ByteBuffer.wrap(bytes)).toString()

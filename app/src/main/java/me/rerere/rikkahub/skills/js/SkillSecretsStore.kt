@@ -21,17 +21,47 @@ private const val TAG = "SkillSecretsStore"
  * persist locally encrypted. The `run_js` tool reads via [get] when the LLM passes
  * `secret_key` in args.
  *
- * Encryption: AES/GCM with an Android-Keystore-backed master key. Falls back to
- * obfuscated plaintext if the keystore is unavailable (very old / rooted devices) so the
- * user-flow doesn't break — we log loudly in that case.
+ * Encryption: AES/GCM with an Android-Keystore-backed master key. New writes fail
+ * closed when Keystore is unavailable. Legacy fallback values migrate on read.
  *
  * Key per (skillName, secretName) so different skills can't read each other's secrets.
- * Backup is excluded (keys aren't transferable; re-entry on new device is intentional).
+ * Portable export is available only inside the password-encrypted backup envelope.
  */
 class SkillSecretsStore(context: Context) {
 
     private val prefs: SharedPreferences =
         context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    private val restoreFile = java.io.File(context.filesDir, "private_credentials/skill-secrets.json")
+
+    init {
+        if (restoreFile.isFile) {
+            val restored = kotlinx.serialization.json.Json.decodeFromString<Map<String, String>>(restoreFile.readText())
+            require(restored.keys.all { it.startsWith(SECRET_PREFIX) || it.startsWith(IV_PREFIX) })
+            check(prefs.edit().clear().apply { restored.forEach { (key, value) -> putString(key, value) } }.commit())
+            check(restoreFile.delete()) { "Cannot finish secret restoration" }
+        }
+    }
+
+    /** Decrypted values are only consumed while writing a password-encrypted archive. */
+    fun portableSnapshot(): String = kotlinx.serialization.json.Json.encodeToString(list().map { (skill, name) ->
+        listOf(skill, name, requireNotNull(get(skill, name)) { "Cannot read a saved skill credential" })
+    })
+
+    /** Prepare device-bound values without changing the live store; called before restore publish. */
+    fun preparePortableRestore(snapshot: String): String {
+        val values = kotlinx.serialization.json.Json.decodeFromString<List<List<String>>>(snapshot)
+        require(values.size <= 10_000)
+        val encoded = buildMap<String, String> {
+            values.forEach { value ->
+                require(value.size == 3 && value[0].isNotBlank() && value[1].isNotBlank())
+                val (encrypted, iv) = encrypt(value[2])
+                put(prefKey(value[0], value[1]), encrypted)
+                put(ivKey(value[0], value[1]), iv)
+            }
+        }
+        return kotlinx.serialization.json.Json.encodeToString(encoded)
+    }
 
     fun set(skillName: String, secretName: String, value: String) {
         val (encrypted, iv) = encrypt(value)
@@ -49,7 +79,13 @@ class SkillSecretsStore(context: Context) {
         val iv = prefs.getString(ivKey(skillName, secretName), null)
             ?: prefs.getString(legacyIvKey(skillName, secretName), null)
             ?: return null
-        return decrypt(encrypted, iv)
+        val value = decrypt(encrypted, iv) ?: return null
+        if (iv == FALLBACK_IV_MARKER || prefs.contains(legacyIvKey(skillName, secretName))) {
+            // Do not return a legacy plaintext fallback unless migration successfully protects it.
+            set(skillName, secretName, value)
+            prefs.edit { remove(legacyIvKey(skillName, secretName)) }
+        }
+        return value
     }
 
     fun remove(skillName: String, secretName: String) {
@@ -103,15 +139,12 @@ class SkillSecretsStore(context: Context) {
 
     // -- crypto -------------------------------------------------------------
 
-    private fun encrypt(plain: String): Pair<String, String> = try {
+    private fun encrypt(plain: String): Pair<String, String> {
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey())
         val iv = cipher.iv
         val encrypted = cipher.doFinal(plain.toByteArray(StandardCharsets.UTF_8))
-        encode(encrypted) to encode(iv)
-    } catch (t: Throwable) {
-        Log.w(TAG, "Keystore-backed encrypt failed; falling back to obfuscated plaintext", t)
-        encode(plain.toByteArray(StandardCharsets.UTF_8)) to FALLBACK_IV_MARKER
+        return encode(encrypted) to encode(iv)
     }
 
     private fun decrypt(encrypted: String, iv: String): String? = try {

@@ -44,13 +44,15 @@ class MessageQueue {
     val state = mutableState.asStateFlow()
 
     @Synchronized
-    fun enqueue(parts: List<UIMessagePart>, answer: Boolean = true, reply: CompletableDeferred<String?>? = null, steerActiveTask: Boolean = false) {
+    fun enqueue(parts: List<UIMessagePart>, answer: Boolean = true, reply: CompletableDeferred<String?>? = null, steerActiveTask: Boolean = false, id: Uuid = Uuid.random()) {
         if (parts.isEmptyInputMessage()) {
             reply?.complete(null)
             return
         }
+        if (state.value.messages.any { it.id == id }) return
         mutableState.value = state.value.copy(
             messages = state.value.messages + QueuedMessage(
+                id = id,
                 parts = parts.toList(),
                 answer = answer,
                 reply = reply,
