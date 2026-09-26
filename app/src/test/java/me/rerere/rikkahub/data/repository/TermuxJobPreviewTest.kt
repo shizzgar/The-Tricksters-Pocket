@@ -1,6 +1,6 @@
 package me.rerere.rikkahub.data.repository
 
-import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
@@ -9,7 +9,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TermuxJobPreviewTest {
-    @Test fun sharedStdoutLimitReadsMoreThanOneProtocolPage() = runTest {
+    @Test fun sharedStdoutLimitReadsMoreThanOneProtocolPage() = runBlocking {
         val source = "a".repeat(50_000)
         val cursors = mutableListOf<Long>()
         val result = readTermuxJobPreview(64_000) { cursor, limit ->
@@ -26,7 +26,7 @@ class TermuxJobPreviewTest {
         assertFalse(result.truncated)
     }
 
-    @Test fun sharedStderrLimitDoesNotSplitUtf8OrHideTruncation() = runTest {
+    @Test fun sharedStderrLimitDoesNotSplitUtf8OrHideTruncation() = runBlocking {
         val result = readTermuxJobPreview(501) { _, _ ->
             buildJsonObject {
                 put("text", "a".repeat(499) + "🙂")
@@ -38,14 +38,14 @@ class TermuxJobPreviewTest {
         assertTrue(result.truncated)
     }
 
-    @Test fun finalPageAtExactLimitIsNotTruncated() = runTest {
+    @Test fun finalPageAtExactLimitIsNotTruncated() = runBlocking {
         val result = readTermuxJobPreview(1000) { _, _ -> buildJsonObject {
             put("text", "a".repeat(1000)); put("next_cursor", 1000); put("has_more", false)
         } }
         assertFalse(result.truncated)
     }
 
-    @Test fun noProgressPageStopsWithoutRetryingForever() = runTest {
+    @Test fun noProgressPageStopsWithoutRetryingForever() = runBlocking {
         var calls = 0
         val result = readTermuxJobPreview(1000) { _, _ ->
             calls++
