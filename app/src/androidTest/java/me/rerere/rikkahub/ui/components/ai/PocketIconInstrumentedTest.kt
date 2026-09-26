@@ -21,6 +21,7 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
+import com.dokar.sonner.rememberToasterState
 import me.rerere.ai.provider.Model
 import me.rerere.ai.provider.ModelType
 import me.rerere.ai.provider.ProviderSetting
@@ -31,6 +32,7 @@ import me.rerere.rikkahub.data.model.Avatar
 import me.rerere.rikkahub.ui.components.ui.AutoAIIcon
 import me.rerere.rikkahub.ui.components.ui.PocketLoadingIndicator
 import me.rerere.rikkahub.ui.context.LocalSettings
+import me.rerere.rikkahub.ui.context.LocalToaster
 import me.rerere.rikkahub.ui.theme.findPresetTheme
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -49,7 +51,12 @@ class PocketIconInstrumentedTest {
             model.id, listOf(ProviderSetting.OpenAI(models = listOf(model))), ModelType.CHAT,
         )
         compose.setContent {
-            CompositionLocalProvider(LocalSettings provides settings) {
+            // UIAvatar installs its crop launcher even when displaying a saved emoji.
+            // Match RouteActivity's toaster scope for that real assistant-picker child.
+            CompositionLocalProvider(
+                LocalSettings provides settings,
+                LocalToaster provides rememberToasterState(),
+            ) {
                 MaterialTheme(colorScheme = findPresetTheme("rebro-blue").getColorScheme(dark)) {
                     Surface {
                         Column(

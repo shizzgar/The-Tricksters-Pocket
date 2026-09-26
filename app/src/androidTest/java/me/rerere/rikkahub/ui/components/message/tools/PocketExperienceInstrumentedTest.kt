@@ -7,7 +7,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.*
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.navigation3.runtime.NavKey
 import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.serialization.json.*
@@ -22,6 +22,8 @@ import org.junit.Test
 import java.io.File
 
 class PocketExperienceInstrumentedTest {
+    // The v2 rule queues IO resumptions on the test scheduler. The legacy unconfined
+    // rule can apply a recomposition on an IO worker after TaskArtifactStore returns.
     @get:Rule val compose = createComposeRule()
     private fun capture(name: String) {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
