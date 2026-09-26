@@ -117,6 +117,7 @@ fun ChatList(
     loading: Boolean,
     processingStatus: String? = null,
     generationProgress: me.rerere.ai.provider.GenerationProgress? = null,
+    contextUsage: me.rerere.rikkahub.data.ai.ContextUsageSnapshot? = null,
     previewMode: Boolean,
     settings: Settings,
     hazeState: HazeState,
@@ -156,6 +157,7 @@ fun ChatList(
             )
         } else {
             ChatListNormal(
+                contextUsage = contextUsage,
                 innerPadding = innerPadding,
                 conversation = conversation,
                 state = state,
@@ -194,6 +196,7 @@ private fun ChatListNormal(
     loading: Boolean,
     processingStatus: String? = null,
     generationProgress: me.rerere.ai.provider.GenerationProgress? = null,
+    contextUsage: me.rerere.rikkahub.data.ai.ContextUsageSnapshot? = null,
     settings: Settings,
     hazeState: HazeState,
     errors: List<ChatError>,
@@ -343,6 +346,7 @@ private fun ChatListNormal(
                         enabled = selecting,
                     ) {
                         ChatMessage(
+                            contextUsage = contextUsage.takeIf { node.id == lastMessageNodeId },
                             node = node,
                             displayMessage = group.displayMessage,
                             model = node.currentMessage.modelId?.let(modelById::get),
@@ -872,4 +876,3 @@ private fun BoxScope.MessageJumper(
         }
     }
 }
-

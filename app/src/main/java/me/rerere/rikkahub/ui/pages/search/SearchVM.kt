@@ -35,12 +35,15 @@ private data class SearchRequest(
     val scope: MessageSearchScope,
     val assistantId: Uuid?,
     val debounce: Boolean,
+    val filter: me.rerere.rikkahub.data.db.fts.WorkSearchFilter,
+    val offset: Int = 0,
 )
 
 class SearchVM(
     private val context: Application,
     private val conversationRepo: ConversationRepository,
     private val settingsStore: SettingsStore,
+    val projectRepository: me.rerere.rikkahub.data.repository.ProjectRepository,
 ) : ViewModel() {
     private val searchRequests = Channel<SearchRequest>(Channel.CONFLATED)
     private var currentAssistantId: Uuid? = null
@@ -65,6 +68,30 @@ class SearchVM(
         private set
     var rebuildProgress by mutableStateOf(0 to 0)
         private set
+
+    var projectId by mutableStateOf<String?>(null)
+        private set
+    var kind by mutableStateOf(me.rerere.rikkahub.data.db.fts.WorkSearchKind.ALL)
+        private set
+    var includeChildren by mutableStateOf(true)
+        private set
+    var afterDate by mutableStateOf("")
+        private set
+    var beforeDate by mutableStateOf("")
+        private set
+    var toolName by mutableStateOf("")
+        private set
+    var error by mutableStateOf<String?>(null)
+        private set
+    var hasMore by mutableStateOf(false)
+        private set
+
+    fun filters(project: String?, type: me.rerere.rikkahub.data.db.fts.WorkSearchKind, children: Boolean, after: String, before: String, tool: String) {
+        projectId = project; kind = type; includeChildren = children; afterDate = after; beforeDate = before; toolName = tool
+        search()
+    }
+
+    fun loadMore() { if (!isLoading && hasMore) requestSearch(offset = results.size) }
 
     init {
         viewModelScope.launch {
@@ -105,18 +132,30 @@ class SearchVM(
         requestSearch()
     }
 
-    private fun requestSearch(debounce: Boolean = false) {
+    private fun requestSearch(debounce: Boolean = false, offset: Int = 0) {
         val assistantId = when (searchScope) {
             MessageSearchScope.CURRENT_ASSISTANT -> currentAssistantId
             MessageSearchScope.ALL_ASSISTANTS -> null
         }
+        fun date(value: String, inclusiveEnd: Boolean = false): Long? = value.takeIf { it.isNotBlank() }?.let {
+            java.time.LocalDate.parse(it).plusDays(if (inclusiveEnd) 1 else 0).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        }
+        val filter = try {
+            val after = date(afterDate)
+            val before = date(beforeDate, true)
+            require(after == null || before == null || before > after) { "Date range is reversed" }
+            me.rerere.rikkahub.data.db.fts.WorkSearchFilter(kind, projectId?.let { id -> projectRepository.projects.value.firstOrNull { it.id == id }?.conversationIds.orEmpty() }, includeChildren, after, before, toolName)
+        } catch (failure: Exception) { error = failure.message; return }
+        error = null
         searchRequests.trySend(
             SearchRequest(
                 query = searchQuery,
                 sort = sortOrder,
                 scope = searchScope,
-                assistantId = assistantId,
+                assistantId = if (projectId == null) assistantId else null,
                 debounce = debounce,
+                filter = filter,
+                offset = offset,
             )
         )
     }
@@ -136,16 +175,22 @@ class SearchVM(
     }
 
     private suspend fun performSearch(request: SearchRequest) {
-        results = emptyList()
+        if (request.offset == 0) { results = emptyList(); hasMore = false }
         if (request.query.isBlank() ||
-            (request.scope == MessageSearchScope.CURRENT_ASSISTANT && request.assistantId == null)
+            (request.scope == MessageSearchScope.CURRENT_ASSISTANT && request.assistantId == null && request.filter.conversationIds == null)
         ) {
             return
         }
         isLoading = true
         try {
             if (request.debounce) delay(300L)
-            results = conversationRepo.searchMessages(request.query, request.sort, request.assistantId)
+            val page = conversationRepo.searchMessages(request.query, request.sort, request.assistantId, request.filter, limit = 50, offset = request.offset)
+            results = if (request.offset == 0) page else results + page
+            hasMore = page.size == 50
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            error = failure.message
         } finally {
             isLoading = false
         }

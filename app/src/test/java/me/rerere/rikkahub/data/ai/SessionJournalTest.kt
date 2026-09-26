@@ -80,4 +80,26 @@ class SessionJournalTest {
         assertEquals(listOf(1L), first.entries.map { it.record.sequence })
         assertFalse(first.hasEarlier)
     }
+    @Test fun `deletion removes all payloads and blocks a late writer from recreating chat trace`() = runBlocking {
+        val root = folder.newFolder()
+        val journal = SessionJournal(root)
+        journal.append(id, "tool.result", buildJsonObject { put("content", "synthetic-private-output") })
+        assertTrue(journal.storageBytes(id) > 0)
+        journal.delete(id)
+        assertEquals(0L, journal.storageBytes(id))
+        assertTrue(journal.page(id).records.isEmpty())
+        assertFalse(File(root, id).exists())
+        assertTrue(runCatching { journal.append(id, "task.finished", buildJsonObject {}) }.isFailure)
+        assertFalse(File(root, id).exists())
+    }
+
+    @Test fun `explicit cleanup starts a new valid journal chain`() = runBlocking {
+        val journal = SessionJournal(folder.newFolder())
+        journal.append(id, "tool.result", buildJsonObject {})
+        journal.clear(id)
+        val fresh = journal.append(id, "model.request", buildJsonObject {})
+        assertEquals(1L, fresh.sequence)
+        assertEquals("", fresh.previousHash)
+        assertNull(journal.page(id).error)
+    }
 }

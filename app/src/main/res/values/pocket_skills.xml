@@ -1,0 +1,33 @@
+<resources>
+  <string name="pocket_skill_import_preview">Review skill import</string>
+  <string name="pocket_skill_source">Source: %1$s</string>
+  <string name="pocket_skill_version">Version: %1$s</string>
+  <string name="pocket_skill_revision">Revision: %1$s</string>
+  <string name="pocket_skill_required_tools">Required tools: %1$s</string>
+  <string name="pocket_skill_environment">Environment not yet verified: %1$s. Run the skill’s environment preflight to check installed dependencies.</string>
+  <string name="pocket_skill_new_hint">Review the files before installing. Importing does not execute scripts.</string>
+  <string name="pocket_skill_update_hint">This name is already installed. Update replaces the whole package, including removed files. The previous version remains available in the workbench. Changes since this preview will block the update.</string>
+  <string name="pocket_skill_no_changes">The package files are identical.</string>
+  <string name="pocket_skill_install_copy">Install copy</string>
+  <string name="pocket_skill_copy_name">Unique skill name</string>
+  <string name="pocket_skill_install">Install</string>
+  <string name="pocket_skill_update">Update package</string>
+  <string name="pocket_skill_review_update">Review update</string>
+  <string name="pocket_skill_package_info">Source, readiness and tests</string>
+  <string name="pocket_skill_assistant">For assistant: %1$s</string>
+  <string name="pocket_skill_not_ready">Setup required</string>
+  <string name="pocket_skill_env_pending">Tools configured · environment unverified</string>
+  <string name="pocket_skill_config_ready">Declared requirements configured</string>
+  <string name="pocket_skill_need_model">Select a chat model in the assistant settings.</string>
+  <string name="pocket_skill_not_connected">Connect this skill in the selected assistant’s settings.</string>
+  <string name="pocket_skill_missing_tools">Unavailable tools: %1$s. Check the assistant integrations and workspace status.</string>
+  <string name="pocket_skill_missing_skills">Required skills not connected or installed: %1$s</string>
+  <string name="pocket_skill_readiness_hint">This checks declared requirements against the current tool configuration. It does not run commands, check credentials or guarantee that a task will succeed.</string>
+  <string name="pocket_skill_tests">Saved test runs</string>
+  <string name="pocket_skill_test_disclaimer">A smoke test uses the selected assistant and its normal tools and permissions. A model response is not proof of correctness. Prompt, result and package revision are saved for comparison.</string>
+  <string name="pocket_skill_no_tests">No recorded test runs.</string>
+  <string name="pocket_skill_test_current">Matches current revision</string>
+  <string name="pocket_skill_test_outdated">Package has changed since this run</string>
+  <string name="pocket_skill_test_repeat">Use previous test prompt</string>
+  <string name="pocket_skill_required_skills">Required skills: %1$s</string>
+</resources>

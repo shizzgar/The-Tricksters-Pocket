@@ -6,6 +6,11 @@ import me.rerere.hugeicons.stroke.Sorting01
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.material3.Checkbox
+import androidx.compose.foundation.layout.Row
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import me.rerere.rikkahub.data.db.fts.WorkSearchKind
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -174,6 +179,8 @@ fun SearchPage(vm: SearchVM = koinViewModel()) {
                 }
             }
 
+            WorkSearchFilters(vm)
+            vm.error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 16.dp)) }
             Box(modifier = Modifier.weight(1f)) {
                 if (vm.isLoading || vm.isRebuilding) {
                     LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
@@ -241,11 +248,48 @@ fun SearchPage(vm: SearchVM = koinViewModel()) {
                                     }
                                 )
                             }
+                            if (vm.hasMore) item { TextButton(onClick = vm::loadMore, enabled = !vm.isLoading, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.pocket_load_more)) } }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun WorkSearchFilters(vm: SearchVM) {
+    var dialog by remember { mutableStateOf(false) }
+    val projects by vm.projectRepository.projects.collectAsStateWithLifecycle()
+    TextButton(onClick = { dialog = true }, modifier = Modifier.padding(horizontal = 16.dp)) {
+        Text(stringResource(R.string.pocket_search_filters) + " · " + (projects.firstOrNull { it.id == vm.projectId }?.name ?: stringResource(R.string.pocket_no_project)))
+    }
+    if (dialog) {
+        var project by remember { mutableStateOf(vm.projectId) }
+        var kind by remember { mutableStateOf(vm.kind) }
+        var children by remember { mutableStateOf(vm.includeChildren) }
+        var after by remember { mutableStateOf(vm.afterDate) }
+        var before by remember { mutableStateOf(vm.beforeDate) }
+        var tool by remember { mutableStateOf(vm.toolName) }
+        AlertDialog(onDismissRequest = { dialog = false }, title = { Text(stringResource(R.string.pocket_search_filters)) }, text = {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                item {
+                    var expanded by remember { mutableStateOf(false) }
+                    Box {
+                        TextButton(onClick = { expanded = true }) { Text(projects.firstOrNull { it.id == project }?.name ?: stringResource(R.string.pocket_no_project)) }
+                        DropdownMenu(expanded, { expanded = false }) {
+                            DropdownMenuItem(text = { Text(stringResource(R.string.pocket_no_project)) }, onClick = { project = null; expanded = false })
+                            projects.forEach { item -> DropdownMenuItem(text = { Text(item.name) }, onClick = { project = item.id; expanded = false }) }
+                        }
+                    }
+                }
+                item { FlowRow { WorkSearchKind.entries.forEach { type -> TextButton(onClick = { kind = type }) { Text((if (kind == type) "✓ " else "") + stringResource(when(type) { WorkSearchKind.ALL -> R.string.pocket_search_all; WorkSearchKind.TEXT -> R.string.pocket_search_text; WorkSearchKind.TOOL -> R.string.pocket_search_tools; WorkSearchKind.FILE -> R.string.pocket_search_files })) } } } }
+                item { Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(children, { children = it }); Text(stringResource(R.string.pocket_search_children)) } }
+                item { OutlinedTextField(after, { after = it }, label = { Text(stringResource(R.string.pocket_search_after)) }, placeholder = { Text("YYYY-MM-DD") }, singleLine = true) }
+                item { OutlinedTextField(before, { before = it }, label = { Text(stringResource(R.string.pocket_search_before)) }, placeholder = { Text("YYYY-MM-DD") }, singleLine = true) }
+                item { OutlinedTextField(tool, { tool = it }, label = { Text(stringResource(R.string.pocket_search_tool_name)) }, singleLine = true) }
+            }
+        }, confirmButton = { TextButton(onClick = { vm.filters(project, kind, children, after, before, tool); dialog = false }) { Text(stringResource(R.string.confirm)) } }, dismissButton = { TextButton(onClick = { dialog = false }) { Text(stringResource(R.string.cancel)) } })
     }
 }
 

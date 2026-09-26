@@ -179,4 +179,21 @@ class SkillTestRunnerTest {
         val err = states[1] as SkillTestRunner.TestRunState.Error
         assertEquals("no_response", err.error)
     }
+    @Test
+    fun `recorded smoke test uses captured body and package revision`() = runBlocking {
+        val driver = FakeDriver()
+        var recorded: List<String>? = null
+        val runner = SkillTestRunner(driver, { error("must use captured snapshot") },
+            captureSkill = { SkillTestRunner.CapturedSkill("snapshot body", "revision-a") },
+            recordResult = { name, revision, assistant, prompt, result ->
+                recorded = listOf(name, revision, assistant, prompt)
+                assertTrue(result is SkillTestRunner.TestRunState.Done)
+            })
+        runner.runOnce("happy-skill", "same check").toList()
+        assertEquals("revision-a", recorded!![1])
+        assertEquals("same check", recorded!![3])
+        assertTrue((driver.sentParts!!.first() as UIMessagePart.Text).text.contains("snapshot body"))
+        assertTrue(driver.cleanupCalled)
+    }
+
 }

@@ -52,6 +52,8 @@ class SkillUrlImporter(
         data class Err(val code: String, val detail: String) : Result()
     }
 
+    internal fun withSaver(saver: SkillSaver) = SkillUrlImporter(saver, httpClient)
+
     enum class SkillFormat { NATIVE, OPENCLAW, HERMES }
 
     suspend fun importFromUrl(url: String, overrideName: String? = null): Result {
@@ -130,7 +132,7 @@ class SkillUrlImporter(
             rewriteFrontmatterName(withSourceUrl, name) else withSourceUrl
 
         val metadata = skillManager.saveSkill(name, finalBody)
-            ?: return Result.Err("save_failed", "could not write skill files")
+            ?: return Result.Err("save_failed", "A skill with this name may already exist. Nothing was overwritten. Use the Skills import preview to review an update, or provide a unique name for a copy.")
         return Result.Ok(metadata, format)
     }
 

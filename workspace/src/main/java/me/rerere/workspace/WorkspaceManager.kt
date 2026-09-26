@@ -80,6 +80,20 @@ class WorkspaceManager(
         charset: Charset = StandardCharsets.UTF_8,
     ): WorkspaceFileEntry = fileSystem.writeText(filesDir(root), path, text, overwrite, charset)
 
+    fun textSnapshot(root: String, path: String, area: WorkspaceStorageArea, maxBytes: Long = 512L * 1024): Pair<String, String> =
+        RevisionCheckedFiles.snapshot(fileSystem.resolve(areaDir(root, area), path), maxBytes)
+
+    fun rootfsTextSnapshot(root: String, path: String, maxBytes: Long = 8L * 1024 * 1024): Pair<String, String> =
+        RevisionCheckedFiles.snapshot(resolveRootfsFile(root, path), maxBytes)
+
+    fun writeRootfsText(root: String, path: String, text: String, overwrite: Boolean, expectedRevision: String?, requireRevision: Boolean = true): WorkspaceFileEntry {
+        val bytes = text.toByteArray(Charsets.UTF_8)
+        require(bytes.size <= config.maxWriteBytes) { "Content is too large to write" }
+        val target = resolveRootfsFile(root, path)
+        RevisionCheckedFiles.write(target, bytes, overwrite, expectedRevision, requireRevision)
+        return WorkspaceFileEntry(path, target.name, false, target.length(), target.lastModified(), RevisionCheckedFiles.revision(bytes))
+    }
+
     fun importFile(
         root: String,
         destinationPath: String,

@@ -4,6 +4,9 @@ import me.rerere.rikkahub.data.datastore.REBRO_ASSISTANT_ID
 import me.rerere.rikkahub.data.datastore.NETBRO_ASSISTANT_ID
 import me.rerere.rikkahub.data.datastore.DEFAULT_ASSISTANT_ID
 import me.rerere.rikkahub.data.datastore.THINKBRO_ASSISTANT_ID
+import me.rerere.rikkahub.data.datastore.DEVBRO_ASSISTANT_ID
+import me.rerere.rikkahub.data.datastore.OPSBRO_ASSISTANT_ID
+import me.rerere.rikkahub.data.datastore.VERIFYBRO_ASSISTANT_ID
 import me.rerere.rikkahub.data.model.Assistant
 import kotlin.uuid.Uuid
 
@@ -35,4 +38,19 @@ internal fun seedPocketSubAgents(saved: List<SubAgentProfile>): List<SubAgentPro
             description = "Explanations, comparisons, learning and testing ideas.", assistantId = THINKBRO_ASSISTANT_ID),
     )
     return saved + additions.filter { preset -> saved.none { it.id == preset.id || it.name.equals(preset.name, true) } }
+}
+
+internal fun seedTechnicalSubAgents(saved: List<SubAgentProfile>, assistants: List<Assistant>): List<SubAgentProfile> {
+    val additions = listOf(
+        SubAgentProfile(id = Uuid.parse("e254baad-c796-4406-9915-52f123e9aba1"), name = "DevBro",
+            description = "Source-code development: repository discovery, bug fixes, tests and builds.", assistantId = DEVBRO_ASSISTANT_ID),
+        SubAgentProfile(id = Uuid.parse("b8d372a0-b9ee-42d5-9b18-70ff2c791627"), name = "OpsBro",
+            description = "Environment operations: Termux/Linux/SSH diagnosis, configuration and recovery.", assistantId = OPSBRO_ASSISTANT_ID),
+        SubAgentProfile(id = Uuid.parse("73e6d5a8-b9f2-4f9a-91c4-452976954759"), name = "VerifyBro",
+            description = "Read-only independent verification: acceptance criteria, evidence, findings and unverified limits.", assistantId = VERIFYBRO_ASSISTANT_ID),
+    )
+    return saved + additions.filter { preset ->
+        assistants.any { it.id == preset.assistantId } &&
+            saved.none { it.id == preset.id || it.name.equals(preset.name, ignoreCase = true) }
+    }
 }

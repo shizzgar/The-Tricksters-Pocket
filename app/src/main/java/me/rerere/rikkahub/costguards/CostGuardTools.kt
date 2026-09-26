@@ -10,25 +10,14 @@ import me.rerere.ai.core.InputSchema
 import me.rerere.ai.core.Tool
 import me.rerere.ai.ui.UIMessagePart
 import me.rerere.rikkahub.data.datastore.SettingsStore
-import me.rerere.rikkahub.data.datastore.getCurrentAssistant
+import me.rerere.rikkahub.data.datastore.getAssistantById
+import me.rerere.rikkahub.data.ai.tools.ToolInvocationContext
 import me.rerere.rikkahub.data.repository.ConversationRepository
 import kotlin.uuid.Uuid
 
 /**
- * Phase 15 — Cost & loop guards, v1 surface.
- *
- * One LLM tool: [checkTokenUsageTool]. Returns the running token totals for a given
- * conversation (defaults to the assistant's current chat) plus the assistant's soft /
- * hard token caps and a simple budget classification (UNDER_SOFT / WARN / OVER_HARD /
- * NO_BUDGET). The model is expected to self-throttle on WARN and stop on OVER_HARD.
- *
- * v2 (Phase 15.5) will add the live header pill + GenerationHandler-side auto-stop
- * integration. Ship the data surface first so the LLM can react in the meantime.
- *
- * Stuck-detection on screen-automation flows (the second half of Phase 15 per spec) is
- * its own Phase 15.7 — touches the screen-automation pipeline deeply and shipping a
- * partial version risks breaking the existing tap/swipe/scroll loop. Documented in
- * status.md.
+ * Read-only task usage. The caller is explicitly bound at tool construction, never
+ * inferred from whichever assistant the user happens to have open on screen.
  */
 
 private fun errEnv(error: String, detail: String): List<UIMessagePart> {
@@ -42,22 +31,22 @@ private fun errEnv(error: String, detail: String): List<UIMessagePart> {
 fun checkTokenUsageTool(
     settingsStore: SettingsStore,
     conversationRepo: ConversationRepository,
+    invocationContext: ToolInvocationContext = ToolInvocationContext.EMPTY,
 ): Tool = Tool(
     name = "check_token_usage",
     description = """
-        Read the running input + output token totals for a conversation and compare them
-        against the assistant's soft / hard token-budget caps. Use to self-throttle on a
-        long-running task: WARN means slow down or wrap up; OVER_HARD means stop and ask
-        the user before continuing. Returns NO_BUDGET when no caps are configured (the
-        defaults). If conversation_id is omitted, reports against the assistant's current
-        chat. Read-only.
+        Read measured input/output token usage for this task, including its parent and
+        descendant chats and stored alternate answers. Compare with the root assistant's
+        soft/hard caps. WARN means wrap up; OVER_HARD means the configured measured budget
+        is exhausted. Missing provider usage is reported separately, never as measured zero.
+        Omit conversation_id to use the invoking chat. Read-only.
     """.trimIndent().replace("\n", " "),
     parameters = {
         InputSchema.Obj(
             properties = buildJsonObject {
                 put("conversation_id", buildJsonObject {
                     put("type", "string")
-                    put("description", "Conversation UUID; omit to use the assistant's current chat.")
+                    put("description", "Conversation UUID; omit to use the invoking chat.")
                 })
             },
             required = emptyList(),
@@ -65,26 +54,28 @@ fun checkTokenUsageTool(
     },
     execute = { args ->
         val params = args.jsonObject
-        val rawConvId = params["conversation_id"]?.jsonPrimitive?.contentOrNull
+        val rawConvId = params["conversation_id"]?.jsonPrimitive?.contentOrNull ?: invocationContext.callerConversationId
         val settings = settingsStore.settingsFlow.first()
-        val assistant = settings.getCurrentAssistant()
         val convId = rawConvId?.let { runCatching { Uuid.parse(it) }.getOrNull() }
-        val conv = if (convId != null) {
-            conversationRepo.getConversationById(convId)
-        } else {
-            // No conversation specified: pick the most recent for this assistant.
-            conversationRepo.getRecentConversations(assistant.id, 1).firstOrNull()
-        } ?: return@Tool errEnv(
+            ?: return@Tool errEnv("invalid_conversation", "A valid conversation_id or invoking chat is required")
+        val conv = conversationRepo.getConversationById(convId) ?: return@Tool errEnv(
             "no_conversation",
             "no conversation found to compute token usage against"
         )
-        val snapshot = TokenBudgetTracker.snapshot(
+        val root = TokenBudgetTracker.taskRoot(conv, conversationRepo)
+        val assistant = settings.getAssistantById(root.assistantId)
+        val snapshot = TokenBudgetTracker.taskSnapshot(
             conversation = conv,
-            softCap = assistant.tokenBudgetSoftCap,
-            hardCap = assistant.tokenBudgetHardCap,
+            conversationRepo = conversationRepo,
+            softCap = assistant?.tokenBudgetSoftCap,
+            hardCap = assistant?.tokenBudgetHardCap,
         )
         val payload = buildJsonObject {
             put("conversation_id", conv.id.toString())
+            put("task_conversation_id", root.id.toString())
+            put("conversation_count", snapshot.conversationCount)
+            put("unmeasured_messages", snapshot.totals.unmeasuredMessages)
+            put("usage_complete", snapshot.totals.unmeasuredMessages == 0)
             put("input_tokens", snapshot.totals.inputTokens)
             put("output_tokens", snapshot.totals.outputTokens)
             put("total_tokens", snapshot.totals.totalTokens)

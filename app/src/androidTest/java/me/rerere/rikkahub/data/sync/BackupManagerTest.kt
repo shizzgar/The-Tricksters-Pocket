@@ -35,6 +35,7 @@ class BackupManagerTest {
         directory = Files.createTempDirectory(app.cacheDir.toPath(), "backup-manager-test-").toFile()
         context = object : ContextWrapper(app) {
             override fun getApplicationContext(): Context = this
+            override fun getSharedPreferences(name: String, mode: Int) = app.getSharedPreferences("backup-test-${directory.name}-$name", mode)
             override fun getFilesDir() = File(directory, "files").apply { mkdirs() }
             override fun getCacheDir() = File(directory, "cache").apply { mkdirs() }
             override fun getNoBackupFilesDir() = File(directory, "no-backup").apply { mkdirs() }
@@ -108,6 +109,67 @@ class BackupManagerTest {
             failed = true
         }
         assertTrue(failed)
+        assertFalse(File(context.noBackupFilesDir, "backup-restore/pending").exists())
+        assertEquals("live", probe(liveDatabase))
+    }
+
+    @Test fun defaultArchiveRemovesSshSecretsIncludingDeletedSQLiteBytes() = runBlocking {
+        liveDatabase.openHelper.writableDatabase.execSQL(
+            "INSERT INTO ssh_hosts (name,host,port,user,password,privateKey,passphrase,createdAtMs) VALUES (?,?,?,?,?,?,?,?)",
+            arrayOf("synthetic-host", "localhost", 22, "tester", "synthetic-backup-password", "synthetic-private-key", "synthetic-passphrase", 0))
+        val archive = manager.createBackup(includeDatabase = true, includeFiles = false, includeCredentials = false, password = "")
+        ZipFile(archive).use { zip ->
+            val bytes = zip.getInputStream(zip.getEntry(DatabaseBackup.ARCHIVE_DATABASE)).use { it.readBytes() }
+            val text = bytes.toString(Charsets.ISO_8859_1)
+            assertFalse(text.contains("synthetic-backup-password"))
+            assertFalse(text.contains("synthetic-private-key"))
+            assertFalse(text.contains("synthetic-passphrase"))
+            assertEquals(null, zip.getEntry("skill-secrets.json"))
+        }
+        // The live database is never rewritten by credential stripping.
+        liveDatabase.openHelper.readableDatabase.query("SELECT password FROM ssh_hosts WHERE name='synthetic-host'").use {
+            assertTrue(it.moveToFirst()); assertEquals("synthetic-backup-password", it.getString(0))
+        }
+    }
+
+    @Test fun encryptedBackupAuthenticatesBeforePublishingAndProtectsRestoredCredentials() = runBlocking {
+        liveDatabase.openHelper.writableDatabase.execSQL(
+            "INSERT INTO ssh_hosts (name,host,port,user,password,createdAtMs) VALUES (?,?,?,?,?,?)",
+            arrayOf("synthetic-host", "localhost", 22, "tester", "synthetic-portable-secret", 0))
+        val archive = manager.createBackup(includeDatabase = true, includeFiles = false,
+            includeCredentials = true, password = "synthetic-archive-password")
+        ZipFile(archive).use { zip ->
+            assertEquals(1, zip.size())
+            assertTrue(zip.getEntry(PortableBackupCipher.ENTRY) != null)
+            assertEquals(null, zip.getEntry("settings.json"))
+        }
+        var rejected = false
+        try { manager.stageRestore(archive, true, false, "incorrect-password") }
+        catch (_: IllegalArgumentException) { rejected = true }
+        assertTrue(rejected)
+        assertFalse(File(context.noBackupFilesDir, "backup-restore/pending").exists())
+        assertEquals("live", probe(liveDatabase))
+        manager.stageRestore(archive, true, false, "synthetic-archive-password")
+        val staged = File(context.noBackupFilesDir, "backup-restore/pending/payload/database/rikka_hub")
+        withRoom(staged) { room ->
+            room.openHelper.readableDatabase.query("SELECT password FROM ssh_hosts WHERE name='synthetic-host'").use {
+                assertTrue(it.moveToFirst())
+                val saved = it.getString(0)
+                assertTrue(me.rerere.rikkahub.data.security.DeviceSecretCipher.isEncrypted(saved))
+                assertEquals("synthetic-portable-secret", me.rerere.rikkahub.data.security.DeviceSecretCipher.decrypt(saved))
+            }
+        }
+        assertFalse(File(context.noBackupFilesDir, "backup-restore/pending/authenticated.zip").exists())
+    }
+
+    @Test fun malformedProjectMetadataIsRejectedBeforePublishing() = runBlocking {
+        val archive = File(directory, "invalid-project.zip")
+        ZipOutputStream(archive.outputStream()).use { zip ->
+            zip.putNextEntry(ZipEntry("projects.json"))
+            zip.write("""[{"id":"invalid-id","name":"synthetic"}]""".toByteArray())
+            zip.closeEntry()
+        }
+        assertTrue(runCatching { manager.stageRestore(archive, false, false, "") }.isFailure)
         assertFalse(File(context.noBackupFilesDir, "backup-restore/pending").exists())
         assertEquals("live", probe(liveDatabase))
     }

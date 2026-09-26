@@ -133,6 +133,7 @@ import me.rerere.rikkahub.ui.pages.setting.SettingSubAgentsPage
 import me.rerere.rikkahub.ui.pages.setting.SettingTelegramPage
 import me.rerere.rikkahub.ui.pages.setting.SettingWebPage
 import me.rerere.rikkahub.ui.pages.share.handler.ShareHandlerPage
+import me.rerere.rikkahub.ui.pages.share.handler.sharedPayload
 import me.rerere.rikkahub.ui.pages.stats.StatsPage
 import me.rerere.rikkahub.ui.pages.translator.TranslatorPage
 import me.rerere.rikkahub.ui.pages.webview.WebViewPage
@@ -243,10 +244,9 @@ class RouteActivity : ComponentActivity() {
         }
         val destination = when (intent.action) {
             ACTION_TRANSLATE -> Screen.Translator
-            Intent.ACTION_SEND -> Screen.ShareHandler(
-                text = intent.getStringExtra(Intent.EXTRA_TEXT).orEmpty(),
-                streamUri = intent.getStringExtra(Intent.EXTRA_STREAM),
-            )
+            Intent.ACTION_SEND, Intent.ACTION_SEND_MULTIPLE -> intent.sharedPayload().let { payload ->
+                Screen.ShareHandler(text = payload.text, streams = payload.uris.map { it.toString() })
+            }
             Intent.ACTION_PROCESS_TEXT -> Screen.ShareHandler(
                 text = intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)?.toString().orEmpty(),
             )
@@ -363,8 +363,22 @@ class RouteActivity : ComponentActivity() {
                             entry<Screen.ShareHandler> { key ->
                                 ShareHandlerPage(
                                     text = key.text,
-                                    image = key.streamUri
+                                    streams = key.streams + listOfNotNull(key.streamUri)
                                 )
+                            }
+
+                            entry<Screen.ProjectMemory> { key ->
+                                me.rerere.rikkahub.ui.pages.projects.MemoryLedgerPage(me.rerere.rikkahub.data.repository.MemoryRepository.projectScope(key.projectId))
+                            }
+                            entry<Screen.MemoryLedger> { key ->
+                                me.rerere.rikkahub.ui.pages.projects.MemoryLedgerPage(key.scope)
+                            }
+                            entry<Screen.Projects> { key ->
+                                me.rerere.rikkahub.ui.pages.projects.ProjectsPage(key.conversationId)
+                            }
+
+                            entry<Screen.TaskDashboard> { key ->
+                                me.rerere.rikkahub.ui.pages.chat.TaskDashboardScreen(Uuid.parse(key.conversationId))
                             }
 
                             entry<Screen.History> {
@@ -688,10 +702,22 @@ sealed interface Screen : NavKey {
     ) : Screen
 
     @Serializable
-    data class ShareHandler(val text: String, val streamUri: String? = null) : Screen
+    data class ShareHandler(val text: String, val streamUri: String? = null, val streams: List<String> = emptyList()) : Screen
 
     @Serializable
     data object History : Screen
+
+    @Serializable
+    data class Projects(val conversationId: String? = null) : Screen
+
+    @Serializable
+    data class ProjectMemory(val projectId: String) : Screen
+
+    @Serializable
+    data class MemoryLedger(val scope: String) : Screen
+
+    @Serializable
+    data class TaskDashboard(val conversationId: String) : Screen
 
     @Serializable
     data object Favorite : Screen

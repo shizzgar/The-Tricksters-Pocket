@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="context_usage_accessible">Контекст ≈%1$s / %2$s токенов · %3$d%%</string>
+    <string name="context_usage_unknown_accessible">Контекст ≈%1$s токенов · лимит неизвестен</string>
+    <string name="context_usage_loading">Использование контекста рассчитывается</string>
+    <string name="context_usage_estimate">Оценка контекста следующего запроса, а не сумма потраченных токенов чата.</string>
+    <string name="context_usage_streaming">Оценка во время генерации: текущий ответ и результаты инструментов ещё растут.</string>
+    <string name="context_usage_latest_prompt">Вход последнего запроса: %1$s токенов (данные провайдера).</string>
+    <string name="context_usage_no_measurement">Актуальных данных провайдера нет; оценка по сообщениям активного контекста.</string>
+    <string name="context_usage_reserve">Резерв ответа: %1$s токенов · доступно для входа: ≈%2$s.</string>
+    <string name="context_usage_reserve_unknown">Резерв ответа не задан; реальные ограничения модели могут уменьшить свободное место.</string>
+    <string name="context_usage_compaction_off">Автоматическое сжатие выключено.</string>
+    <string name="context_usage_compaction_trigger">Порог автоматического сжатия: %1$s входных токенов.</string>
+    <string name="context_usage_compaction_unknown">Автосжатие включено, но для расчёта порога нужен лимит контекста.</string>
+    <string name="context_usage_user_limit">Лимит взят из настроенного вами порога в токенах.</string>
+    <string name="context_usage_compacted">Учтены сохранённое резюме и оставленные недавние сообщения; использование отброшенного контекста исключено.</string>
+    <string name="context_usage_overhead_unknown">Объём динамических инструкций, памяти и схем инструментов может отличаться до получения данных провайдера.</string>
+    <string name="context_usage_near">Приближаемся к лимиту контекста или порогу сжатия.</string>
+    <string name="context_usage_threshold">Достигнут порог сжатия.</string>
+    <string name="context_usage_full">Оценка входа вместе с резервом ответа заполняет заданный контекст.</string>
+</resources>

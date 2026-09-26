@@ -48,7 +48,11 @@ class AgentRunBootRecovery(
     suspend fun runRecovery(): Int {
         return runCatching {
             val cutoff = System.currentTimeMillis() - AgentRunDefaults.STRANDED_THRESHOLD_MS
-            val stranded = repository.getStranded(cutoff)
+            // Child approval/deadline reconciliation belongs to the durable child supervisor.
+            // An intentional approval wait is not evidence that the process was lost.
+            val stranded = repository.getStranded(cutoff).filterNot {
+                it.kind == AgentRunKind.SubAgent.wire && it.status == AgentRunStatus.awaiting_approval.name
+            }
             if (stranded.isEmpty()) {
                 logSafe { Log.i(TAG, "runRecovery: no stranded runs") }
                 return@runCatching 0

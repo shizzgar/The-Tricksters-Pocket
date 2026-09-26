@@ -25,21 +25,27 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.Edit03
 import me.rerere.hugeicons.stroke.LookTop
@@ -47,10 +53,15 @@ import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.model.Assistant
+import me.rerere.rikkahub.data.model.AssistantReadiness
+import me.rerere.rikkahub.data.model.assistantReadiness
+import me.rerere.rikkahub.data.files.SkillManager
+import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import me.rerere.rikkahub.ui.components.ui.UIAvatar
 import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.hooks.rememberAssistantState
 import kotlin.uuid.Uuid
+import org.koin.compose.koinInject
 
 @Composable
 fun AssistantPicker(
@@ -120,6 +131,12 @@ private fun AssistantPickerSheet(
     val defaultAssistantName = stringResource(R.string.assistant_page_default_assistant)
 
     // 标签过滤状态
+    val workspaceRepository = koinInject<WorkspaceRepository>()
+    val skillManager = koinInject<SkillManager>()
+    val workspaces by workspaceRepository.listFlow().collectAsStateWithLifecycle(emptyList())
+    val installedSkills by produceState<Set<String>?>(null, skillManager, settings.assistants) {
+        value = withContext(Dispatchers.IO) { runCatching { skillManager.listSkills().map { it.name }.toSet() }.getOrNull() }
+    }
     var selectedTagIds by remember { mutableStateOf(emptySet<Uuid>()) }
 
     // 根据选中的标签过滤助手
@@ -176,6 +193,14 @@ private fun AssistantPickerSheet(
 
             // 助手列表
             val navController = LocalNavController.current
+            TextButton(onClick = {
+                scope.launch {
+                    sheetState.hide()
+                    onDismiss()
+                    navController.navigate(Screen.SettingDoctor)
+                }
+            }) { Text(stringResource(R.string.crew_open_doctor)) }
+            Text(stringResource(R.string.crew_configuration_note), style = MaterialTheme.typography.bodySmall)
             LazyColumn(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -193,6 +218,7 @@ private fun AssistantPickerSheet(
                     ) {
                         AssistantItem(
                             assistant = assistant,
+                            readiness = assistantReadiness(assistant, settings, workspaces, installedSkills),
                             defaultAssistantName = defaultAssistantName,
                             onEdit = {
                                 scope.launch {
@@ -212,9 +238,11 @@ private fun AssistantPickerSheet(
 @Composable
 private fun AssistantItem(
     assistant: Assistant,
+    readiness: AssistantReadiness,
     defaultAssistantName: String,
     onEdit: () -> Unit
 ) {
+    val context = LocalContext.current
     ListItem(
         headlineContent = {
             Text(
@@ -222,6 +250,17 @@ private fun AssistantItem(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+        },
+        supportingContent = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (assistant.description.isNotBlank()) Text(assistant.description, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(readiness.summary(context), style = MaterialTheme.typography.bodySmall)
+                Text(
+                    if (readiness.configured) stringResource(R.string.crew_configured) else readiness.issueText(context),
+                    color = if (readiness.configured) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
         },
         leadingContent = {
             UIAvatar(

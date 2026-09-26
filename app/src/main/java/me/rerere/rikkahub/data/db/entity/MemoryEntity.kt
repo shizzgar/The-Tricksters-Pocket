@@ -13,4 +13,16 @@ data class MemoryEntity(
     val assistantId: String,
     @ColumnInfo("content")
     val content: String = "",
+    @ColumnInfo("source_conversation_id", defaultValue = "NULL")
+    val sourceConversationId: String? = null,
+    @ColumnInfo("source_message_id", defaultValue = "NULL")
+    val sourceMessageId: String? = null,
+    @ColumnInfo("updated_at", defaultValue = "0")
+    val updatedAt: Long = 0,
+    @ColumnInfo("revision", defaultValue = "0")
+    val revision: Int = 0,
+    @ColumnInfo("history", defaultValue = "'[]'")
+    val history: String = "[]",
+    @ColumnInfo("deleted", defaultValue = "0")
+    val deleted: Boolean = false,
 )

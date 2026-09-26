@@ -152,32 +152,32 @@ private fun ChatPageBody(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid
 
     val inputState = vm.inputState
 
-    // 初始化输入状态（处理传入的 files 和 text 参数）
+    // Route payloads are imported once; preserve an existing draft and keep document types.
+    var routePayloadApplied by rememberSaveable(id, text, files) { mutableStateOf(false) }
     LaunchedEffect(files, text) {
+        if (routePayloadApplied) return@LaunchedEffect
         if (files.isNotEmpty()) {
-            val localFiles = filesManager.createChatFilesByContents(files)
-            val contentTypes = files.mapNotNull { file ->
-                filesManager.getFileMimeType(file)
-            }
-            val parts = buildList {
-                localFiles.forEachIndexed { index, file ->
-                    val type = contentTypes.getOrNull(index)
-                    if (type?.startsWith("image/") == true) {
-                        add(UIMessagePart.Image(url = file.toString()))
-                    } else if (type?.startsWith("video/") == true) {
-                        add(UIMessagePart.Video(url = file.toString()))
-                    } else if (type?.startsWith("audio/") == true) {
-                        add(UIMessagePart.Audio(url = file.toString()))
+            val parts = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                files.flatMap { source ->
+                    val type = filesManager.getFileMimeType(source) ?: "application/octet-stream"
+                    val name = filesManager.getFileNameFromUri(source) ?: source.lastPathSegment ?: "file"
+                    filesManager.createChatFilesByContents(listOf(source)).map { file ->
+                        when {
+                            type.startsWith("image/") -> UIMessagePart.Image(file.toString())
+                            type.startsWith("video/") -> UIMessagePart.Video(file.toString())
+                            type.startsWith("audio/") -> UIMessagePart.Audio(file.toString())
+                            else -> UIMessagePart.Document(file.toString(), name, type)
+                        }
                     }
                 }
             }
-            inputState.messageContent = parts
+            inputState.messageContent = inputState.messageContent + parts
         }
-        text?.base64Decode()?.let { decodedText ->
-            if (decodedText.isNotEmpty()) {
-                inputState.setMessageText(decodedText)
-            }
+        text?.base64Decode()?.takeIf { it.isNotEmpty() }?.let { sharedText ->
+            val draft = inputState.textContent.text.toString()
+            inputState.setMessageText(if (draft.isBlank()) sharedText else "$draft\n\n$sharedText")
         }
+        routePayloadApplied = true
     }
 
     val chatListState = rememberLazyListState()
@@ -296,6 +296,7 @@ private fun ChatPageContent(
     var showTrajectory by rememberSaveable(conversation.id) { mutableStateOf(false) }
     var showTermuxJobs by rememberSaveable(conversation.id) { mutableStateOf(false) }
     val generationProgress by vm.generationProgress.collectAsStateWithLifecycle()
+    val contextUsage by vm.contextUsage.collectAsStateWithLifecycle()
     val attachmentPickerActions = rememberChatAttachmentPickerActions(
         inputState = inputState,
         setting = setting,
@@ -352,6 +353,7 @@ private fun ChatPageContent(
                         onStopVoiceMode = vm.voiceSession::stop,
                         state = inputState,
                         conversationModelId = conversation.chatModelId,
+                        contextUsage = contextUsage,
                         messageQueue = messageQueue,
                         onRemoveQueuedMessage = vm::removeQueuedMessage,
                         onBeginEditQueuedMessage = vm::beginEditQueuedMessage,
@@ -463,6 +465,7 @@ private fun ChatPageContent(
             containerColor = Color.Transparent,
         ) { innerPadding ->
             ChatList(
+                contextUsage = contextUsage,
                 innerPadding = innerPadding,
                 conversation = conversation,
                 state = chatListState,

@@ -39,6 +39,7 @@ internal fun SkillWorkbenchScreen(vm: SkillDetailVM, onBack: () -> Unit, onTest:
     val state by vm.state.collectAsStateWithLifecycle()
     var prompt by remember { mutableStateOf<WorkspacePrompt?>(null) }
     var pending by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var packageInfo by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
     var sort by rememberSaveable { mutableStateOf("name") }
     var exportPath by rememberSaveable { mutableStateOf<String?>(null) }
@@ -68,6 +69,7 @@ internal fun SkillWorkbenchScreen(vm: SkillDetailVM, onBack: () -> Unit, onTest:
             Box {
                 IconButton(onClick = { menu = true }) { Icon(Lucide.EllipsisVertical, stringResource(R.string.skill_workbench_actions)) }
                 DropdownMenu(menu, { menu = false }) {
+                    DropdownMenuItem(text = { Text(stringResource(R.string.pocket_skill_package_info)) }, onClick = { menu = false; packageInfo = true }, leadingIcon = { Icon(Lucide.Info, null) })
                     DropdownMenuItem(text = { Text(stringResource(R.string.skill_workbench_export_package)) }, onClick = { menu = false; guarded { exportFile(null) } }, leadingIcon = { Icon(Lucide.Download, null) })
                     DropdownMenuItem(text = { Text(stringResource(R.string.skill_workbench_restore)) }, enabled = state.snapshot?.canRestore == true && !state.busy, onClick = { menu = false; guarded { prompt = WorkspacePrompt("restore") } }, leadingIcon = { Icon(Lucide.History, null) })
                     DropdownMenuItem(text = { Text(stringResource(R.string.skill_tester_run)) }, onClick = { menu = false; guarded(onTest) }, leadingIcon = { Icon(Lucide.Play, null) })
@@ -89,6 +91,7 @@ internal fun SkillWorkbenchScreen(vm: SkillDetailVM, onBack: () -> Unit, onTest:
                                 Text(stringResource(R.string.skill_workbench_inventory, snapshot?.files ?: 0, skillSize(snapshot?.bytes ?: 0)), style = MaterialTheme.typography.labelMedium)
                                 Text(if (state.syncedRevision == snapshot?.revision && state.syncRoot != null) stringResource(R.string.skill_workbench_in_sync) else stringResource(R.string.skill_workbench_local), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
                             }
+                            TextButton(onClick = { packageInfo = true }, contentPadding = PaddingValues(0.dp)) { Text(stringResource(R.string.pocket_skill_package_info)) }
                             OutlinedTextField(state.query, vm::query, Modifier.fillMaxWidth().testTag("skill-file-search"), singleLine = true, placeholder = { Text(stringResource(R.string.skill_workbench_search)) }, leadingIcon = { Icon(Lucide.Search, null, Modifier.size(18.dp)) })
                             Row(Modifier.horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
                                 TextButton(onClick = { vm.folder("") }) { Text(stringResource(R.string.skill_workbench_root)) }
@@ -174,6 +177,7 @@ internal fun SkillWorkbenchScreen(vm: SkillDetailVM, onBack: () -> Unit, onTest:
             }
         }
     }
+    if (packageInfo) SkillPackageInfo(state.name) { packageInfo = false }
     pending?.let { next ->
         AlertDialog(onDismissRequest = { pending = null }, title = { Text(stringResource(R.string.skill_workbench_unsaved)) }, text = { Text(stringResource(R.string.skill_workbench_unsaved_detail)) },
             confirmButton = { TextButton(onClick = { pending = null; vm.save(next) }) { Text(stringResource(R.string.skill_workbench_save)) } },

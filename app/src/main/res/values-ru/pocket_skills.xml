@@ -1,0 +1,33 @@
+<resources>
+  <string name="pocket_skill_import_preview">Проверка импорта скилла</string>
+  <string name="pocket_skill_source">Источник: %1$s</string>
+  <string name="pocket_skill_version">Версия: %1$s</string>
+  <string name="pocket_skill_revision">Ревизия: %1$s</string>
+  <string name="pocket_skill_required_tools">Нужные инструменты: %1$s</string>
+  <string name="pocket_skill_environment">Окружение ещё не проверено: %1$s. Запустите проверку окружения скилла, чтобы проверить установленные зависимости.</string>
+  <string name="pocket_skill_new_hint">Проверьте файлы перед установкой. При импорте скрипты не запускаются.</string>
+  <string name="pocket_skill_update_hint">Скилл с таким именем уже установлен. Обновление заменяет пакет целиком, включая удаление отсутствующих файлов. Предыдущая версия останется в редакторе. Изменения после открытия этого просмотра заблокируют обновление.</string>
+  <string name="pocket_skill_no_changes">Файлы пакета совпадают.</string>
+  <string name="pocket_skill_install_copy">Установить копию</string>
+  <string name="pocket_skill_copy_name">Новое имя скилла</string>
+  <string name="pocket_skill_install">Установить</string>
+  <string name="pocket_skill_update">Обновить пакет</string>
+  <string name="pocket_skill_review_update">Проверить обновление</string>
+  <string name="pocket_skill_package_info">Источник, готовность и проверки</string>
+  <string name="pocket_skill_assistant">Для ассистента: %1$s</string>
+  <string name="pocket_skill_not_ready">Нужна настройка</string>
+  <string name="pocket_skill_env_pending">Инструменты настроены · окружение не проверено</string>
+  <string name="pocket_skill_config_ready">Заявленные требования настроены</string>
+  <string name="pocket_skill_need_model">Выберите модель в настройках ассистента.</string>
+  <string name="pocket_skill_not_connected">Подключите скилл в настройках выбранного ассистента.</string>
+  <string name="pocket_skill_missing_tools">Недоступные инструменты: %1$s. Проверьте интеграции ассистента и состояние workspace.</string>
+  <string name="pocket_skill_missing_skills">Нужные скиллы не подключены или не установлены: %1$s</string>
+  <string name="pocket_skill_readiness_hint">Заявленные требования сверяются с текущим набором инструментов. Команды не запускаются, доступы не проверяются; успех задачи этим не подтверждается.</string>
+  <string name="pocket_skill_tests">Сохранённые тестовые запуски</string>
+  <string name="pocket_skill_test_disclaimer">Пробный запуск использует выбранного ассистента с его обычными инструментами и разрешениями. Ответ модели не доказывает правильность. Запрос, результат и ревизия пакета сохраняются для сравнения.</string>
+  <string name="pocket_skill_no_tests">Сохранённых запусков ещё нет.</string>
+  <string name="pocket_skill_test_current">Текущая ревизия</string>
+  <string name="pocket_skill_test_outdated">Пакет изменился после этого запуска</string>
+  <string name="pocket_skill_test_repeat">Повторить прошлый запрос</string>
+  <string name="pocket_skill_required_skills">Нужные скиллы: %1$s</string>
+</resources>

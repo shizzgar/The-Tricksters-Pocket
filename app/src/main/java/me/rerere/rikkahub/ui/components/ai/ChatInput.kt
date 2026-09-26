@@ -65,6 +65,9 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -146,6 +149,7 @@ fun ChatInput(
     voiceState: VoiceSessionState = VoiceSessionState(),
     onStopVoiceMode: () -> Unit = {},
     conversationModelId: Uuid? = null,
+    contextUsage: me.rerere.rikkahub.data.ai.ContextUsageSnapshot? = null,
 ) {
     val toaster = LocalToaster.current
     val assistant = settings.getCurrentAssistant()
@@ -367,6 +371,7 @@ fun ChatInput(
                             exit = fadeOut() + scaleOut(),
                         ) {
                             SendButton(
+                                contextUsage = contextUsage,
                                 loading = loading,
                                 empty = state.isEmpty(),
                                 onClick = { sendMessage() },
@@ -387,14 +392,16 @@ fun ChatInput(
 }
 
 @Composable
-private fun SendButton(
+internal fun SendButton(
     loading: Boolean,
     empty: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
+    contextUsage: me.rerere.rikkahub.data.ai.ContextUsageSnapshot? = null,
 ) {
     val showStop = loading && empty
+    val usageDescription = contextUsage?.accessibilityText() ?: stringResource(R.string.context_usage_loading)
     val containerColor = when {
         showStop -> MaterialTheme.colorScheme.errorContainer
         empty -> MaterialTheme.colorScheme.surfaceContainerHigh
@@ -408,21 +415,24 @@ private fun SendButton(
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
-            .size(30.dp)
+            .size(48.dp)
             .testTag("chat_send_button")
             .clip(CircleShape)
+            .semantics { stateDescription = usageDescription }
             .combinedClickable(
                 enabled = showStop || !empty,
+                role = Role.Button,
                 onClick = onClick,
                 onLongClick = onLongClick,
             )
     ) {
         Surface(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.size(34.dp),
             shape = CircleShape,
             color = containerColor,
             content = {},
         )
+        ContextUsageRing(contextUsage, Modifier.size(43.dp))
         Icon(
             imageVector = if (showStop) HugeIcons.Cancel01 else HugeIcons.ArrowUp02,
             contentDescription = stringResource(when {

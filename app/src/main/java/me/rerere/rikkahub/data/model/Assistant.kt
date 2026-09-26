@@ -44,6 +44,8 @@ data class Assistant(
     val localTools: List<LocalToolOption> = listOf(LocalToolOption.TimeInfo),
     // Per-tool exclusions inside enabled groups. Persist across group toggles and backups.
     val disabledLocalTools: Set<String> = emptySet(),
+    // Execution boundary, applied to provider tool definitions and every dispatch path.
+    val readOnlyTools: Boolean = false,
     val enableWebSearch: Boolean = false, // 网络搜索开关(每个助手独立)
     val workspaceId: Uuid? = null,
     val background: String? = null, // 聊天页背景图地址(本地文件 URI 或网络 URL), 为 null 时无背景
@@ -60,9 +62,8 @@ data class Assistant(
     val subAgentModelId: Uuid? = null,
     val subAgentSystemPrompt: String = "",
     val maxConcurrentSubAgents: Int = 3,
-    // Phase 15 — Per-task token budget. Both null = no budget enforcement. The LLM
-    // checks via `check_token_usage`; auto-stop integration into GenerationHandler is
-    // Phase 15.5 follow-up.
+    // Root task token budget, shared by the conversation and descendants. Soft warns;
+    // hard prevents the next model request/tool after measured usage reaches the cap.
     val tokenBudgetSoftCap: Int? = null,
     val tokenBudgetHardCap: Int? = null,
     // Phase 16 — Fast-path router. Off by default per spec. When ON, ChatService runs
@@ -86,6 +87,23 @@ data class QuickMessage(
 data class AssistantMemory(
     val id: Int,
     val content: String = "",
+    val sourceConversationId: String? = null,
+    val sourceMessageId: String? = null,
+    val updatedAt: Long = 0,
+    val revision: Int = 0,
+    val scope: String = "",
+    val deleted: Boolean = false,
+    val history: List<MemoryRevision> = emptyList(),
+)
+
+@Serializable
+data class MemoryRevision(
+    val content: String,
+    val revision: Int,
+    val updatedAt: Long,
+    val deleted: Boolean = false,
+    val sourceConversationId: String? = null,
+    val sourceMessageId: String? = null,
 )
 
 @Serializable

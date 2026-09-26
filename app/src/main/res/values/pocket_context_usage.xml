@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="context_usage_accessible">Context ≈%1$s / %2$s tokens · %3$d%%</string>
+    <string name="context_usage_unknown_accessible">Context ≈%1$s tokens · limit unknown</string>
+    <string name="context_usage_loading">Context usage is being calculated</string>
+    <string name="context_usage_estimate">Estimated next-request context, not the total tokens spent in this chat.</string>
+    <string name="context_usage_streaming">Streaming estimate: the current answer and tool results may still grow.</string>
+    <string name="context_usage_latest_prompt">Latest request input: %1$s tokens (reported by the provider).</string>
+    <string name="context_usage_no_measurement">No current provider measurement; estimated from the active messages.</string>
+    <string name="context_usage_reserve">Output reserve: %1$s tokens · available for input: ≈%2$s.</string>
+    <string name="context_usage_reserve_unknown">Output reserve is not configured; actual model output limits may reduce the available space.</string>
+    <string name="context_usage_compaction_off">Automatic compaction is off.</string>
+    <string name="context_usage_compaction_trigger">Automatic compaction threshold: %1$s input tokens.</string>
+    <string name="context_usage_compaction_unknown">Automatic compaction is on, but its threshold needs a known context limit.</string>
+    <string name="context_usage_user_limit">The limit uses your configured token threshold.</string>
+    <string name="context_usage_compacted">Includes the saved summary and retained recent messages; discarded context usage is excluded.</string>
+    <string name="context_usage_overhead_unknown">Dynamic skill, memory and tool overhead may differ until the provider reports actual usage.</string>
+    <string name="context_usage_near">Approaching the context or compaction threshold.</string>
+    <string name="context_usage_threshold">The compaction threshold has been reached.</string>
+    <string name="context_usage_full">The estimated input and output reserve fill the configured context.</string>
+</resources>

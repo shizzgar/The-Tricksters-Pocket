@@ -1,0 +1,20 @@
+<resources>
+    <string name="pocket_backup_protection">Защита резервной копии</string>
+    <string name="pocket_backup_without_credentials">Без сохранённых ключей и паролей</string>
+    <string name="pocket_backup_encrypted">С ключами и паролями, под шифрованием</string>
+    <string name="pocket_backup_configure">Настроить</string>
+    <string name="pocket_backup_scope">Для локальных копий, WebDAV и S3.</string>
+    <string name="pocket_backup_password">Пароль архива</string>
+    <string name="pocket_backup_password_help">От 8 символов для зашифрованного экспорта. Для импорта введите пароль нужного архива. Он хранится на устройстве в зашифрованном виде. Сохраните его отдельно: восстановить пароль нельзя.</string>
+    <string name="pocket_backup_content_notice">Обычный архив исключает ключи провайдеров, SSH и интеграций, дополнительные параметры запросов и параметры URL. Сообщения и файлы могут содержать личные данные. Зашифрованная копия включает выбранные данные и ключи скиллов; в аккаунты потребуется войти заново.</string>
+    <string name="pocket_backup_apply">Применить</string>
+    <string name="pocket_trace_storage">Журнал занимает: %1$s</string>
+    <string name="pocket_trace_clear">Очистить журнал</string>
+    <string name="pocket_trace_clear_title">Удалить этот журнал?</string>
+    <string name="pocket_trace_clear_body">Записанные запросы, ответы и данные инструментов этого чата будут удалены. Сообщения чата останутся. Сначала экспортируйте нужные записи.</string>
+    <string name="pocket_trace_diagnostic">Сводка диагностики</string>
+    <string name="pocket_trace_diagnostic_notice">Ниже показано точное содержимое экспорта. Только типы событий, время, счётчики и результаты; промпты, аргументы, вывод инструментов, файлы и ключи исключены. До 200 последних событий этого чата. Эта сводка не заменяет исходный журнал.</string>
+    <string name="pocket_trace_export_summary">Экспортировать сводку</string>
+    <string name="pocket_trace_orphans">Удалить оставшиеся журналы</string>
+    <string name="pocket_trace_orphans_notice">Удаляет старые журналы уже удалённых чатов. Существующие чаты и их журналы сохраняются. Записи за последние 10 минут пропускаются.</string>
+</resources>

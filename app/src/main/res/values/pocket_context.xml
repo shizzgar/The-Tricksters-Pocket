@@ -1,0 +1,39 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+  <string name="pocket_projects">Projects</string>
+  <string name="pocket_new">New</string>
+  <string name="pocket_edit">Edit</string>
+  <string name="pocket_name">Name</string>
+  <string name="pocket_no_project">All / no project</string>
+  <string name="pocket_project_help">A project connects chats, shared instructions, reference notes and files to a workspace. Child chats inherit the project. Changes apply on the next generation.</string>
+  <string name="pocket_project_no_workspace">Assistant workspace</string>
+  <string name="pocket_project_edit">Project settings</string>
+  <string name="pocket_project_link">Add this chat</string>
+  <string name="pocket_project_linked">Chat linked</string>
+  <string name="pocket_project_unlink">Remove explicit project link</string>
+  <string name="pocket_project_add_files">Add reference files</string>
+  <string name="pocket_instructions">Project instructions</string>
+  <string name="pocket_knowledge">Reference notes</string>
+  <string name="pocket_memory">Memory and sources</string>
+  <string name="pocket_memory_help">Facts are scoped to this assistant, global memory or a project. Edits and forgetting are reversible in history. Old facts have no recorded source date.</string>
+  <string name="pocket_memory_deleted">Forgotten · available in history</string>
+  <string name="pocket_memory_revision">Revision %1$d</string>
+  <string name="pocket_memory_legacy">Source date unknown</string>
+  <string name="pocket_memory_source">Open source message</string>
+  <string name="pocket_memory_forget">Forget</string>
+  <string name="pocket_memory_history">History and sources</string>
+  <string name="pocket_memory_restore">Restore this revision</string>
+  <string name="pocket_share_files">Imported files: %1$d / %2$d</string>
+  <string name="pocket_share_new">New chat with assistant</string>
+  <string name="pocket_share_existing">Recent chats · retain their project</string>
+  <string name="pocket_load_more">Load more</string>
+  <string name="pocket_search_filters">Search filters</string>
+  <string name="pocket_search_all">All</string>
+  <string name="pocket_search_text">Messages</string>
+  <string name="pocket_search_tools">Tools</string>
+  <string name="pocket_search_files">Files</string>
+  <string name="pocket_search_children">Include project child chats</string>
+  <string name="pocket_search_after">From date</string>
+  <string name="pocket_search_before">Through date</string>
+  <string name="pocket_search_tool_name">Exact tool name (optional)</string>
+</resources>

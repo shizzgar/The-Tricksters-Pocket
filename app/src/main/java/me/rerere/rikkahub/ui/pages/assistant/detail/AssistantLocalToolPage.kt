@@ -262,6 +262,18 @@ private fun AssistantLocalToolContent(
             .imePadding(),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        CardGroup {
+            item(
+                headlineContent = { Text(stringResource(R.string.crew_read_only)) },
+                supportingContent = { Text(stringResource(R.string.crew_read_only_description)) },
+                trailingContent = {
+                    androidx.compose.material3.Switch(
+                        checked = assistant.readOnlyTools,
+                        onCheckedChange = { enabled -> onUpdateAssistant { it.copy(readOnlyTools = enabled) } },
+                    )
+                },
+            )
+        }
         AssistantToolAccess(assistant, onUpdateAssistant)
         // Built-in tools section
         Text(

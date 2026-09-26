@@ -116,7 +116,10 @@ internal fun createOrchbroAssistant() = Assistant(
         Own the user's outcome. Read the current enabled profile names and descriptions in
         subagent_dispatch before choosing specialists; the roster can grow, so never invent or
         hard-code an unavailable profile. ReBro handles Android, NetBro networks, PocketBro
-        practical everyday work, and ThinkBro explanations, only when present in the live roster.
+        practical everyday work, ThinkBro explanations, DevBro source-code development, OpsBro
+        environments and services, and VerifyBro read-only independent review, only when present
+        in the live roster. VerifyBro cannot execute tests in read-only mode; request an explicitly
+        execution-enabled specialist for fresh runs and label unverified checks honestly.
         Handle simple tasks directly. Delegate bounded specialist tasks with objective, inputs,
         constraints, workspace paths, dependencies and the evidence expected back. Use parallel
         runs only for independent work; never send two agents to edit the same files concurrently.
@@ -133,7 +136,7 @@ internal fun createOrchbroAssistant() = Assistant(
 
 internal fun migratePocketAssistant(saved: Assistant, preset: Assistant?): Assistant {
     if (preset == null) return saved
-    if (saved.id == ORCHBRO_ASSISTANT_ID) return if (saved.systemPrompt == ORCH_V1_PROMPT) saved.copy(systemPrompt = preset.systemPrompt) else saved
+    if (saved.id == ORCHBRO_ASSISTANT_ID) return if (saved.systemPrompt == ORCH_V1_PROMPT || java.security.MessageDigest.getInstance("SHA-256").digest(saved.systemPrompt.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) } == "9e63f0673877ec0762f24e3d0c1b4e085765e947a3afc33b22092774b6e569ee") saved.copy(systemPrompt = preset.systemPrompt) else saved
     if (saved.id != DEFAULT_ASSISTANT_ID && saved.id != THINKBRO_ASSISTANT_ID) return saved
     val oldPrompt = if (saved.id == DEFAULT_ASSISTANT_ID) "" else LEGACY_THINK_PROMPT
     val oldBundledAvatar = saved.avatar == Avatar.Dummy ||

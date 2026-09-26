@@ -11,6 +11,8 @@ import androidx.room.withTransaction
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import me.rerere.ai.ui.UIMessage
 import me.rerere.common.android.Logging
 import me.rerere.rikkahub.data.db.AppDatabase
@@ -39,7 +41,10 @@ class ConversationRepository(
     private val database: AppDatabase,
     private val filesManager: FilesManager,
     private val messageFtsManager: MessageFtsManager,
+    private val context: android.content.Context,
 ) {
+    private val workIndexMutex = Mutex()
+
     companion object {
         private const val TAG = "ConversationRepository"
         private const val PAGE_SIZE = 20
@@ -317,6 +322,18 @@ class ConversationRepository(
             )
         }
 
+    fun observeCompaction(conversationId: Uuid): Flow<ConversationCompaction?> =
+        conversationCompactionDAO.observeByConversationId(conversationId.toString()).map { entity ->
+            entity?.let {
+                ConversationCompaction(
+                    conversationId = Uuid.parse(it.conversationId), summary = it.summary,
+                    tailStartNodeId = it.tailStartNodeId?.let(Uuid::parse), sourceEndNodeId = Uuid.parse(it.sourceEndNodeId),
+                    summaryModelId = Uuid.parse(it.summaryModelId), isAuto = it.isAuto,
+                    sourceTokenEstimate = it.sourceTokenEstimate, createdAt = Instant.ofEpochMilli(it.createdAt),
+                )
+            }
+        }
+
     suspend fun upsertCompaction(compaction: ConversationCompaction) {
         conversationCompactionDAO.upsert(
             ConversationCompactionEntity(
@@ -368,6 +385,9 @@ class ConversationRepository(
         }
     }
 
+    suspend fun cleanupOrphanedTraces(): Int = me.rerere.rikkahub.data.ai.SessionJournal.at(context.filesDir)
+        .cleanupOrphans(conversationDAO.getAllIds().toSet())
+
     suspend fun deleteConversation(conversation: Conversation) {
         // 获取完整的 Conversation（包含 messageNodes）以正确清理文件
         val fullConversation = if (conversation.messageNodes.isEmpty()) {
@@ -386,6 +406,12 @@ class ConversationRepository(
         // leave the conversation still present but unsearchable (matches insert/update,
         // which already index only after their transaction completes).
         messageFtsManager.deleteConversation(conversation.id.toString())
+        org.koin.core.context.GlobalContext.getOrNull()?.getOrNull<me.rerere.rikkahub.subagent.SubAgentRegistry>()
+            ?.forgetConversation(conversation.id.toString())
+        me.rerere.rikkahub.data.ai.AgentTaskPolicy.clear(conversation.id.toString())
+        me.rerere.rikkahub.data.task.TaskArtifactStore.at(context.filesDir).removeConversation(conversation.id.toString())
+        me.rerere.rikkahub.data.ai.SessionJournal.at(context.filesDir).delete(conversation.id.toString())
+        org.koin.core.context.GlobalContext.getOrNull()?.getOrNull<ProjectRepository>()?.removeConversation(conversation.id.toString())
         filesManager.deleteChatFiles(fullConversation.files)
     }
 
@@ -393,7 +419,13 @@ class ConversationRepository(
         keyword: String,
         sort: MessageSearchSort = MessageSearchSort.RELEVANCE,
         assistantId: Uuid? = null,
-    ) = messageFtsManager.search(keyword, sort, assistantId?.toString())
+        filter: me.rerere.rikkahub.data.db.fts.WorkSearchFilter = me.rerere.rikkahub.data.db.fts.WorkSearchFilter(),
+        limit: Int = 50,
+        offset: Int = 0,
+    ): List<me.rerere.rikkahub.data.db.fts.MessageSearchResult> {
+        workIndexMutex.withLock { if (!messageFtsManager.isWorkIndexReady()) rebuildAllIndexes() }
+        return messageFtsManager.search(keyword, sort, assistantId?.toString(), filter, limit, offset)
+    }
 
     suspend fun rebuildAllIndexes(onProgress: (current: Int, total: Int) -> Unit = { _, _ -> }) {
         messageFtsManager.deleteAll()
@@ -406,6 +438,7 @@ class ConversationRepository(
             messageFtsManager.indexConversation(conversation)
             onProgress(index + 1, total)
         }
+        messageFtsManager.markWorkIndexReady()
     }
 
     /**
@@ -425,6 +458,7 @@ class ConversationRepository(
             messageFtsManager.indexConversation(conversation)
             onProgress(index + 1, total)
         }
+        messageFtsManager.markWorkIndexReady()
         return total
     }
 

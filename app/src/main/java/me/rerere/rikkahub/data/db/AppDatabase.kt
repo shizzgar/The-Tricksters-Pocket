@@ -64,8 +64,9 @@ import me.rerere.rikkahub.workflow.db.WorkflowRunEntity
         WorkspaceEntity::class,
         FolderEntity::class,
     ],
-    version = 33,
+    version = 34,
     autoMigrations = [
+        AutoMigration(from = 33, to = 34),
         AutoMigration(from = 32, to = 33),
         AutoMigration(from = 31, to = 32),
         AutoMigration(from = 1, to = 2),

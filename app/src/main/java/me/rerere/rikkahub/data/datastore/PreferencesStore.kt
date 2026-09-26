@@ -2,6 +2,7 @@ package me.rerere.rikkahub.data.datastore
 
 import android.content.Context
 import android.util.Log
+import me.rerere.rikkahub.data.security.DeviceSecretCipher
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.IOException
 import androidx.datastore.preferences.core.Preferences
@@ -133,6 +134,7 @@ private val Context.settingsStore by preferencesDataStore(
             PreferenceStoreV3Migration(),
             PreferenceStoreV4Migration(),
             PreferenceStoreV5Migration(),
+            me.rerere.rikkahub.data.datastore.migration.CredentialPreferencesMigration(),
         )
     }
 )
@@ -206,6 +208,7 @@ class SettingsStore(
         // 子代理
         val SUB_AGENTS = stringPreferencesKey("sub_agents")
         val POCKET_SUB_AGENTS_SEEDED = booleanPreferencesKey("pocket_sub_agents_seeded")
+        val TECHNICAL_CREW_SEEDED = booleanPreferencesKey("technical_crew_seeded")
         val BRO_SUB_AGENTS_SEEDED = booleanPreferencesKey("bro_sub_agents_seeded")
 
         // WebDAV
@@ -264,7 +267,7 @@ class SettingsStore(
                         pasteLongTextThreshold = settings.displaySetting.pasteLongTextThreshold.coerceIn(100, 10000)
                     )
                 )
-                preferences[NETWORK_SETTING] = JsonInstant.encodeToString(settings.networkSetting)
+                preferences[NETWORK_SETTING] = DeviceSecretCipher.encrypt(JsonInstant.encodeToString(settings.networkSetting))
 
                 preferences[FAVORITE_MODELS] = JsonInstant.encodeToString(settings.favoriteModels)
                 preferences[SELECT_MODEL] = settings.chatModelId.toString()
@@ -299,18 +302,18 @@ class SettingsStore(
                 preferences[COMPACTION_PARALLEL_REQUESTS] = compactionLimits.parallelRequests
                 preferences[RESPONSE_STREAM_MAX_RETRIES] = settings.responseStreamMaxRetries.coerceIn(0, 10)
 
-                preferences[PROVIDERS] = JsonInstant.encodeToString(settings.providers)
+                preferences[PROVIDERS] = DeviceSecretCipher.encrypt(JsonInstant.encodeToString(settings.providers))
                 preferences[DELETED_BUILTIN_PROVIDER_IDS] = JsonInstant.encodeToString(
                     settings.deletedBuiltInProviderIds.map { it.toString() }.toSet()
                 )
                 preferences[DELETED_BUNDLED_SKILLS] = JsonInstant.encodeToString(settings.deletedBundledSkills)
 
-                preferences[ASSISTANTS] = JsonInstant.encodeToString(settings.assistants)
+                preferences[ASSISTANTS] = DeviceSecretCipher.encrypt(JsonInstant.encodeToString(settings.assistants))
                 preferences[SELECT_ASSISTANT] = settings.assistantId.toString()
                 preferences[ASSISTANT_TAGS] = JsonInstant.encodeToString(settings.assistantTags)
 
-                preferences[SEARCH_SERVICES] = JsonInstant.encodeToString(settings.searchServices)
-                preferences[SEARCH_COMMON] = JsonInstant.encodeToString(settings.searchCommonOptions)
+                preferences[SEARCH_SERVICES] = DeviceSecretCipher.encrypt(JsonInstant.encodeToString(settings.searchServices))
+                preferences[SEARCH_COMMON] = DeviceSecretCipher.encrypt(JsonInstant.encodeToString(settings.searchCommonOptions))
                 // maxOf(0, size - 1) guards the empty-list case: a persisted "[]" for
                 // search_services leaves searchServices empty (the ?: default only fires on a
                 // missing key, not on an empty array), and coerceIn(0, -1) throws
@@ -319,18 +322,19 @@ class SettingsStore(
                     settings.searchServiceSelected.coerceIn(0, maxOf(0, settings.searchServices.size - 1))
                 preferences[ENABLE_WEB_FETCH_TOOLS] = settings.enableWebFetchTools
 
-                preferences[MCP_SERVERS] = JsonInstant.encodeToString(settings.mcpServers)
+                preferences[MCP_SERVERS] = DeviceSecretCipher.encrypt(JsonInstant.encodeToString(settings.mcpServers))
                 preferences[SUB_AGENTS] = JsonInstant.encodeToString(settings.subAgents)
                 preferences[BRO_SUB_AGENTS_SEEDED] = settings.broSubAgentsSeeded
                 preferences[POCKET_SUB_AGENTS_SEEDED] = settings.pocketSubAgentsSeeded
-                preferences[WEBDAV_CONFIG] = JsonInstant.encodeToString(settings.webDavConfig)
-                preferences[S3_CONFIG] = JsonInstant.encodeToString(settings.s3Config)
-                preferences[TTS_PROVIDERS] = JsonInstant.encodeToString(settings.ttsProviders)
+                preferences[TECHNICAL_CREW_SEEDED] = settings.technicalCrewSeeded
+                preferences[WEBDAV_CONFIG] = DeviceSecretCipher.encrypt(JsonInstant.encodeToString(settings.webDavConfig))
+                preferences[S3_CONFIG] = DeviceSecretCipher.encrypt(JsonInstant.encodeToString(settings.s3Config))
+                preferences[TTS_PROVIDERS] = DeviceSecretCipher.encrypt(JsonInstant.encodeToString(settings.ttsProviders))
                 settings.selectedTTSProviderId?.let {
                     preferences[SELECTED_TTS_PROVIDER] = it.toString()
                 } ?: preferences.remove(SELECTED_TTS_PROVIDER)
                 preferences[DEFAULT_TTS_PLAYBACK_SPEED] = settings.defaultTTSPlaybackSpeed.coerceIn(0.5f, 2.0f)
-                preferences[ASR_PROVIDERS] = JsonInstant.encodeToString(settings.asrProviders)
+                preferences[ASR_PROVIDERS] = DeviceSecretCipher.encrypt(JsonInstant.encodeToString(settings.asrProviders))
                 settings.selectedASRProviderId?.let {
                     preferences[SELECTED_ASR_PROVIDER] = it.toString()
                 } ?: preferences.remove(SELECTED_ASR_PROVIDER)
@@ -340,7 +344,7 @@ class SettingsStore(
                 preferences[WEB_SERVER_ENABLED] = settings.webServerEnabled
                 preferences[WEB_SERVER_PORT] = settings.webServerPort
                 preferences[WEB_SERVER_JWT_ENABLED] = settings.webServerJwtEnabled
-                preferences[WEB_SERVER_ACCESS_PASSWORD] = settings.webServerAccessPassword
+                preferences[WEB_SERVER_ACCESS_PASSWORD] = DeviceSecretCipher.encrypt(settings.webServerAccessPassword)
                 preferences[WEB_SERVER_LOCALHOST_ONLY] = settings.webServerLocalhostOnly
                 preferences[AI_LOG_LEVEL] = settings.aiLogLevel.preferenceName
                 preferences[BACKUP_REMINDER_CONFIG] = JsonInstant.encodeToString(settings.backupReminderConfig)
@@ -353,13 +357,11 @@ class SettingsStore(
     private val dataStore = context.settingsStore
 
     val settingsFlowRaw = dataStore.data
-        .catch { exception ->
-            if (exception is IOException) {
-                emit(emptyPreferences())
-            } else {
-                throw exception
-            }
-        }.map { preferences ->
+        // A read/migration failure must never masquerade as an empty installation: a
+        // later settings write could otherwise overwrite the user's original credentials.
+        .map { preferences ->
+            val assistantsJson = preferences[ASSISTANTS]?.let(DeviceSecretCipher::decrypt) ?: "[]"
+            val networkSettingsJson = preferences[NETWORK_SETTING]?.let(DeviceSecretCipher::decrypt) ?: "{}"
             Settings(
                 favoriteModels = preferences[FAVORITE_MODELS]?.let { raw ->
                     runCatching { JsonInstant.decodeFromString<List<Uuid>>(raw) }.getOrElse {
@@ -414,7 +416,7 @@ class SettingsStore(
                         emptyList()
                     }
                 } ?: emptyList(),
-                providers = decodeProvidersTolerant(preferences[PROVIDERS] ?: "[]"),
+                providers = decodeProvidersTolerant(preferences[PROVIDERS]?.let(DeviceSecretCipher::decrypt) ?: "[]"),
                 deletedBuiltInProviderIds = preferences[DELETED_BUILTIN_PROVIDER_IDS]
                     ?.let { raw ->
                         runCatching {
@@ -430,7 +432,7 @@ class SettingsStore(
                     }
                 } ?: emptySet(),
                 assistants = runCatching {
-                    JsonInstant.decodeFromString<List<Assistant>>(preferences[ASSISTANTS] ?: "[]")
+                    JsonInstant.decodeFromString<List<Assistant>>(assistantsJson)
                 }.getOrElse {
                     Log.w(TAG, "Failed to decode assistants, using default", it)
                     emptyList()
@@ -451,18 +453,18 @@ class SettingsStore(
                     DisplaySetting()
                 },
                 networkSetting = runCatching {
-                    JsonInstant.decodeFromString<NetworkSetting>(preferences[NETWORK_SETTING] ?: "{}")
+                    JsonInstant.decodeFromString<NetworkSetting>(networkSettingsJson)
                 }.getOrElse {
                     Log.w(TAG, "Failed to decode networkSetting, using default", it)
                     NetworkSetting()
                 },
-                searchServices = preferences[SEARCH_SERVICES]?.let { raw ->
+                searchServices = preferences[SEARCH_SERVICES]?.let(DeviceSecretCipher::decrypt)?.let { raw ->
                     runCatching { JsonInstant.decodeFromString<List<SearchServiceOptions>>(raw) }.getOrElse {
                         Log.w(TAG, "Failed to decode searchServices, using default", it)
                         listOf(SearchServiceOptions.DEFAULT)
                     }
                 } ?: listOf(SearchServiceOptions.DEFAULT),
-                searchCommonOptions = preferences[SEARCH_COMMON]?.let { raw ->
+                searchCommonOptions = preferences[SEARCH_COMMON]?.let(DeviceSecretCipher::decrypt)?.let { raw ->
                     runCatching { JsonInstant.decodeFromString<SearchCommonOptions>(raw) }.getOrElse {
                         Log.w(TAG, "Failed to decode searchCommonOptions, using default", it)
                         SearchCommonOptions()
@@ -470,7 +472,7 @@ class SettingsStore(
                 } ?: SearchCommonOptions(),
                 searchServiceSelected = preferences[SEARCH_SELECTED] ?: 0,
                 enableWebFetchTools = preferences[ENABLE_WEB_FETCH_TOOLS] != false,
-                mcpServers = preferences[MCP_SERVERS]?.let { raw ->
+                mcpServers = preferences[MCP_SERVERS]?.let(DeviceSecretCipher::decrypt)?.let { raw ->
                     runCatching { JsonInstant.decodeFromString<List<McpServerConfig>>(raw) }.getOrElse {
                         Log.w(TAG, "Failed to decode mcpServers, using default", it)
                         emptyList()
@@ -480,25 +482,26 @@ class SettingsStore(
                 // whole migration for an existing install that predates this field.
                 broSubAgentsSeeded = preferences[BRO_SUB_AGENTS_SEEDED] ?: false,
                 pocketSubAgentsSeeded = preferences[POCKET_SUB_AGENTS_SEEDED] ?: false,
+                technicalCrewSeeded = preferences[TECHNICAL_CREW_SEEDED] ?: false,
                 subAgents = preferences[SUB_AGENTS]?.let { raw ->
                     runCatching { JsonInstant.decodeFromString<List<SubAgentProfile>>(raw) }.getOrElse {
                         Log.w(TAG, "Failed to decode subAgents, using default", it)
                         emptyList()
                     }
                 } ?: emptyList(),
-                webDavConfig = preferences[WEBDAV_CONFIG]?.let { raw ->
+                webDavConfig = preferences[WEBDAV_CONFIG]?.let(DeviceSecretCipher::decrypt)?.let { raw ->
                     runCatching { JsonInstant.decodeFromString<WebDavConfig>(raw) }.getOrElse {
                         Log.w(TAG, "Failed to decode webDavConfig, using default", it)
                         WebDavConfig()
                     }
                 } ?: WebDavConfig(),
-                s3Config = preferences[S3_CONFIG]?.let { raw ->
+                s3Config = preferences[S3_CONFIG]?.let(DeviceSecretCipher::decrypt)?.let { raw ->
                     runCatching { JsonInstant.decodeFromString<S3Config>(raw) }.getOrElse {
                         Log.w(TAG, "Failed to decode s3Config, using default", it)
                         S3Config()
                     }
                 } ?: S3Config(),
-                ttsProviders = preferences[TTS_PROVIDERS]?.let { raw ->
+                ttsProviders = preferences[TTS_PROVIDERS]?.let(DeviceSecretCipher::decrypt)?.let { raw ->
                     runCatching { JsonInstant.decodeFromString<List<TTSProviderSetting>>(raw) }.getOrElse {
                         Log.w(TAG, "Failed to decode ttsProviders, using default", it)
                         emptyList()
@@ -507,7 +510,7 @@ class SettingsStore(
                 selectedTTSProviderId = preferences[SELECTED_TTS_PROVIDER]?.let { runCatching { Uuid.parse(it) }.getOrNull() }
                     ?: DEFAULT_SYSTEM_TTS_ID,
                 defaultTTSPlaybackSpeed = preferences[DEFAULT_TTS_PLAYBACK_SPEED]?.coerceIn(0.5f, 2.0f) ?: 1.0f,
-                asrProviders = preferences[ASR_PROVIDERS]?.let { raw ->
+                asrProviders = preferences[ASR_PROVIDERS]?.let(DeviceSecretCipher::decrypt)?.let { raw ->
                     runCatching { JsonInstant.decodeFromString<List<ASRProviderSetting>>(raw) }.getOrElse {
                         Log.w(TAG, "Failed to decode asrProviders, using default", it)
                         emptyList()
@@ -535,7 +538,7 @@ class SettingsStore(
                 webServerEnabled = preferences[WEB_SERVER_ENABLED] == true,
                 webServerPort = preferences[WEB_SERVER_PORT] ?: 8080,
                 webServerJwtEnabled = preferences[WEB_SERVER_JWT_ENABLED] == true,
-                webServerAccessPassword = preferences[WEB_SERVER_ACCESS_PASSWORD] ?: "",
+                webServerAccessPassword = preferences[WEB_SERVER_ACCESS_PASSWORD]?.let(DeviceSecretCipher::decrypt) ?: "",
                 webServerLocalhostOnly = preferences[WEB_SERVER_LOCALHOST_ONLY] == true,
                 aiLogLevel = AiLogLevel.fromPreference(preferences[AI_LOG_LEVEL]),
                 backupReminderConfig = preferences[BACKUP_REMINDER_CONFIG]?.let { raw ->
@@ -603,7 +606,7 @@ class SettingsStore(
             // only to profiles that include it by default. ReBro and NetBro keep their
             // own kits and do not inherit the general assistants' persona skills.
             val skillsToSeed = DEFAULT_AUTO_ENABLED_SKILLS - it.autoEnabledDefaultSkills
-            val assistants = mergeDefaultAssistants(it.assistants, skillsToSeed)
+            val assistants = seedTechnicalAssistants(mergeDefaultAssistants(it.assistants, skillsToSeed), it.technicalCrewSeeded)
             val newAutoEnabled = it.autoEnabledDefaultSkills + DEFAULT_AUTO_ENABLED_SKILLS
             val ttsProviders = it.ttsProviders.ifEmpty { DEFAULT_TTS_PROVIDERS }.toMutableList()
             DEFAULT_TTS_PROVIDERS.forEach { defaultTTSProvider ->
@@ -617,7 +620,10 @@ class SettingsStore(
                 autoEnabledDefaultSkills = newAutoEnabled,
                 subAgents = (if (it.broSubAgentsSeeded) it.subAgents else me.rerere.rikkahub.subagent.seedBroSubAgents(it.subAgents)).let { profiles ->
                     if (it.pocketSubAgentsSeeded) profiles else me.rerere.rikkahub.subagent.seedPocketSubAgents(profiles)
+                }.let { profiles ->
+                    if (it.technicalCrewSeeded) profiles else me.rerere.rikkahub.subagent.seedTechnicalSubAgents(profiles, assistants)
                 },
+                technicalCrewSeeded = true,
                 pocketSubAgentsSeeded = true,
                 broSubAgentsSeeded = true,
                 ttsProviders = ttsProviders,
@@ -917,6 +923,7 @@ data class Settings(
     val subAgents: List<SubAgentProfile> = emptyList(),
     val broSubAgentsSeeded: Boolean = false,
     val pocketSubAgentsSeeded: Boolean = false,
+    val technicalCrewSeeded: Boolean = false,
     val webDavConfig: WebDavConfig = WebDavConfig(),
     val s3Config: S3Config = S3Config(),
     val ttsProviders: List<TTSProviderSetting> = DEFAULT_TTS_PROVIDERS,

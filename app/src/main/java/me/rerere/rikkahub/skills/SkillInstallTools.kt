@@ -138,7 +138,8 @@ fun skillInstallFromUrlTool(
         frontmatter), openclaw markdown, or Hermes JSON formats. Tool names are best-effort
         transcoded to RikkaHub equivalents. The user reviews and approves the URL + final
         skill name before save. Newly-installed skills are auto-enabled for the calling
-        assistant unless they previously existed and were disabled. Returns
+        assistant. Existing names are rejected without overwriting: choose a unique name
+        for a copy, or review a revision-bound update in the Skills screen. Returns
         { ok, name, format, source_url, auto_enabled, auto_enabled_detail } on success.
     """.trimIndent().replace("\n", " "),
     parameters = {

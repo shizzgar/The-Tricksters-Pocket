@@ -22,6 +22,16 @@ private fun errEnv(error: String, detail: String): List<UIMessagePart> {
     return listOf(UIMessagePart.Text(obj.toString()))
 }
 
+/** Explicit malformed restrictions must fail closed, never become inheritance. */
+internal fun parseAllowedToolNames(value: kotlinx.serialization.json.JsonElement?): List<String>? {
+    if (value == null) return null
+    require(value is kotlinx.serialization.json.JsonArray) { "tools must be an array of exact tool-name strings" }
+    return value.map {
+        require(it is kotlinx.serialization.json.JsonPrimitive && it.isString) { "tools members must be strings" }
+        it.content
+    }
+}
+
 internal fun encodeRun(run: SubAgentRun): kotlinx.serialization.json.JsonObject = buildJsonObject {
     put("id", run.id)
     run.conversationId?.let { put("conversation_id", it) }
@@ -40,8 +50,21 @@ internal fun encodeRun(run: SubAgentRun): kotlinx.serialization.json.JsonObject 
         put("result_suppressed", true)
     }
     if (run.error != null) put("error", run.error)
-    put("tokens_in", run.tokensIn)
-    put("tokens_out", run.tokensOut)
+    put("usage_known", run.usageKnown)
+    put("usage_complete", run.usageKnown && !run.usageIncomplete)
+    put("usage_scope", "child_conversation_including_followups")
+    if (run.usageKnown) {
+        put("tokens_in", run.tokensIn)
+        put("tokens_out", run.tokensOut)
+    }
+    put("execution_epoch", run.executionEpoch)
+    run.tools?.let { put("allowed_tools", buildJsonArray { it.forEach { name -> add(kotlinx.serialization.json.JsonPrimitive(name)) } }) }
+    me.rerere.rikkahub.data.ai.AgentTaskPolicy.get(run.conversationId ?: run.id)?.let {
+        put("remaining_trips", (it.maxSteps - it.usedSteps).coerceAtLeast(0))
+        put("deadline_at_ms", it.deadlineAtMs)
+        put("read_only", it.readOnly)
+        put("custom_system_prompt_applied", it.systemPrompt != null)
+    }
     put("trip_count", run.tripCount)
 }
 
@@ -122,8 +145,9 @@ fun subagentDispatchTool(
                                 "profile's model (if agent is set) or the parent assistant's model.",
                         )
                     })
-                    put("system_prompt", buildJsonObject { put("type", "string") })
+                    put("system_prompt", buildJsonObject { put("type", "string"); put("description", "System override; rejected when target assistant disallows conversation system prompts") })
                     put("tools", buildJsonObject {
+                        put("description", "Exact allowed tool names. Empty array disables all tools. Persisted across approval, refresh and restart; unavailable names grant nothing.")
                         put("type", "array")
                         put("items", buildJsonObject { put("type", "string") })
                     })
@@ -138,7 +162,7 @@ fun subagentDispatchTool(
                         )
                     })
                     put("timeout_seconds", buildJsonObject { put("type", "integer") })
-                    put("max_trips", buildJsonObject { put("type", "integer") })
+                    put("max_trips", buildJsonObject { put("type", "integer"); put("description", "Total model requests for this run, including continuations and approvals; never resets automatically") })
                 },
                 required = listOf("task"),
             )
@@ -158,13 +182,14 @@ fun subagentDispatchTool(
             val params = args.jsonObject
             val task = params["task"]?.jsonPrimitive?.contentOrNull
                 ?: return@Tool errEnv("invalid_task", "task is required")
+            val allowedTools = try { parseAllowedToolNames(params["tools"]) }
+                catch (e: IllegalArgumentException) { return@Tool errEnv("invalid_tools", e.message.orEmpty()) }
             val request = SubAgentRequest(
                 task = task,
                 modelId = params["model_id"]?.jsonPrimitive?.contentOrNull,
                 agentName = params["agent"]?.jsonPrimitive?.contentOrNull,
                 systemPrompt = params["system_prompt"]?.jsonPrimitive?.contentOrNull,
-                tools = params["tools"]?.let { runCatching { it.jsonArray }.getOrNull() }
-                    ?.mapNotNull { it.jsonPrimitive.contentOrNull },
+                tools = allowedTools,
                 runInBackground = params["run_in_background"]?.jsonPrimitive?.booleanOrNull ?: false,
                 noResult = params["no_result"]?.jsonPrimitive?.booleanOrNull ?: false,
                 timeoutSeconds = params["timeout_seconds"]?.jsonPrimitive?.intOrNull

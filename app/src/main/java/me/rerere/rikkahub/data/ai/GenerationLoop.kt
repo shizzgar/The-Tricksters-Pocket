@@ -487,6 +487,7 @@ class GenerationLoop(
     private val conversationRepo: ConversationRepository,
     private val aiLoggingManager: AILoggingManager,
     private val systemPromptBuilder: SystemPromptBuilder,
+    private val projectRepository: me.rerere.rikkahub.data.repository.ProjectRepository? = null,
 ) {
     fun generateText(
         settings: Settings,
@@ -521,6 +522,7 @@ class GenerationLoop(
         // result. ChatService uses this to reassert the foreground service before a background
         // continuation opens a new socket.
         onBeforeModelRequest: suspend () -> Unit = {},
+        executionGuard: suspend (reserveModelStep: Boolean) -> GenerationStopReason? = { null },
         // Returns true when the user has pre-approved [toolName] for this turn (e.g.
         // "Allow for this chat" or "Always Allow" granted earlier). When true, the loop
         // below skips the Pending flip and lets the tool execute. ChatService injects the
@@ -597,6 +599,7 @@ class GenerationLoop(
             return true
         }
 
+        val visibleMemory = memories.orEmpty().associateBy { it.id }.toMutableMap()
         for (stepIndex in 0 until maxSteps) {
             if (yieldToSteering("before_model_request")) break
             if (shouldYieldToQueuedMessage() && messages.none { msg -> msg.getTools().any { !it.isExecuted } }) {
@@ -635,21 +638,36 @@ class GenerationLoop(
                     } else {
                         assistant.id.toString()
                     }
+                    val projectId = conversationId?.let { projectRepository?.projectForConversation(it)?.id }
+                    val sourceChat = conversationId?.toString()
+                    val sourceMessage = messages.lastOrNull { it.role == MessageRole.USER }?.id?.toString()
+                    suspend fun createMemory(scope: String, content: String): AssistantMemory {
+                        val key = when (scope) {
+                            "assistant" -> assistant.id.toString()
+                            "global" -> MemoryRepository.GLOBAL_MEMORY_ID
+                            "project" -> MemoryRepository.projectScope(projectId ?: error("No project is linked to this chat"))
+                            else -> error("Unknown memory scope")
+                        }
+                        return memoryRepo.addMemory(key, content, sourceChat, sourceMessage).also { visibleMemory[it.id] = it }
+                    }
+                    suspend fun editMemory(id: Int, content: String, revision: Int?): AssistantMemory {
+                        val previous = visibleMemory[id] ?: error("Memory is not visible in this conversation")
+                        return memoryRepo.updateContent(id, content, revision ?: previous.revision, sourceChat, sourceMessage).also { visibleMemory[id] = it }
+                    }
                     buildMemoryTools(
                         json = json,
-                        onCreation = { content ->
-                            memoryRepo.addMemory(memoryAssistantId, content)
-                        },
-                        onUpdate = { id, content ->
-                            memoryRepo.updateContent(id, content)
-                        },
+                        onCreation = { content -> memoryRepo.addMemory(memoryAssistantId, content, sourceChat, sourceMessage).also { visibleMemory[it.id] = it } },
+                        onUpdate = { id, content -> editMemory(id, content, null) },
+                        onRevisionUpdate = { id, content, revision -> editMemory(id, content, revision) },
+                        onScopedCreation = { scope, content -> createMemory(scope, content) },
                         onDelete = { id ->
-                            memoryRepo.deleteMemory(id)
+                            val previous = visibleMemory[id] ?: error("Memory is not visible in this conversation")
+                            memoryRepo.deleteMemory(id, previous.revision, sourceChat, sourceMessage)
                         }
                     ).let(this::addAll)
                 }
                 addAll(refreshTools?.invoke() ?: tools)
-            }
+            }.let { AgentToolPolicy.filter(it, conversationId?.toString(), assistant.readOnlyTools) }
 
             // Check if we have tool calls ready to continue after user interaction.
             val pendingTools = messages.lastOrNull()?.getTools()?.filter {
@@ -679,6 +697,8 @@ class GenerationLoop(
             // Skip generation if we have approved/denied tool calls to handle
             if (pendingTools.isEmpty()) {
                 try {
+                    val boundaryStop = executionGuard(true)
+                    if (boundaryStop != null) { stopReason = boundaryStop; break }
                     onBeforeModelRequest()
                     if (yieldToSteering("before_model_request")) break
                     kotlinx.coroutines.withTimeout(if (autonomousCycle)
@@ -1063,7 +1083,8 @@ class GenerationLoop(
                         // this is the self-diagnosing surface for a server that connects and
                         // lists tools but contributes zero entries to the dispatch list, e.g.
                         // a newly mcp_add-ed server never enabled for this assistant).
-                        val toolDef = toolsInternal.find { toolDef -> toolDef.name == tool.toolName }
+                        val toolDef = toolsInternal.find { toolDef -> toolDef.name == tool.toolName &&
+                            AgentToolPolicy.permits(toolDef.name, conversationId?.toString(), assistant.readOnlyTools) }
                         if (toolDef == null) {
                             Log.w(TAG, "tool ${tool.toolName} not found among ${toolsInternal.size} tools available this turn")
                             executedTools += tool.copy(
@@ -1083,6 +1104,14 @@ class GenerationLoop(
                                     )
                                 )
                             )
+                            return@forEach
+                        }
+                        val boundaryStop = executionGuard(false)
+                        if (boundaryStop != null) {
+                            stopReason = boundaryStop
+                            executedTools += tool.copy(output = listOf(UIMessagePart.Text(
+                                "{\"error\":\"execution_budget_stopped\",\"detail\":\"${boundaryStop.name}\"}"
+                            )))
                             return@forEach
                         }
                         runCatching {
@@ -1339,7 +1368,7 @@ class GenerationLoop(
         val internalMessages = buildList {
             // Conversation-level system prompt override (upstream): when the assistant
             // allows it and the conversation supplies one, it replaces the assistant prompt.
-            val effectiveSystemPrompt =
+            val effectiveSystemPrompt = AgentTaskPolicy.get(conversationId?.toString().orEmpty())?.systemPrompt ?:
                 if (assistant.allowConversationSystemPrompt && !conversationSystemPrompt.isNullOrBlank()) {
                     conversationSystemPrompt
                 } else {
@@ -1387,8 +1416,16 @@ class GenerationLoop(
         )
 
         var messages: List<UIMessage> = messages
+        val scopedPolicy = AgentTaskPolicy.get(conversationId?.toString().orEmpty())
+        val executionModel = when {
+            scopedPolicy?.allowedTools != null -> model.copy(tools = emptySet())
+            assistant.readOnlyTools || scopedPolicy?.readOnly == true -> model.copy(tools = model.tools.filterNot {
+                it is me.rerere.ai.provider.BuiltInTools.ImageGeneration
+            }.toSet())
+            else -> model
+        }
         val params = TextGenerationParams(
-            model = model,
+            model = executionModel,
             temperature = assistant.temperature,
             topP = assistant.topP,
             maxTokens = assistant.maxTokens,

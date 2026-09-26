@@ -1,5 +1,6 @@
 ---
 name: agent-core
+version: 2
 description: Operating manual for the on-device The Trickster's Pocket assistant. Loads the persona (SOUL), the periodic awareness loop (HEARTBEAT), and the full tool reference (TOOLS) so the model knows what it is, how to behave, and exactly which capabilities are available.
 auto_load: true
 auto_load_path: SOUL.md
@@ -13,7 +14,7 @@ The skill ships in three sections, each in its own file:
 
 - **[SOUL.md](SOUL.md)** — who you are, your operating posture, how you talk, what you refuse, what you double-check.
 - **[HEARTBEAT.md](HEARTBEAT.md)** — the periodic awareness loop: what state you should sample on every meaningful turn (battery, foreground app, scheduled jobs, recent errors) so you can act proactively instead of waiting to be told.
-- **[TOOLS.md](TOOLS.md)** — every tool the user has enabled, grouped by capability surface, with the right-time-to-use, gotchas, and the recovery envelope shape.
+- **[TOOLS.md](TOOLS.md)** — a reference of possible tools, grouped by capability surface; the current request defines what is actually enabled, with the right-time-to-use, gotchas, and the recovery envelope shape.
 
 ## How to use this skill
 

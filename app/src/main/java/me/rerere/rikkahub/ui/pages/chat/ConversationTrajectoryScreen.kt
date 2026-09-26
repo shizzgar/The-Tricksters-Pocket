@@ -90,6 +90,26 @@ internal fun ConversationTrajectoryScreen(conversation: Conversation, active: Bo
     var exportJob by remember { mutableStateOf<Job?>(null) }
     var archiveMessage by remember { mutableStateOf<String?>(null) }
     var pendingExportSession by rememberSaveable { mutableStateOf<String?>(null) }
+    var traceBytes by remember(session) { mutableLongStateOf(0L) }
+    var clearTrace by remember { mutableStateOf(false) }
+    var diagnostic by remember { mutableStateOf<String?>(null) }
+    var pendingDiagnostic by remember { mutableStateOf<String?>(null) }
+    val diagnosticPicker = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        val snapshot = pendingDiagnostic
+        pendingDiagnostic = null
+        if (uri != null && snapshot != null) exportScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    requireNotNull(context.contentResolver.openOutputStream(uri, "wt")).use { it.write(snapshot.toByteArray(Charsets.UTF_8)) }
+                }
+                diagnostic = null
+            } catch (e: Exception) {
+                withContext(NonCancellable + Dispatchers.IO) { runCatching { DocumentsContract.deleteDocument(context.contentResolver, uri) } }
+                if (e is CancellationException) throw e
+                error = e.message
+            }
+        }
+    }
     val archivePicker = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
         val exportSession = pendingExportSession
         pendingExportSession = null
@@ -132,6 +152,7 @@ internal fun ConversationTrajectoryScreen(conversation: Conversation, active: Bo
                     busy = true
                     val readRevision = journal.revision.value
                     task = journal.task(session)
+                    traceBytes = journal.storageBytes(session)
                     val next = journal.trajectory(session, limit, before)
                     val nextSpans = withContext(Dispatchers.Default) { buildTraceSpans(next.entries, if (isRoot) active else task?.status == "running") }
                     page = next
@@ -200,6 +221,21 @@ internal fun ConversationTrajectoryScreen(conversation: Conversation, active: Bo
                 }
                 Text(stringResource(R.string.trace_archive_scope), Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
                     style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.pocket_trace_storage,
+                        android.text.format.Formatter.formatShortFileSize(context, traceBytes)), style = MaterialTheme.typography.labelSmall)
+                    TextButton(onClick = {
+                        exportScope.launch {
+                            try { diagnostic = journal.diagnosticPreview(session) }
+                            catch (e: Exception) { if (e is CancellationException) throw e; error = e.message }
+                        }
+                    }, enabled = !exportingArchive) { Text(stringResource(R.string.pocket_trace_diagnostic)) }
+                    TextButton(onClick = { clearTrace = true },
+                        enabled = !exportingArchive && !(if (isRoot) active else task?.status == "running")) {
+                        Text(stringResource(R.string.pocket_trace_clear))
+                    }
+                }
                 archiveMessage?.let { Text(it, Modifier.padding(horizontal = 16.dp, vertical = 4.dp).testTag("trace-export-status"), style = MaterialTheme.typography.bodySmall) }
                 if (busy || searching || exportingArchive) LinearProgressIndicator(Modifier.fillMaxWidth())
                 error?.let { Text(it, Modifier.padding(12.dp), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
@@ -300,6 +336,35 @@ internal fun ConversationTrajectoryScreen(conversation: Conversation, active: Bo
             }
         }
     }
+    if (clearTrace) AlertDialog(onDismissRequest = { clearTrace = false },
+        title = { Text(stringResource(R.string.pocket_trace_clear_title)) },
+        text = { Text(stringResource(R.string.pocket_trace_clear_body)) },
+        confirmButton = { TextButton(enabled = !(if (isRoot) active else task?.status == "running"), onClick = {
+            clearTrace = false
+            exportScope.launch {
+                try { journal.clear(session); before = null; selectedId = null; refresh++ }
+                catch (e: Exception) { if (e is CancellationException) throw e; error = e.message }
+            }
+        }) { Text(stringResource(R.string.pocket_trace_clear)) } },
+        dismissButton = { TextButton(onClick = { clearTrace = false }) { Text(stringResource(R.string.cancel)) } })
+    diagnostic?.let { preview ->
+        AlertDialog(onDismissRequest = { diagnostic = null },
+            title = { Text(stringResource(R.string.pocket_trace_diagnostic)) },
+            text = { Column(Modifier.heightIn(max = 480.dp)) {
+                Text(stringResource(R.string.pocket_trace_diagnostic_notice), style = MaterialTheme.typography.bodySmall)
+                SelectionContainer(Modifier.weight(1f, fill = false).padding(top = 8.dp)) {
+                    LazyColumn { items(preview.lines()) { line -> Text(line, fontFamily = FontFamily.Monospace,
+                        style = MaterialTheme.typography.labelSmall) } }
+                }
+            } },
+            confirmButton = { TextButton(onClick = {
+                pendingDiagnostic = preview
+                diagnosticPicker.launch("pocket-diagnostic-${System.currentTimeMillis()}.json")
+            }) { Text(stringResource(R.string.pocket_trace_export_summary)) } },
+            dismissButton = { TextButton(onClick = { diagnostic = null }) { Text(stringResource(R.string.cancel)) } })
+    }
+
+
 }
 
 @Composable

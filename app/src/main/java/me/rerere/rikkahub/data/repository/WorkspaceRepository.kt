@@ -107,7 +107,19 @@ class WorkspaceRepository(
     suspend fun readTextSnapshot(id: String, area: WorkspaceStorageArea, path: String): WorkspaceTextSnapshot {
         val workspace = dao.getById(id) ?: error("Workspace not found: $id")
         return workspace.termuxPath?.let { termux.readText(it, path) }
-            ?: WorkspaceTextSnapshot(readTextForPreview(id, area, path), null)
+            ?: withContext(Dispatchers.IO) { manager.textSnapshot(workspace.root, path, area).let { WorkspaceTextSnapshot(it.first, it.second) } }
+    }
+
+    suspend fun readRootfsTextSnapshot(id: String, path: String): WorkspaceTextSnapshot = withContext(Dispatchers.IO) {
+        val workspace = dao.getById(id) ?: error("Workspace not found: $id")
+        workspace.termuxPath?.let { return@withContext termux.readText(it, path) }
+        manager.rootfsTextSnapshot(workspace.root, path).let { WorkspaceTextSnapshot(it.first, it.second) }
+    }
+
+    suspend fun writeRootfsTextChecked(id: String, path: String, text: String, overwrite: Boolean, expectedRevision: String?): WorkspaceFileEntry = withContext(Dispatchers.IO) {
+        val workspace = dao.getById(id) ?: error("Workspace not found: $id")
+        workspace.termuxPath?.let { return@withContext termux.write(it, path, text.byteInputStream(), overwrite, expectedRevision, parents = true) }
+        manager.writeRootfsText(workspace.root, path, text, overwrite, expectedRevision)
     }
 
     suspend fun createFolder(id: String, path: String): WorkspaceFileEntry {
@@ -222,7 +234,8 @@ class WorkspaceRepository(
         val workspace = dao.getById(id) ?: error("Workspace not found: $id")
         workspace.termuxPath?.let { return@withContext termux.write(it, path, text.byteInputStream(), overwrite, expectedRevision, parents = true) }
         manager.ensureWorkspace(workspace.root)
-        manager.writeText(workspace.root, path, text, overwrite)
+        val rootPath = "/workspace/" + path.removePrefix("/workspace/").trimStart('/')
+        manager.writeRootfsText(workspace.root, rootPath, text, overwrite, expectedRevision, requireRevision = false)
     }
 
     /**

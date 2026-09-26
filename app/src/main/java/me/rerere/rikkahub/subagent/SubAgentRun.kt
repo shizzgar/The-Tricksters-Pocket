@@ -3,15 +3,7 @@ package me.rerere.rikkahub.subagent
 import kotlinx.serialization.Serializable
 import kotlin.uuid.Uuid
 
-/**
- * Phase 11 — sub-agent run record. Lives in [SubAgentRegistry]'s in-memory map for the
- * lifetime of the app process. Persistence intentionally out of scope for v1: spec says
- * "Background sub-agents survive only as long as the parent process is alive" and
- * documents that user-visibly. WorkManager-backed persistence is a v2 concern.
- *
- * The run is FROZEN once it reaches a terminal status. Mutations are done by replacing
- * the entry in the registry's StateFlow rather than mutating in place.
- */
+/** Durable child execution record. Each explicit follow-up advances executionEpoch. */
 @Serializable
 data class SubAgentRun(
     val id: String,
@@ -35,12 +27,18 @@ data class SubAgentRun(
     val tripCount: Int = 0,
     val conversationId: String? = null,
     val parentToolCallId: String? = null,
+    val executionEpoch: Int = 0,
+    val resultDeliveredEpoch: Int = -1,
+    val usageKnown: Boolean = false,
+    val usageIncomplete: Boolean = false,
 )
 
 @Serializable
 enum class SubAgentStatus {
     PENDING,
     RUNNING,
+    WAITING_APPROVAL,
+    PROCESS_LOST,
     SUCCEEDED,
     FAILED,
     TIMED_OUT,
@@ -137,7 +135,10 @@ object SubAgentRequestValidator {
                 )
             }
         }
-        return Result.Ok(request.copy(task = task))
+        if (request.tools?.any { !it.matches(Regex("[A-Za-z0-9_.-]{1,160}")) } == true) {
+            return Result.Reject("invalid_tools", "tools must contain exact tool names; wildcards and blanks are not supported")
+        }
+        return Result.Ok(request.copy(task = task, tools = request.tools?.distinct()))
     }
 }
 
@@ -160,3 +161,5 @@ data class SubAgentProfile(
     val assistantId: Uuid? = null,
 )
 
+
+fun SubAgentStatus.isActive(): Boolean = this in setOf(SubAgentStatus.PENDING, SubAgentStatus.RUNNING, SubAgentStatus.WAITING_APPROVAL)

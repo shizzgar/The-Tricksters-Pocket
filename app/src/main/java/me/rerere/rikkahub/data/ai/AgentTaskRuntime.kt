@@ -5,7 +5,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 enum class GenerationStopReason {
     COMPLETED, USER_MESSAGE, OUTPUT_LIMIT, STEP_LIMIT, CYCLE_DEADLINE, COMPACTION_LIMIT, WAITING_APPROVAL,
-    LOOP_DETECTED, NO_PROGRESS, NETWORK_WAIT, FAILED, CANCELLED, TASK_DEADLINE, PROCESS_LOST,
+    LOOP_DETECTED, NO_PROGRESS, NETWORK_WAIT, FAILED, CANCELLED, TASK_DEADLINE, PROCESS_LOST, BUDGET_LIMIT, RUN_STEP_LIMIT,
 }
 
 class AgentTaskCycleState(var loopGuardTrips: Int = 0)
@@ -43,14 +43,6 @@ fun conversationCheckpoint(messages: List<me.rerere.ai.ui.UIMessage>): String {
         kotlinx.serialization.builtins.ListSerializer(me.rerere.ai.ui.UIMessage.serializer()), stable
     ).toByteArray(Charsets.UTF_8)
     return java.security.MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
-}
-
-/** Explicit caller limits for scoped child runs; never reset by parent task continuation. */
-object AgentTaskPolicy {
-    private val steps = java.util.concurrent.ConcurrentHashMap<String, Int>()
-    fun setStepLimit(id: String, limit: Int) { require(limit > 0); steps[id] = limit }
-    fun stepLimit(id: String): Int? = steps[id]
-    fun clear(id: String) { steps.remove(id) }
 }
 
 /** Only known transport failures before content can wait for network recovery. */

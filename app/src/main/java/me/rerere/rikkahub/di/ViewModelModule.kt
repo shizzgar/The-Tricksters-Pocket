@@ -64,7 +64,11 @@ val viewModelModule = module {
     viewModel<ShareHandlerVM> {
         ShareHandlerVM(
             text = it.get(),
+            streams = it.get(),
             settingsStore = get(),
+            filesManager = get(),
+            conversations = get(),
+            projectRepository = get(),
         )
     }
     viewModelOf(::BackupVM)

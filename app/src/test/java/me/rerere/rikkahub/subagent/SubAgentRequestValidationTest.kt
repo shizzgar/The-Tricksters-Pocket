@@ -5,6 +5,16 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SubAgentRequestValidationTest {
+    @org.junit.Test fun `malformed explicit allowlists do not fall back to inheritance`() {
+        listOf("{}", "\"workspace_read_file\"", "null", "[42]", "[null]").forEach { raw ->
+            org.junit.Assert.assertTrue(raw, runCatching {
+                parseAllowedToolNames(kotlinx.serialization.json.Json.parseToJsonElement(raw))
+            }.isFailure)
+        }
+        org.junit.Assert.assertNull(parseAllowedToolNames(null))
+        org.junit.Assert.assertEquals(emptyList<String>(), parseAllowedToolNames(kotlinx.serialization.json.Json.parseToJsonElement("[]")))
+    }
+
 
     @Test fun `blank task rejected`() {
         val r = SubAgentRequestValidator.validate(SubAgentRequest(task = ""))

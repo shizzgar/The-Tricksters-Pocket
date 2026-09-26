@@ -35,6 +35,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import me.rerere.rikkahub.data.task.successfulWorkspaceFileOutput
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -62,10 +65,7 @@ internal fun EditedFilesList(
     val workspaceId = assistant?.workspaceId?.toString() ?: return
     val editedFiles = remember(parts) {
         parts.filterIsInstance<UIMessagePart.Tool>()
-            .filter { it.toolName in WORKSPACE_FILE_TOOL_NAMES && it.isExecuted }
-            .mapNotNull { tool ->
-(tool.inputAsJson() as? JsonObject)?.get("path")?.jsonPrimitive?.contentOrNull
-            }
+            .mapNotNull { tool -> successfulWorkspaceFileOutput(tool)?.get("path")?.jsonPrimitive?.contentOrNull }
             .distinct()
     }
     if (editedFiles.isEmpty()) return
@@ -75,6 +75,12 @@ internal fun EditedFilesList(
     val workspaceRepository: WorkspaceRepository = koinInject()
 
     var selectedPath by remember { mutableStateOf<String?>(null) }
+    var failure by remember { mutableStateOf<String?>(null) }
+    val fileWorkspaces = remember(parts, workspaceId) { parts.filterIsInstance<UIMessagePart.Tool>().mapNotNull { tool ->
+        successfulWorkspaceFileOutput(tool)?.let { result ->
+            result["path"]?.jsonPrimitive?.contentOrNull?.let { path -> path to (result["workspace_id"]?.jsonPrimitive?.contentOrNull ?: workspaceId) }
+        }
+    }.toMap() }
     var expanded by remember { mutableStateOf(false) }
     val visibleFiles = if (expanded) editedFiles else editedFiles.take(DEFAULT_VISIBLE_COUNT)
     val hasMore = editedFiles.size > DEFAULT_VISIBLE_COUNT
@@ -84,17 +90,22 @@ internal fun EditedFilesList(
     ) { uri ->
         val path = selectedPath.also { selectedPath = null } ?: return@rememberLauncherForActivityResult
         if (uri == null) return@rememberLauncherForActivityResult
-        val outputStream = context.contentResolver.openOutputStream(uri) ?: return@rememberLauncherForActivityResult
         scope.launch {
-            runCatching {
-                val (area, relativePath) = resolveWorkspacePath(path)
-                outputStream.use { output ->
-                    workspaceRepository.exportFile(workspaceId, area, relativePath, output)
+            try {
+                withContext(Dispatchers.IO) {
+                    requireNotNull(context.contentResolver.openOutputStream(uri, "wt")) { "Cannot open destination" }.use { output ->
+                        workspaceRepository.exportRootfsFile(fileWorkspaces[path] ?: workspaceId, path, output)
+                    }
                 }
+            } catch (e: Exception) {
+                withContext(kotlinx.coroutines.NonCancellable + Dispatchers.IO) { runCatching { android.provider.DocumentsContract.deleteDocument(context.contentResolver, uri) } }
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                failure = e.message ?: e.javaClass.simpleName
             }
         }
     }
 
+    failure?.let { Text(stringResource(R.string.task_file_error, it), color = MaterialTheme.colorScheme.error) }
     FlowRow(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -193,12 +204,11 @@ internal fun EditedFilesList(
                         val p = selectedPath ?: return@Card
                         selectedPath = null
                         scope.launch {
-                            runCatching {
-                                val (area, relativePath) = resolveWorkspacePath(p)
-                                val dir = File(context.cacheDir, "workspace_share").apply { mkdirs() }
+                            try {
+                                val dir = File(context.cacheDir, "workspace_share/${java.util.UUID.randomUUID()}").apply { mkdirs() }
                                 val file = File(dir, p.substringAfterLast('/'))
                                 file.outputStream().use { output ->
-                                    workspaceRepository.exportFile(workspaceId, area, relativePath, output)
+                                    workspaceRepository.exportRootfsFile(fileWorkspaces[p] ?: workspaceId, p, output)
                                 }
                                 val uri = FileProvider.getUriForFile(
                                     context,
@@ -211,6 +221,9 @@ internal fun EditedFilesList(
                                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                 }
                                 context.startActivity(Intent.createChooser(intent, null))
+                            } catch (e: Exception) {
+                                if (e is kotlinx.coroutines.CancellationException) throw e
+                                failure = e.message ?: e.javaClass.simpleName
                             }
                         }
                     },
@@ -236,14 +249,5 @@ internal fun EditedFilesList(
                 }
             }
         }
-    }
-}
-
-private fun resolveWorkspacePath(path: String): Pair<WorkspaceStorageArea, String> {
-    val trimmed = path.trimEnd('/')
-    return if (trimmed == "/workspace" || trimmed.startsWith("/workspace/")) {
-        WorkspaceStorageArea.FILES to trimmed.removePrefix("/workspace").trimStart('/')
-    } else {
-        WorkspaceStorageArea.LINUX to trimmed.trimStart('/')
     }
 }

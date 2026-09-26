@@ -8,6 +8,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -32,8 +33,9 @@ fun ChatMessageNerdLine(
     progress: GenerationProgress? = null,
     processingStatus: String? = null,
     active: Boolean = false,
+    contextUsage: me.rerere.rikkahub.data.ai.ContextUsageSnapshot? = null,
 ) {
-    if (message.role != MessageRole.ASSISTANT && progress == null) return
+    if (message.role != MessageRole.ASSISTANT && progress == null && contextUsage == null) return
     if (!LocalSettings.current.displaySetting.showTokenUsage && !active) return
     var expanded by remember(message.id) { mutableStateOf(false) }
     var now by remember { mutableLongStateOf(System.nanoTime() / 1_000_000) }
@@ -58,7 +60,7 @@ fun ChatMessageNerdLine(
         GenerationPhase.FAILED -> R.string.generation_progress_failed
         GenerationPhase.CANCELLED -> R.string.generation_progress_cancelled
     }) }
-    Column(modifier.fillMaxWidth().animateContentSize().clickable { expanded = !expanded }.padding(6.dp),
+    Column(modifier.testTag("chat-message-nerd-line").fillMaxWidth().animateContentSize().clickable { expanded = !expanded }.padding(6.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)) {
         if (active && phase != null) Text("$phase · ${progressDuration((progress.finishedAt ?: now) - progress.startedAt)}",
             style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
@@ -70,6 +72,7 @@ fun ChatMessageNerdLine(
             Text(if (expanded) "▴" else "▾", color = color)
         }
         if (expanded) {
+            contextUsage?.let { me.rerere.rikkahub.ui.components.ai.ContextUsageDetails(it) }
             Text(stringResource(R.string.runtime_speed_explanation), style = MaterialTheme.typography.bodySmall, color = color)
             processingStatus?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
             Text(stringResource(R.string.runtime_request_count, metrics.size), style = MaterialTheme.typography.bodySmall)
@@ -114,4 +117,3 @@ fun StatsItem(
         content()
     }
 }
-

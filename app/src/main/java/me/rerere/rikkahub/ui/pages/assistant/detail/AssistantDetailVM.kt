@@ -38,6 +38,7 @@ class AssistantDetailVM(
     private val workspaceRepository: WorkspaceRepository,
 ) : ViewModel() {
     private val assistantId = Uuid.parse(id)
+    val memoryMutationError = MutableStateFlow<String?>(null)
 
     private val _skills = MutableStateFlow<List<SkillMetadata>>(emptyList())
     val skills = _skills.asStateFlow()
@@ -222,18 +223,21 @@ class AssistantDetailVM(
     fun updateMemory(memory: AssistantMemory) {
         viewModelScope.launch {
             runCatching {
-                memoryRepository.updateContent(id = memory.id, content = memory.content)
+                memoryRepository.updateContent(id = memory.id, content = memory.content, expectedRevision = memory.revision)
+                memoryMutationError.value = null
             }.onFailure {
                 // The record may have been deleted (e.g. by the memory tool) between opening
                 // the editor and saving; don't crash the VM scope, the update is moot.
                 Log.e(TAG, "Failed to update memory #${memory.id}", it)
+                memoryMutationError.value = it.message
             }
         }
     }
 
     fun deleteMemory(memory: AssistantMemory) {
         viewModelScope.launch {
-            memoryRepository.deleteMemory(id = memory.id)
+            runCatching { memoryRepository.deleteMemory(id = memory.id, expectedRevision = memory.revision) }
+                .onFailure { memoryMutationError.value = it.message }
         }
     }
 

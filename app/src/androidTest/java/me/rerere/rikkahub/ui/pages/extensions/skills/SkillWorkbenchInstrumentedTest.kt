@@ -31,6 +31,9 @@ abstract class WorkbenchFixture {
     protected fun show(russian: Boolean = false) {
         val manager = GlobalContext.get().get<SkillManager>()
         val name = "workbench-ui-fixture"
+        // Fixture reset is explicit; production import now rejects existing packages.
+        manager.getSkillDir(name)?.deleteRecursively()
+        File(context.filesDir, "skill_workbench/$name").deleteRecursively()
         check(manager.saveSkillFileBytesAtomically(name, mapOf(
             "SKILL.md" to "---\nname: $name\ndescription: Report generator with scripts and assets\n---\n# Reports\nUse scripts/report.py to build a report.\n".toByteArray(),
             "scripts/report.py" to "from pathlib import Path\n\nROOT = Path(__file__).parent.parent\ndata = (ROOT / 'assets/data.bin').read_bytes()\nprint(f'Read {len(data)} bytes')\n".toByteArray(),
@@ -59,6 +62,16 @@ abstract class WorkbenchFixture {
 }
 
 class SkillWorkbenchInstrumentedTest : WorkbenchFixture() {
+    @Test fun importsNeverSilentlyReplaceAnInstalledPackage() {
+        show()
+        val manager = GlobalContext.get().get<SkillManager>()
+        val before = root.resolve("SKILL.md").readBytes()
+        val replacement = "---\nname: workbench-ui-fixture\ndescription: Replacement\n---\nChanged"
+        assertNull(manager.saveSkill("workbench-ui-fixture", replacement))
+        assertFalse(manager.saveSkillFileBytesAtomically("workbench-ui-fixture", mapOf("SKILL.md" to replacement.toByteArray())))
+        assertArrayEquals(before, root.resolve("SKILL.md").readBytes())
+        assertArrayEquals(byteArrayOf(0, -1, -128, 10, 65, 66), root.resolve("assets/data.bin").readBytes())
+    }
     @Test fun browseEditSaveScriptKeepsBinaryResourceIntact() {
         show()
         shot("skill-workbench-files")

@@ -15,6 +15,7 @@ import kotlinx.coroutines.withContext
 import me.rerere.ai.core.Tool
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.ai.tools.LocalTools
+import me.rerere.rikkahub.data.ai.AgentToolPolicy
 import me.rerere.rikkahub.data.ai.tools.termuxContext
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import me.rerere.rikkahub.data.ai.tools.ToolInvocationContext
@@ -54,7 +55,7 @@ internal fun AssistantToolAccess(assistant: Assistant, onUpdate: ((Assistant) ->
     }
     if (open) {
         ModalBottomSheet(onDismissRequest = { open = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-            ToolAccessList(catalog, assistant.disabledLocalTools, loading, failed, onToggle = { name, enabled ->
+            ToolAccessList(catalog, assistant.disabledLocalTools, loading, failed, readOnly = assistant.readOnlyTools, onToggle = { name, enabled ->
                 onUpdate { current -> current.copy(disabledLocalTools = if (enabled) current.disabledLocalTools - name else current.disabledLocalTools + name) }
             })
         }
@@ -64,13 +65,17 @@ internal fun AssistantToolAccess(assistant: Assistant, onUpdate: ((Assistant) ->
 @Composable
 internal fun ToolAccessList(
     tools: List<Tool>, disabled: Set<String>, loading: Boolean = false, failed: Boolean = false,
+    readOnly: Boolean = false,
     onToggle: (String, Boolean) -> Unit,
 ) {
     var query by remember { mutableStateOf("") }
-    val active = remember(tools, disabled) { filterLocalTools(tools, disabled).map { it.name }.toSet() }
+    val active = remember(tools, disabled, readOnly) {
+        filterLocalTools(tools, disabled).filter { !readOnly || AgentToolPolicy.isReadOnlyTool(it.name) }.map { it.name }.toSet()
+    }
     val visible = remember(tools, query) { tools.filter { it.name.contains(query, true) || it.description.contains(query, true) } }
     Column(Modifier.testTag("tool-access-list").fillMaxWidth().fillMaxHeight(.85f).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(stringResource(R.string.tool_access_title), style = MaterialTheme.typography.titleLarge)
+        if (readOnly) Text(stringResource(R.string.crew_read_only_description), style = MaterialTheme.typography.bodySmall)
         Text(stringResource(R.string.tool_access_count, active.size, tools.size), style = MaterialTheme.typography.bodyMedium)
         OutlinedTextField(query, { query = it }, modifier = Modifier.fillMaxWidth().testTag("tool-access-search"), singleLine = true,
             label = { Text(stringResource(R.string.tool_access_search)) })
@@ -82,8 +87,9 @@ internal fun ToolAccessList(
                 ListItem(
                     headlineContent = { Text(tool.name, fontFamily = FontFamily.Monospace) },
                     supportingContent = { Text(tool.description, maxLines = 3) },
-                    trailingContent = { Switch(modifier = Modifier.testTag("tool-toggle-${tool.name}"), checked = tool.name in active, enabled = tool.name == "use_skill" || "use_skill" !in disabled ||
-                        !me.rerere.rikkahub.data.ai.tools.isSkillTool(tool.name), onCheckedChange = { onToggle(tool.name, it) }) },
+                    trailingContent = { Switch(modifier = Modifier.testTag("tool-toggle-${tool.name}"), checked = tool.name in active,
+                        enabled = (!readOnly || AgentToolPolicy.isReadOnlyTool(tool.name)) && (tool.name == "use_skill" || "use_skill" !in disabled ||
+                            !me.rerere.rikkahub.data.ai.tools.isSkillTool(tool.name)), onCheckedChange = { onToggle(tool.name, it) }) },
                 )
                 HorizontalDivider()
             }

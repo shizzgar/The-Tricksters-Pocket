@@ -854,7 +854,7 @@ class LocalTools(
             tools.add(me.rerere.rikkahub.subagent.subagentSendTool(subAgentEngine, invocationContext.callerConversationId))
         }
         if (availableOptions.contains(LocalToolOption.CostGuards)) {
-            tools.add(me.rerere.rikkahub.costguards.checkTokenUsageTool(settingsStore, conversationRepo))
+            tools.add(me.rerere.rikkahub.costguards.checkTokenUsageTool(settingsStore, conversationRepo, invocationContext))
         }
         if (availableOptions.contains(LocalToolOption.SkillImport)) {
             tools.add(me.rerere.rikkahub.skills.skillInstallFromUrlTool(skillUrlImporter, settingsStore, skillManager, invocationContext.callerAssistantId))
@@ -983,7 +983,9 @@ class LocalTools(
         // Centralised opt-in to needsApproval. Tool factories themselves don't have to know
         // whether their op is destructive — ToolApprovalDefaults is the single source of
         // truth, and the GenerationHandler / Telegram/in-app prompt path keys off needsApproval.
-        return filterLocalTools(tools, if (includeDisabled) emptySet() else assistant?.disabledLocalTools.orEmpty()).map { t ->
+        return filterLocalTools(tools, if (includeDisabled) emptySet() else assistant?.disabledLocalTools.orEmpty())
+            .filter { includeDisabled || me.rerere.rikkahub.data.ai.AgentToolPolicy.permits(
+                it.name, invocationContext.callerConversationId, assistant?.readOnlyTools == true) }.map { t ->
             val withApproval = if (invocationContext.termuxWorkspace != null && t.name.startsWith("termux_")) {
                 t.copy(needsApproval = { invocationContext.termuxWorkspace.approvals[t.name]
                     ?: ToolApprovalDefaults.requiresApproval(t.name) })
@@ -994,7 +996,11 @@ class LocalTools(
             }
             val guarded = if (!verifyAccessBeforeExecution || invocationContext.callerAssistantId == null) withApproval
             else withApproval.copy(execute = { input ->
-                val live = caller()
+                val base = caller()
+                val projectRepository = org.koin.core.context.GlobalContext.getOrNull()?.getOrNull<me.rerere.rikkahub.data.repository.ProjectRepository>()
+                val live = if (base != null && invocationContext.callerConversationId != null && projectRepository != null) {
+                    projectRepository.effectiveAssistant(kotlin.uuid.Uuid.parse(invocationContext.callerConversationId), base, settingsStore.settingsFlow.value)
+                } else base
                 val currentTool = live?.takeIf {
                     invocationContext.termuxWorkspace == null || it.workspaceId?.toString() == invocationContext.termuxWorkspace.id
                 }?.let {

@@ -38,6 +38,37 @@ internal object DatabaseBackup {
         removeSidecars(databaseFile)
     }
 
+    /** Rewrite only the staged snapshot and vacuum away old credential bytes. */
+    fun protectSshCredentials(context: Context, file: File, includeCredentials: Boolean, forRestore: Boolean = false) {
+        val configuration = SQLiteConfiguration.configure(context,
+            SQLiteDatabaseConfiguration(file.absolutePath, SQLiteDatabase.OPEN_READWRITE))
+        SQLiteDatabase.openDatabase(configuration, null) { error("Backup database is corrupt") }.use { database ->
+            val exists = database.query("SELECT name FROM sqlite_master WHERE type='table' AND name='ssh_hosts'").use { it.moveToFirst() }
+            if (exists) {
+                database.execSQL("PRAGMA secure_delete=ON")
+                val rows = database.query("SELECT name,password,privateKey,passphrase FROM ssh_hosts").use { cursor ->
+                    buildList { while (cursor.moveToNext()) add((0..3).map { if (cursor.isNull(it)) null else cursor.getString(it) }) }
+                }
+                rows.forEach { row ->
+                    val values = row.drop(1).map { value ->
+                        when {
+                            !includeCredentials -> null
+                            value == null -> null
+                            forRestore -> me.rerere.rikkahub.data.security.DeviceSecretCipher.encrypt(
+                                me.rerere.rikkahub.data.security.DeviceSecretCipher.decrypt(value))
+                            else -> me.rerere.rikkahub.data.security.DeviceSecretCipher.decrypt(value)
+                        }
+                    }
+                    database.execSQL("UPDATE ssh_hosts SET password=?,privateKey=?,passphrase=? WHERE name=?",
+                        (values + row[0]).toTypedArray())
+                }
+                database.execSQL("VACUUM")
+            }
+            checkpoint(database)
+        }
+        removeSidecars(file)
+    }
+
     fun checkpoint(database: SupportSQLiteDatabase) {
         database.query("PRAGMA wal_checkpoint(TRUNCATE)").use { cursor ->
             check(cursor.moveToFirst() && cursor.getInt(0) == 0) {
