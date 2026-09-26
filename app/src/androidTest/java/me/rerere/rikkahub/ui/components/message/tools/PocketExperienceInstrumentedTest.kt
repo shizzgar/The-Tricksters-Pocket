@@ -128,7 +128,7 @@ class PocketExperienceInstrumentedTest {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val repository = org.koin.core.context.GlobalContext.get().get<me.rerere.rikkahub.data.repository.ConversationRepository>()
         val store = me.rerere.rikkahub.data.task.TaskArtifactStore.at(context.filesDir)
-        val conversation = Conversation.ofId(assistantId = me.rerere.rikkahub.data.datastore.createDevbroAssistant().id).copy(title = "Task opt-in fixture")
+        val conversation = Conversation.ofId(id = kotlin.uuid.Uuid.random(), assistantId = me.rerere.rikkahub.data.datastore.createDevbroAssistant().id).copy(title = "Task opt-in fixture")
         val showEditor = androidx.compose.runtime.mutableStateOf(false)
         kotlinx.coroutines.runBlocking { repository.insertConversation(conversation) }
         try {
