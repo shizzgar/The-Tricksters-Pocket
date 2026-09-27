@@ -1,0 +1,41 @@
+{
+  "version": "2.5.1-pocket.5",
+  "version_code": 194,
+  "package_id": "excp.rikkahub.rebro",
+  "architecture": "arm64-v8a",
+  "source_commit": "8e7cebe9416b0eca637f23d9d417bccbb54da758",
+  "workflow_run": "https://github.com/shizzgar/The-Tricksters-Pocket/actions/runs/36325791852",
+  "apk_file": "Tricksters-Pocket-2.5.1-pocket.5-arm64-release.apk",
+  "apk_bytes": 57717548,
+  "apk_sha256": "e8a652c816b2130027a5a651d46198e59bde3c0968c30888e3a14b20e3cc8552",
+  "unsigned_apk_sha256": "44e2ed3d256f808b611d038cded43a8dc8e49bcd4c71f20a91eadc4fb34498b7",
+  "signer_certificate_sha256": "0FAC079E040D97CCE1786CEB21DC0855C0D09B2DF3222A43E71C46DD2C517805",
+  "signature_schemes": [
+    "v2",
+    "v3"
+  ],
+  "debuggable": false,
+  "bundled_assets_verified": [
+    "icons/pocket.svg"
+  ],
+  "tests": {
+    "jvm": 1105,
+    "python": 68,
+    "android": 77,
+    "failures": 0,
+    "skipped": 0
+  },
+  "emulator": {
+    "api": 35,
+    "variant": "debug"
+  },
+  "screenshots_captured": 35,
+  "screenshot_evidence_limits": [
+    "The reviewer-picker capture shows the underlying dashboard; reviewer selection is covered by functional assertions.",
+    "The standalone Termux settings fixture omits the background supplied by the production WorkspaceDetailPage scaffold; it does not verify the complete settings-screen theme."
+  ],
+  "physical_device_termux_verified": false,
+  "physical_device_overlay_verified": false,
+  "build_reports_artifact_id": 10933969239,
+  "build_reports_artifact_digest": "sha256:dbce84e1d87ccf03f310f471ceb8b255b87193a69a43f518ce6d184d85c81875"
+}
