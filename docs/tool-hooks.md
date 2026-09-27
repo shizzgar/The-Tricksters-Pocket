@@ -22,7 +22,7 @@ The executable matcher supports direct argv and a conservative subset of shell c
 
 ## Instructions and scopes
 
-Skill actions read an installed text/Markdown file. A selected heading includes its subsections; missing or duplicate headings produce a visible error. Files and inline instructions have a 16,000-character limit. Oversized instructions are rejected rather than silently cut. Selecting a skill here explicitly binds its instructions to the hook independently of the assistant’s ordinary skill toggles.
+Skill actions read an installed text/Markdown file. A selected heading includes its subsections; missing or duplicate headings produce a visible error. The resolved instruction, including a selected section or an inline prompt, has a 16,000-character limit. Oversized instructions are rejected rather than silently cut. Selecting a skill here explicitly binds its instructions to the hook independently of the assistant’s ordinary skill toggles.
 
 Direct assistant, workspace and chat selectors apply to matching conversations, including child conversations that directly match. The inheritance setting additionally enables matches through ancestor assistants/workspaces/chats and global rules in child sessions. Workspace matching uses the effective project/assistant workspace both in execution and preview. Delivery and repetition limits are isolated per conversation.
 
@@ -30,11 +30,11 @@ Direct assistant, workspace and chat selectors apply to matching conversations, 
 
 **Test on a past call** reads stored tool arguments/results and shows which conditions match. It does not execute a command or enqueue a prompt. A disabled draft can be evaluated as if enabled; the preview labels this explicitly. Runtime repetition and pending-queue limits are enforced during actual execution.
 
-A matched tool card shows a compact hook notice. Open it to inspect the rule name, match reason, source and exact instruction snapshot. Pending means waiting for a model request. Included in request means dispatched with a request; it does not prove the model followed the instruction. Skipped notices explain content or limit problems. Restored historical notices without delivery metadata show that their delivery state is unavailable.
+A matched tool card shows a compact hook notice. Open it to inspect the rule name, match reason, source and exact instruction snapshot. Pending means waiting for a model request. Included in request means dispatched with a request; it does not prove the model followed the instruction. Skipped notices explain content or limit problems. Restored pending notices without delivery metadata show that their delivery state is unavailable.
 
 ## Runtime behavior
 
-Tool results remain intact. Hook evaluation happens before display truncation, and a hook does not rerun the tool. Instruction text is added to the model request without inserting a new user turn or splitting tool-call/result pairs.
+Tool results remain intact. Hook evaluation happens after each tool’s own capture or pagination limits, but before the generation loop shortens or spills its output; a hook does not rerun the tool. Instruction text is added to the model request without inserting a new user turn or splitting tool-call/result pairs.
 
 Interactive launch success and missing exits do not satisfy a nonzero-exit condition. Command timeouts are distinct from a managed-job wait timeout: the latter ends observation while the job may still run. Termux and Workspace background results retain their launch identity, so polling the same completed job does not repeatedly trigger a hook. Explicitly rerunning a tool creates a new execution attempt.
 

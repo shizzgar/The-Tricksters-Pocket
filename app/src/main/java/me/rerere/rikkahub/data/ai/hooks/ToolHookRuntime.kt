@@ -25,7 +25,10 @@ class ToolHookRuntime(
     fun received(requestId: String) = store.confirmResponse(conversationId, requestId)
     fun finished(progress: me.rerere.ai.provider.GenerationProgress) {
         if (progress.dispatchedAt == null) return
-        if (progress.firstContentAt != null || progress.phase == me.rerere.ai.provider.GenerationPhase.COMPLETED)
+        // A stream can close cleanly before GenerationLoop detects its empty response
+        // and retries it. Transport COMPLETED alone must not consume that instruction.
+        val completedResponse = !progress.streamed && progress.phase == me.rerere.ai.provider.GenerationPhase.COMPLETED
+        if (progress.firstContentAt != null || completedResponse)
             store.confirmResponse(conversationId, progress.requestId)
         else store.recoverUnreceived(conversationId, progress.requestId)
     }

@@ -237,4 +237,41 @@ class ToolHookRuntimeTest {
         assertEquals(2, result.hookNotices.size)
     }
 
+    @Test fun emptyStreamRetryExhaustionKeepsSameInstructionPendingAcrossRestart() {
+        val directory = temporary.newFolder()
+        val rule = rule().copy(maxFiringsPerTurn = 1)
+        val runtime = runtime(HookRuntimeStore.isolated(directory), { listOf(rule) })
+        runtime.completed(tool())
+        val batch = runtime.pending()
+        // ScheduledProvider reports a clean close before GenerationLoop recognizes an
+        // empty stream. Each outer retry must retain this delivery, not fire a new hook.
+        repeat(3) { attempt ->
+            val requestId = "empty-stream-$attempt"
+            runtime.dispatched(batch, requestId)
+            runtime.finished(me.rerere.ai.provider.GenerationProgress(
+                attempt.toLong(), me.rerere.ai.provider.GenerationPhase.COMPLETED, 0,
+                dispatchedAt = 1, finishedAt = 2, requestId = requestId, streamed = true,
+            ))
+            assertEquals(batch.ids, runtime.pending().ids)
+        }
+        val recovered = runtime(HookRuntimeStore.isolated(directory), { listOf(rule) })
+        assertEquals(batch.ids, recovered.pending().ids)
+        assertTrue(recovered.completed(tool()).hookNotices.isEmpty())
+    }
+
+    @Test fun completedNonStreamingResponseConfirmsDeliveryWithoutStreamContentCallback() {
+        val directory = temporary.newFolder()
+        val rule = rule()
+        val runtime = runtime(HookRuntimeStore.isolated(directory), { listOf(rule) })
+        runtime.completed(tool())
+        val batch = runtime.pending()
+        runtime.dispatched(batch, "non-stream-response")
+        runtime.finished(me.rerere.ai.provider.GenerationProgress(
+            1, me.rerere.ai.provider.GenerationPhase.COMPLETED, 0, dispatchedAt = 1,
+            finishedAt = 2, requestId = "non-stream-response", streamed = false,
+        ))
+        assertTrue(runtime.pending().ids.isEmpty())
+        assertTrue(runtime(HookRuntimeStore.isolated(directory), { listOf(rule) }).pending().ids.isEmpty())
+    }
+
 }
