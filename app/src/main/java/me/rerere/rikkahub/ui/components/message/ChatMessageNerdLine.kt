@@ -57,6 +57,10 @@ fun ChatMessageNerdLine(
     val summary = MessageMetricsSummary.from(message, progress, now)
     val latest = summary.latest
     val format = NumberFormat.getIntegerInstance()
+    val milliseconds = stringResource(R.string.pocket_stats_ms_unit)
+    val requestDuration: (Long) -> String = { value ->
+        if (value < 1_000) "${value.coerceAtLeast(0)} $milliseconds" else progressDuration(value)
+    }
     val wallEnd = if (active) java.time.LocalDateTime.now() else message.finishedAt?.toJavaLocalDateTime()
     val wallMs = wallEnd?.let { Duration.between(message.createdAt.toJavaLocalDateTime(), it).toMillis().coerceAtLeast(0) }
     val phase = progress?.let { stringResource(when (it.phase) {
@@ -100,8 +104,8 @@ fun ChatMessageNerdLine(
                         UsagePair(usage.promptTokens.toLong(), usage.completionTokens.toLong(), "latest-request-usage")
                     } ?: Text(stringResource(R.string.pocket_stats_missing_usage), style = MaterialTheme.typography.bodySmall, color = color)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("${stringResource(R.string.pocket_stats_queue)} ${progressDuration(latest.queueMs)}", style = MaterialTheme.typography.labelSmall)
-                        latest.firstContentMs?.let { Text("${stringResource(R.string.pocket_stats_first_content)} ${progressDuration(it)}", style = MaterialTheme.typography.labelSmall) }
+                        Text("${stringResource(R.string.pocket_stats_queue)} ${requestDuration(latest.queueMs)}", style = MaterialTheme.typography.labelSmall)
+                        latest.firstContentMs?.let { Text("${stringResource(R.string.pocket_stats_first_content)} ${requestDuration(it)}", style = MaterialTheme.typography.labelSmall) }
                     }
                 } else if (summary.legacyUsage != null) {
                     Text(stringResource(R.string.pocket_stats_legacy), style = MaterialTheme.typography.labelMedium)
@@ -113,7 +117,12 @@ fun ChatMessageNerdLine(
             }
         }
     }
-    if (diagnostics) ModalBottomSheet(onDismissRequest = { diagnostics = false }) {
+    if (diagnostics) ModalBottomSheet(
+        onDismissRequest = { diagnostics = false },
+        // A partially expanded sheet clips a full-height scroll viewport below the display.
+        // Diagnostics opens fully so its connection rows remain reachable by scrolling.
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    ) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 32.dp)
             .testTag("message-stats-diagnostics-sheet"), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text(stringResource(R.string.pocket_stats_diagnostics_title), style = MaterialTheme.typography.titleLarge)
@@ -131,8 +140,8 @@ fun ChatMessageNerdLine(
             if (summary.requests.isEmpty()) Text(stringResource(R.string.pocket_stats_legacy_scope), style = MaterialTheme.typography.bodySmall, color = color)
             Text(stringResource(R.string.pocket_stats_time_scope), style = MaterialTheme.typography.bodySmall, color = color)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                MetricField(stringResource(R.string.pocket_stats_queue), summary.requests.takeIf { it.isNotEmpty() }?.sumOf { it.queueMs }?.let(::progressDuration) ?: "—")
-                MetricField(stringResource(R.string.pocket_stats_receiving), summary.requests.mapNotNull { it.receivingMs }.takeIf { it.isNotEmpty() }?.sum()?.let(::progressDuration) ?: "—")
+                MetricField(stringResource(R.string.pocket_stats_queue), summary.requests.takeIf { it.isNotEmpty() }?.sumOf { it.queueMs }?.let(requestDuration) ?: "—")
+                MetricField(stringResource(R.string.pocket_stats_receiving), summary.requests.mapNotNull { it.receivingMs }.takeIf { it.isNotEmpty() }?.sum()?.let(requestDuration) ?: "—")
                 summary.speed?.let { MetricField(stringResource(R.string.pocket_stats_speed, it.toFixed(1)), "") }
             }
             summary.cost?.let { MetricField(stringResource(R.string.pocket_stats_cost), formatCost(it)) }
@@ -143,7 +152,7 @@ fun ChatMessageNerdLine(
                     ?: Text(stringResource(R.string.pocket_stats_missing_usage), style = MaterialTheme.typography.bodySmall)
                 if (summary.latestUsage?.aggregatedRequests == true) Text(stringResource(R.string.pocket_stats_aggregate_scope), style = MaterialTheme.typography.bodySmall, color = color)
                 request.httpStatus?.let { MetricField(stringResource(R.string.pocket_stats_http), "HTTP $it" + request.backend?.let { backend -> " · $backend" }.orEmpty()) }
-                request.firstContentMs?.let { MetricField(stringResource(R.string.pocket_stats_first_content), progressDuration(it)) }
+                request.firstContentMs?.let { MetricField(stringResource(R.string.pocket_stats_first_content), requestDuration(it)) }
                 summary.latestUsage?.cachedTokens?.takeIf { it > 0 }?.let { MetricField(stringResource(R.string.pocket_stats_cached), format.format(it)) }
             }
             if (active && progress?.phase == GenerationPhase.RECEIVING && progress.finishedAt == null) {

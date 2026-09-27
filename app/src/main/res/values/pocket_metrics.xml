@@ -37,4 +37,5 @@
     <string name="pocket_context_trigger_timing">The threshold is checked after tool results when the provider reports input usage. A real context overflow also starts recovery; crossing the estimate alone does not mean compaction has already started.</string>
     <string name="pocket_stats_latest_cycle">Latest provider cycle</string>
     <string name="pocket_stats_aggregate_scope">The provider combined several internal requests. These are cumulative usage figures; context uses a local estimate.</string>
+    <string name="pocket_stats_ms_unit">ms</string>
 </resources>

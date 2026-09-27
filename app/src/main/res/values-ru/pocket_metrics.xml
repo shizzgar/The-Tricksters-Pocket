@@ -37,4 +37,5 @@
     <string name="pocket_context_trigger_timing">Порог проверяется после результатов tools при наличии данных провайдера о входе. Реальное переполнение контекста также запускает восстановление; превышение оценки само по себе не означает, что сжатие уже началось.</string>
     <string name="pocket_stats_latest_cycle">Последний цикл провайдера</string>
     <string name="pocket_stats_aggregate_scope">Провайдер объединил несколько внутренних запросов. Здесь показан их суммарный расход; для контекста используется локальная оценка.</string>
+    <string name="pocket_stats_ms_unit">мс</string>
 </resources>
