@@ -88,6 +88,51 @@ class GenerationProgressTest {
         assertFalse(encoded.contains("requestObserver"))
     }
 
+    @Test fun `dispatch hooks are bound to the attempt and preparation does not consume`() {
+        val events = mutableListOf<String>()
+        val tracker = GenerationProgressTracker()
+        tracker.prepare(onDispatched = { events += "dispatch:$it" }, onFirstContent = { events += "content:$it" },
+            onFinished = { events += "finish:${it.phase}" })
+        val queued = tracker.begin()
+        assertTrue(events.isEmpty())
+        queued.finish(GenerationPhase.CANCELLED)
+        assertEquals(listOf("finish:CANCELLED"), events)
+        events.clear()
+        val actual = tracker.begin()
+        actual.dispatched()
+        actual.dispatched()
+        actual.content()
+        actual.content()
+        actual.finish(GenerationPhase.COMPLETED)
+        assertEquals(listOf("dispatch:${actual.requestId}", "content:${actual.requestId}", "finish:COMPLETED"), events)
+        tracker.prepare()
+        actual.dispatched()
+        tracker.begin().dispatched()
+        assertEquals(3, events.size)
+    }
+
+    @Test fun `failed durable dispatch checkpoint cannot mark request as dispatched`() {
+        val tracker = GenerationProgressTracker()
+        tracker.prepare(onDispatched = { throw java.io.IOException("checkpoint unavailable") })
+        val observer = tracker.begin()
+        assertThrows(java.io.IOException::class.java) { observer.dispatched() }
+        assertNull(tracker.state.value!!.dispatchedAt)
+        assertEquals(GenerationPhase.QUEUED, tracker.state.value!!.phase)
+    }
+
+    @Test fun `post-dispatch bookkeeping failure cannot discard content or mask cancellation`() {
+        val tracker = GenerationProgressTracker()
+        tracker.prepare(onFirstContent = { throw java.io.IOException("disk full") },
+            onFinished = { throw java.io.IOException("disk full") })
+        val observer = tracker.begin()
+        observer.dispatched()
+        observer.content()
+        assertNotNull(tracker.state.value!!.firstContentAt)
+        observer.finish(GenerationPhase.CANCELLED)
+        assertEquals(GenerationPhase.CANCELLED, tracker.state.value!!.phase)
+        assertEquals(1, tracker.completedMetrics().size)
+    }
+
     private class SilentProvider : Provider<ProviderSetting.OpenAI> {
         val opened = CompletableDeferred<Unit>()
         override suspend fun listModels(providerSetting: ProviderSetting.OpenAI) = emptyList<Model>()

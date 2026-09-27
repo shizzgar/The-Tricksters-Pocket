@@ -334,4 +334,66 @@ class ContextUsageSnapshotTest {
         assertEquals(400, snapshot.latestPromptTokens)
     }
 
+    @Test fun `pending hooks count toward next request context`() {
+        val conversation = chat(response(500))
+        val base = ContextUsageCalculator.snapshot(conversation, assistant, settings, model)
+        val pending = ContextUsageCalculator.snapshot(conversation, assistant, settings, model,
+            pendingHookInstructions = mapOf("hook" to "x".repeat(300)))
+        assertEquals(base.usedTokens + 100, pending.usedTokens)
+    }
+
+    @Test fun `prepared hook instructions are not counted again while queued`() {
+        val prefix = response(9000)
+        val conversation = chat(UIMessage.user("task"), prefix)
+        val request = requestContext(conversation, prefix, estimate = 500)
+            .copy(hookDeliveryIds = setOf("included"), transientHookTokens = 100)
+        val current = ContextUsageCalculator.snapshot(conversation, assistant, settings, model,
+            streaming = true, liveContext = request,
+            pendingHookInstructions = linkedMapOf("included" to "x".repeat(300), "later" to "x".repeat(150)))
+        assertEquals(550, current.usedTokens)
+    }
+
+    @Test fun `finished one-shot instructions leave next-request estimate but not provider usage`() {
+        val prefix = response(500)
+        val conversation = chat(UIMessage.user("task"), prefix)
+        val request = requestContext(conversation, prefix, estimate = 500)
+            .copy(hookDeliveryIds = setOf("sent"), transientHookTokens = 100)
+        val current = ContextUsageCalculator.snapshot(conversation, assistant, settings, model,
+            streaming = true, liveContext = request, liveUsage = TokenUsage(500, 20), liveFinished = true)
+        assertEquals(420, current.usedTokens)
+        assertEquals(500, current.latestPromptTokens)
+    }
+
+    @Test fun `unsent cancelled preparation keeps its queued hook once`() {
+        val prefix = response(9000)
+        val conversation = chat(UIMessage.user("task"), prefix)
+        val request = requestContext(conversation, prefix, estimate = 500)
+            .copy(hookDeliveryIds = setOf("pending"), transientHookTokens = 100)
+        val current = ContextUsageCalculator.snapshot(conversation, assistant, settings, model,
+            liveContext = request, liveFinished = true,
+            pendingHookInstructions = mapOf("pending" to "x".repeat(300)))
+        assertEquals(500, current.usedTokens)
+    }
+
+    @Test fun `invalid prepared context cannot hide a still-pending hook`() {
+        val conversation = chat(UIMessage.user("task"))
+        val request = requestContext(conversation, estimate = 500)
+            .copy(modelId = "another-model", hookDeliveryIds = setOf("pending"), transientHookTokens = 100)
+        val base = ContextUsageCalculator.snapshot(conversation, assistant, settings, model)
+        val current = ContextUsageCalculator.snapshot(conversation, assistant, settings, model,
+            liveContext = request, pendingHookInstructions = mapOf("pending" to "x".repeat(300)))
+        assertEquals(base.usedTokens + 100, current.usedTokens)
+    }
+
+    @Test fun `compaction keeps pending instructions without reviving the old prompt`() {
+        val conversation = chat(response(900))
+        val compaction = ConversationCompaction(conversation.id, "Summary", null,
+            conversation.messageNodes[0].id, model.id, false, 900, Instant.ofEpochMilli(2000))
+        val base = ContextUsageCalculator.snapshot(conversation, assistant, settings, model, compaction)
+        val current = ContextUsageCalculator.snapshot(conversation, assistant, settings, model, compaction,
+            pendingHookInstructions = mapOf("pending" to "x".repeat(300)))
+        assertEquals(base.usedTokens + 100, current.usedTokens)
+        assertNull(current.latestPromptTokens)
+    }
+
 }

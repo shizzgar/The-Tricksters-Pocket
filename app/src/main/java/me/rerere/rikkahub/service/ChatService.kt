@@ -403,6 +403,46 @@ class ChatService(
     private val folderRepository: FolderRepository,
     private val projectRepository: me.rerere.rikkahub.data.repository.ProjectRepository? = null,
 ) {
+    private val hookRuntimeStore = me.rerere.rikkahub.data.ai.hooks.HookRuntimeStore.at(context.filesDir)
+    private val hookContentResolver = me.rerere.rikkahub.data.ai.hooks.ToolHookContentResolver(skillManager)
+
+    private suspend fun toolHookRuntime(
+        conversation: Conversation,
+        assistant: Assistant,
+    ): me.rerere.rikkahub.data.ai.hooks.ToolHookRuntime {
+        val settings = settingsStore.settingsFlow.value
+        val ancestors = mutableSetOf<Uuid>()
+        val parentAssistants = mutableSetOf<Uuid>()
+        val parentWorkspaces = mutableSetOf<String>()
+        var parentId = conversation.parentConversationId
+        while (parentId != null && ancestors.size < 32 && ancestors.add(parentId)) {
+            val parent = conversationRepo.getConversationById(parentId) ?: break
+            parentAssistants += parent.assistantId
+            settings.assistants.firstOrNull { it.id == parent.assistantId }?.let { configured ->
+                val effective = projectRepository?.effectiveAssistant(parent.id, configured, settings) ?: configured
+                effective.workspaceId?.toString()?.let(parentWorkspaces::add)
+            }
+            parentId = parent.parentConversationId
+        }
+        return me.rerere.rikkahub.data.ai.hooks.ToolHookRuntime(
+            store = hookRuntimeStore,
+            conversationId = conversation.id.toString(),
+            turnId = conversation.currentMessages.lastOrNull { it.role == MessageRole.USER }?.id?.toString()
+                ?: conversation.id.toString(),
+            rules = { settingsStore.settingsFlow.value.toolHooks },
+            scope = me.rerere.rikkahub.data.ai.hooks.ToolHookScopeContext(
+                assistantId = assistant.id,
+                workspaceId = assistant.workspaceId?.toString(),
+                conversationId = conversation.id,
+                isSubagent = conversation.parentConversationId != null || conversation.subAgentRunId != null,
+                parentAssistantIds = parentAssistants,
+                parentWorkspaceIds = parentWorkspaces,
+                ancestorConversationIds = ancestors,
+            ),
+            resolveContent = hookContentResolver::resolve,
+        )
+    }
+
     // workspace 系统提示注入 (依赖 workspaceRepository, 故在类内构造)
     private val workspaceReminderTransformer = WorkspaceReminderTransformer(workspaceRepository)
 
@@ -1427,6 +1467,7 @@ class ChatService(
             }
             val startedAt = System.currentTimeMillis()
             val executionTimer = me.rerere.ai.ui.ToolExecutionTimer()
+            val executionAttemptId = java.util.UUID.randomUUID().toString()
             val output = try {
                 if (toolPart.toolName.startsWith("termux_")) {
                     tool.execute(toolPart.inputAsJson())
@@ -1449,11 +1490,22 @@ class ChatService(
             // StateFlow.update re-applies replaceToolCallPart against whatever is current
             // at write time, so a concurrent write in the meantime isn't silently reverted
             // the way overwriting with this function's stale `conversation` snapshot would.
+            val currentConversation = sessions[conversationId]?.state?.value
+                ?: conversationRepo.getConversationById(conversationId)
+                ?: return RerunToolResult.Failure("conversation no longer exists")
+            val currentSettings = settingsStore.settingsFlow.value
+            val configuredAssistant = currentSettings.getAssistantById(currentConversation.assistantId) ?: currentSettings.getCurrentAssistant()
+            val currentAssistant = projectRepository?.effectiveAssistant(conversationId, configuredAssistant, currentSettings) ?: configuredAssistant
+            val hookTool = toolHookRuntime(currentConversation, currentAssistant).completed(toolPart.copy(
+                output = output, executionStartedAt = startedAt, executionAttemptId = executionAttemptId,
+                executionDurationMs = executionTimer.elapsedMillis(), executionTimer = null,
+            ))
             var applied = false
             val toolReplacer: (UIMessagePart.Tool) -> UIMessagePart.Tool = {
                 applied = true
-                it.copy(output = output, executionStartedAt = startedAt,
-                    executionDurationMs = executionTimer.elapsedMillis(), executionTimer = null)
+                it.copy(output = output, executionStartedAt = startedAt, executionAttemptId = executionAttemptId,
+                    executionDurationMs = executionTimer.elapsedMillis(), executionTimer = null,
+                    hookNotices = (it.hookNotices + hookTool.hookNotices).distinctBy { notice -> notice.id })
             }
             val sessionStillTracked = mutexFor(conversationId).withLock {
                 if (!sessions.containsKey(conversationId)) return@withLock false
@@ -1848,7 +1900,9 @@ class ChatService(
                 compactedMessageView!!.messages
             }
             session.generationProgress.prepare()
+            val hooks = toolHookRuntime(conversation, assistant)
             generationLoop.generateText(
+                toolHookRuntime = hooks,
                 generationProgress = session.generationProgress,
                 autonomousCycle = autonomousCycle,
                 manageUiLifecycle = manageUiLifecycle,

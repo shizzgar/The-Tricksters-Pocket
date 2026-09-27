@@ -19,7 +19,7 @@ a skill workspace, and the PocketBro, ThinkBro, ReBro, NetBro, DevBro, OpsBro, V
 
 </div>
 
-**2.5.1-pocket.5:** search keeps its magnifier, while the model selector uses the pocket as its fallback. The overlay can be moved and collapsed to a circle. Context accounting, compact response statistics and Termux timers are updated. [Controls and metrics](docs/pocket-controls.md).
+**2.5.1-pocket.6 — in development:** tool hooks add instructions when tool results match configured conditions. Choose an inline prompt or skill section, assistant/workspace/chat scopes, and preview against past calls. Open Hooks beside prompt injections or from the chat composer’s **+** menu. [Hook behavior and setup](docs/tool-hooks.md).
 
 [Tasks, results, projects and technical Bros](docs/pocket-workbench.md) · [Nested subagent chats](docs/POCKET-NESTED-CHATS.md).
 

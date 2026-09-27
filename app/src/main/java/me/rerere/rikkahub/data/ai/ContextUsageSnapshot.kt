@@ -86,6 +86,7 @@ object ContextUsageCalculator {
         compaction: ConversationCompaction? = null,
         progress: GenerationProgress? = null,
         streaming: Boolean = false,
+        pendingHookInstructions: Map<String, String> = emptyMap(),
     ): ContextUsageSnapshot {
         val assistant = settings.getAssistantById(conversation.assistantId) ?: settings.getCurrentAssistant()
         val model = settings.findModelById(conversation.chatModelId ?: assistant.chatModelId ?: settings.chatModelId)
@@ -97,7 +98,7 @@ object ContextUsageCalculator {
         return snapshot(conversation, assistant, settings, model, compaction, streaming,
             liveUsage = live?.usage.takeIf { live?.context?.modelId == model?.id?.toString() },
             liveRequestStartedAt = startedAt, liveContext = live?.context,
-            liveFinished = live?.finishedAt != null)
+            liveFinished = live?.finishedAt != null, pendingHookInstructions = pendingHookInstructions)
     }
 
     fun snapshot(
@@ -111,6 +112,7 @@ object ContextUsageCalculator {
         liveRequestStartedAt: Instant? = null,
         liveContext: GenerationRequestContext? = null,
         liveFinished: Boolean = false,
+        pendingHookInstructions: Map<String, String> = emptyMap(),
     ): ContextUsageSnapshot {
         val effectiveCompaction = compaction?.takeUnless { it.isAuto && !settings.enableAutoCompaction }
         val view = ContextCompactionView.build(conversation, effectiveCompaction)
@@ -159,8 +161,14 @@ object ContextUsageCalculator {
             anchor != null -> ContextBudgetPlanner.estimateInputTokens(withMeasurements)
             else -> ContextBudgetPlanner.estimateContextTokens(fallbackMessages)
         }
+        // Prepared input already contains its batch, even while the scheduler is queued.
+        // A cancelled/finished request no longer retains its one-shot instructions.
+        val includedHooks = prepared?.hookDeliveryIds.takeIf { !liveFinished }.orEmpty()
+        val pendingText = pendingHookInstructions.filterKeys { it !in includedHooks }.values.joinToString("\n\n")
+        val withPendingHooks = (used.toLong() + ContextBudgetPlanner.estimateHookPromptTokens(pendingText))
+            .coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
         val budget = budget(assistant, settings, model)
-        return ContextUsageSnapshot(used, budget.contextLimit, latest?.promptTokens, budget.outputReserve,
+        return ContextUsageSnapshot(withPendingHooks, budget.contextLimit, latest?.promptTokens, budget.outputReserve,
             budget.compactionTrigger, settings.enableAutoCompaction, budget.userLimit,
             latest != null, streaming, view.compaction != null, budget.configuredTrigger)
     }

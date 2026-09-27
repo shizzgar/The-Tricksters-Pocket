@@ -56,6 +56,8 @@ import me.rerere.rikkahub.data.files.FileFolders
 import me.rerere.rikkahub.data.ai.transformers.onGenerationFinish
 import me.rerere.rikkahub.data.ai.transformers.transforms
 import me.rerere.rikkahub.data.ai.transformers.visualTransforms
+import me.rerere.rikkahub.data.ai.hooks.HookPromptBatch
+import me.rerere.rikkahub.data.ai.hooks.ToolHookRuntime
 import me.rerere.rikkahub.data.ai.limits.ToolRuntimeLimits
 import me.rerere.rikkahub.data.ai.tools.buildMemoryTools
 import me.rerere.rikkahub.data.datastore.Settings
@@ -538,6 +540,7 @@ class GenerationLoop(
         conversationModeInjectionIds: Set<Uuid> = emptySet(),
         conversationLorebookIds: Set<Uuid> = emptySet(),
         workspaceCwd: String? = null,
+        toolHookRuntime: ToolHookRuntime? = null,
     ): Flow<GenerationChunk> = flow {
         val provider = model.findProvider(settings.providers) ?: error("Provider not found")
         val providerImpl = providerManager.getProviderByType(provider)
@@ -554,7 +557,10 @@ class GenerationLoop(
                     Log.w(TAG, "replay: ${part.toolName} (${part.toolCallId}) had executionStartedAt set with empty output → Denied(interrupted_unknown_outcome)")
                     if (part.toolName == "termux_job_start" && conversationId != null) {
                         val recovered = reconcileTermuxJob(part, conversationId.toString(), tools)
-                        if (recovered != null) return@parts part.copy(output = recovered)
+                        if (recovered != null) {
+                            val completed = part.copy(output = recovered)
+                            return@parts toolHookRuntime?.completed(completed) ?: completed
+                        }
                     }
                     part.copy(approvalState = ToolApprovalState.Denied(
                         "interrupted_unknown_outcome: a previous attempt to execute this tool started " +
@@ -709,7 +715,7 @@ class GenerationLoop(
                             systemAddendum = systemAddendum,
                             messages = messages,
                             onUpdateMessages = {
-                                messages = it.transforms(
+                                messages = (toolHookRuntime?.refreshNotices(it) ?: it).transforms(
                                     transformers = outputTransformers,
                                     context = context,
                                     model = model,
@@ -742,6 +748,7 @@ class GenerationLoop(
                             conversationLorebookIds = conversationLorebookIds,
                             workspaceCwd = workspaceCwd,
                             generationProgress = generationProgress,
+                            toolHookRuntime = toolHookRuntime,
                             onModelFinish = { modelFinishReason = it },
                             generationPriority = if (stepIndex > 0) me.rerere.ai.provider.GenerationPriority.CONTINUATION
                                 else me.rerere.ai.provider.GenerationPriority.INTERACTIVE,
@@ -1128,6 +1135,7 @@ class GenerationLoop(
                             // handler's needsImmediatePersist branch.
                             val markedTool = tool.copy(
                                 executionStartedAt = System.currentTimeMillis(),
+                                executionAttemptId = java.util.UUID.randomUUID().toString(),
                                 executionDurationMs = null,
                                 executionTimer = me.rerere.ai.ui.ToolExecutionTimer(),
                             ).also { timedTool = it }
@@ -1167,6 +1175,8 @@ class GenerationLoop(
                                         Log.w(TAG, "generateText: ${toolDef.name} cancelled — wall-clock budget exhausted mid-execution")
                                         listOf(UIMessagePart.Text(json.encodeToString(buildJsonObject {
                                             put("error", JsonPrimitive("tool_cancelled_wall_clock"))
+                                            put("timed_out", true)
+                                            put("execution_outcome_unknown", true)
                                             put(
                                                 "detail",
                                                 JsonPrimitive("tool execution exceeded the ${ToolRuntimeLimits.turnBudgetMs / 1000}s turn budget")
@@ -1186,9 +1196,11 @@ class GenerationLoop(
                             // model can pull the full payload on demand instead of burning
                             // the context window.
                             val hasShellAccess = toolsInternal.any { it.name == "workspace_shell" }
-                            executedTools += markedTool.copy(
+                            val completedTool = markedTool.copy(output = result, executionDurationMs = durationMs)
+                            val withHooks = if (remainingMs > 0L) toolHookRuntime?.completed(completedTool) ?: completedTool
+                                else completedTool
+                            executedTools += withHooks.copy(
                                 output = maybeTruncateToolOutput(tool.toolCallId, result, hasShellAccess),
-                                executionDurationMs = durationMs,
                             )
                         }.onFailure {
                             val failure = it
@@ -1208,7 +1220,7 @@ class GenerationLoop(
                             // user-visible "java.lang.IllegalStateException at ..." walls
                             // for what was usually a one-line "name is required" problem.
                             Log.w(TAG, "tool ${tool.toolName} threw", it)
-                            executedTools += timedTool.copy(
+                            val failedTool = timedTool.copy(
                                 executionDurationMs = durationMs,
                                 output = listOf(
                                     UIMessagePart.Text(
@@ -1235,6 +1247,7 @@ class GenerationLoop(
                                     )
                                 )
                             )
+                            executedTools += toolHookRuntime?.completed(failedTool) ?: failedTool
                         }
                     }
                 }
@@ -1368,11 +1381,12 @@ class GenerationLoop(
         conversationModeInjectionIds: Set<Uuid> = emptySet(),
         conversationLorebookIds: Set<Uuid> = emptySet(),
         workspaceCwd: String? = null,
+        toolHookRuntime: ToolHookRuntime? = null,
     ) {
         val metricsBefore = generationProgress?.completedMetrics()?.map { it.requestId }?.toSet().orEmpty()
         generationProgress?.prepare()
         val includedMessages = messages.limitContext(assistant.contextMessageLimit)
-        val internalMessages = buildList {
+        val transformedMessages = buildList {
             // Conversation-level system prompt override (upstream): when the assistant
             // allows it and the conversation supplies one, it replaces the assistant prompt.
             val effectiveSystemPrompt = AgentTaskPolicy.get(conversationId?.toString().orEmpty())?.systemPrompt ?:
@@ -1422,18 +1436,27 @@ class GenerationLoop(
             workspaceCwd = workspaceCwd,
         )
 
+        val hookBatch = toolHookRuntime?.pending() ?: HookPromptBatch.EMPTY
+        val internalMessages = ToolHookRuntime.inject(transformedMessages, hookBatch)
+        val hookTokenDelta = (ContextBudgetPlanner.estimateContextTokens(internalMessages) -
+            ContextBudgetPlanner.estimateContextTokens(transformedMessages)).coerceAtLeast(0)
         generationProgress?.prepare(ContextRequestAccounting.capture(
             model = model,
             messages = messages,
             includedMessages = includedMessages,
             transformedMessages = internalMessages,
+            transientHookTokens = hookTokenDelta,
+            hookDeliveryIds = hookBatch.ids,
             configurationKey = ContextRequestAccounting.configurationKey(
                 settings.assistants.firstOrNull { it.id == assistant.id } ?: assistant,
                 model, conversationSystemPrompt, conversationModeInjectionIds,
                 conversationLorebookIds, workspaceCwd,
                 AgentTaskPolicy.get(conversationId?.toString().orEmpty())?.systemPrompt,
             ),
-        ))
+        ), onDispatched = { requestId -> toolHookRuntime?.dispatched(hookBatch, requestId) },
+            onFirstContent = { requestId -> toolHookRuntime?.received(requestId) },
+            onFinished = { progress -> toolHookRuntime?.finished(progress) },
+        )
         var messages: List<UIMessage> = messages
         val scopedPolicy = AgentTaskPolicy.get(conversationId?.toString().orEmpty())
         val executionModel = when {

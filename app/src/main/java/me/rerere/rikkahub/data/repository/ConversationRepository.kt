@@ -8,6 +8,8 @@ import androidx.paging.PagingData
 import androidx.paging.PagingSource
 import androidx.paging.map
 import androidx.room.withTransaction
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -413,6 +415,9 @@ class ConversationRepository(
         me.rerere.rikkahub.costguards.AuxiliaryTokenUsageStore.delete(conversation.id.toString())
         me.rerere.rikkahub.data.task.TaskArtifactStore.at(context.filesDir).removeConversation(conversation.id.toString())
         me.rerere.rikkahub.data.ai.SessionJournal.at(context.filesDir).delete(conversation.id.toString())
+        withContext(Dispatchers.IO) {
+            me.rerere.rikkahub.data.ai.hooks.HookRuntimeStore.at(context.filesDir).removeConversation(conversation.id.toString())
+        }
         org.koin.core.context.GlobalContext.getOrNull()?.getOrNull<ProjectRepository>()?.removeConversation(conversation.id.toString())
         filesManager.deleteChatFiles(fullConversation.files)
     }

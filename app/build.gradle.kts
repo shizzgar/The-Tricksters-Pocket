@@ -19,8 +19,8 @@ android {
         applicationId = "excp.rikkahub"
         minSdk = 26
         targetSdk = 37
-        versionCode = 194
-        versionName = "2.5.1-pocket.5"
+        versionCode = 195
+        versionName = "2.5.1-pocket.6"
         val buildRevision = providers.environmentVariable("GITHUB_SHA").orNull
             ?.takeIf { it.matches(Regex("[0-9a-fA-F]{40}")) } ?: "local"
         buildConfigField("String", "BUILD_REVISION", "\"$buildRevision\"")

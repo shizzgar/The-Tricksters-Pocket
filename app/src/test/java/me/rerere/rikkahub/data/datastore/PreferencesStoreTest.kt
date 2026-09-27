@@ -11,6 +11,22 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PreferencesStoreTest {
+    @Test fun `hooks default empty in existing backups`() {
+        val legacy = JsonObject(JsonInstant.parseToJsonElement(JsonInstant.encodeToString(Settings())).jsonObject.filterKeys { it != "toolHooks" })
+        assertTrue(JsonInstant.decodeFromString<Settings>(legacy.toString()).toolHooks.isEmpty())
+    }
+
+    @Test fun `hooks survive settings backup with scopes and skill action`() {
+        val hook = me.rerere.rikkahub.data.model.ToolHook(
+            name = "JADX reference",
+            scope = me.rerere.rikkahub.data.model.ToolHookScope(workspaceIds = setOf("workspace-id"), inheritToSubagents = true),
+            condition = me.rerere.rikkahub.data.model.ToolHookCondition(commandExecutable = "jadx", stderrContains = "unknown option"),
+            action = me.rerere.rikkahub.data.model.ToolHookAction(type = me.rerere.rikkahub.data.model.ToolHookActionType.SKILL, skillName = "android-re", skillSection = "JADX"),
+        )
+        val settings = Settings(toolHooks = listOf(hook))
+        assertEquals(settings.toolHooks, JsonInstant.decodeFromString<Settings>(JsonInstant.encodeToString(settings)).toolHooks)
+    }
+
     @Test fun `generation runtime persists without changing legacy network settings`() {
         val legacy = JsonInstant.decodeFromString<NetworkSetting>("""{"proxyUrl":"http://proxy","enableAutoRetry":false}""")
         assertEquals(30, legacy.generationRuntime.readTimeoutMinutes)

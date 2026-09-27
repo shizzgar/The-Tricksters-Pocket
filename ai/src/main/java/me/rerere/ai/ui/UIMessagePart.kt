@@ -201,6 +201,8 @@ sealed class UIMessagePart {
         /** Monotonic duration of this tool request, including transport/waits; not job lifetime. */
         val executionDurationMs: Long? = null,
         @kotlinx.serialization.Transient val executionTimer: ToolExecutionTimer? = null,
+        val hookNotices: List<ToolHookNotice> = emptyList(),
+        val executionAttemptId: String? = null,
     ) : UIMessagePart() {
         /** Whether the tool has been executed (has output) */
         val isExecuted: Boolean get() = output.isNotEmpty()
@@ -237,6 +239,8 @@ sealed class UIMessagePart {
                 metadata = if (other.metadata != null) other.metadata else metadata,
                 executionDurationMs = other.executionDurationMs ?: executionDurationMs,
                 executionTimer = other.executionTimer ?: executionTimer,
+                hookNotices = (hookNotices + other.hookNotices).distinctBy { it.id },
+                executionAttemptId = other.executionAttemptId ?: executionAttemptId,
             )
         }
     }

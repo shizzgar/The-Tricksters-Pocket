@@ -43,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -114,6 +115,7 @@ internal fun FilesPicker(
     onOpenTermuxJobs: () -> Unit = {},
     onOpenTrajectory: () -> Unit = {},
     onOpenTask: () -> Unit = {},
+    onOpenToolHooks: () -> Unit = {},
     jobTotal: Long? = null,
     jobsRunning: Long? = null,
 ) {
@@ -247,6 +249,14 @@ internal fun FilesPicker(
             supportingContent = { Text(stringResource(R.string.task_entry_hint)) },
             colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
             modifier = Modifier.clip(MaterialTheme.shapes.large).clickable { onOpenTask() },
+        )
+
+        ListItem(
+            leadingContent = { Icon(HugeIcons.Settings02, null) },
+            headlineContent = { Text(stringResource(R.string.hooks_chat_entry)) },
+            supportingContent = { Text(stringResource(R.string.hooks_chat_entry_hint)) },
+            colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+            modifier = Modifier.testTag("chat-tool-hooks-entry").clip(MaterialTheme.shapes.large).clickable { onOpenToolHooks() },
         )
 
         // Compress History Button

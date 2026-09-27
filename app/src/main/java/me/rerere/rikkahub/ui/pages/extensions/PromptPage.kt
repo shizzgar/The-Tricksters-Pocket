@@ -107,7 +107,7 @@ import sh.calvin.reorderable.rememberReorderableLazyListState
 @Composable
 fun PromptPage(vm: PromptVM = koinViewModel()) {
     val settings by vm.settings.collectAsStateWithLifecycle()
-    val pagerState = rememberPagerState { 2 }
+    val pagerState = rememberPagerState { 3 }
     val scope = rememberCoroutineScope()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
@@ -138,6 +138,12 @@ fun PromptPage(vm: PromptVM = koinViewModel()) {
                         scope.launch { pagerState.animateScrollToPage(1) }
                     }
                 )
+                NavigationBarItem(
+                    selected = pagerState.currentPage == 2,
+                    label = { Text(stringResource(R.string.hooks_title)) },
+                    icon = { Icon(HugeIcons.Tools, null) },
+                    onClick = { scope.launch { pagerState.animateScrollToPage(2) } }
+                )
             }
         },
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -159,6 +165,8 @@ fun PromptPage(vm: PromptVM = koinViewModel()) {
                     lorebooks = settings.lorebooks,
                     onUpdate = { vm.updateSettings(settings.copy(lorebooks = it)) }
                 )
+
+                2 -> ToolHooksManager()
             }
         }
     }

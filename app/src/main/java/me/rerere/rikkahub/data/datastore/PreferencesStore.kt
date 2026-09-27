@@ -53,6 +53,7 @@ import me.rerere.rikkahub.data.model.Lorebook
 import me.rerere.rikkahub.data.model.PromptInjection
 import me.rerere.rikkahub.data.model.QuickMessage
 import me.rerere.rikkahub.data.model.Tag
+import me.rerere.rikkahub.data.model.ToolHook
 import me.rerere.rikkahub.data.sync.s3.S3Config
 import me.rerere.rikkahub.subagent.SubAgentProfile
 import me.rerere.rikkahub.ui.theme.CustomTheme
@@ -238,6 +239,7 @@ class SettingsStore(
 
         // 提示词注入
         val MODE_INJECTIONS = stringPreferencesKey("mode_injections")
+        val TOOL_HOOKS = stringPreferencesKey("tool_hooks")
         val LOREBOOKS = stringPreferencesKey("lorebooks")
         val QUICK_MESSAGES = stringPreferencesKey("quick_messages")
 
@@ -339,6 +341,7 @@ class SettingsStore(
                     preferences[SELECTED_ASR_PROVIDER] = it.toString()
                 } ?: preferences.remove(SELECTED_ASR_PROVIDER)
                 preferences[MODE_INJECTIONS] = JsonInstant.encodeToString(settings.modeInjections)
+                preferences[TOOL_HOOKS] = JsonInstant.encodeToString(settings.toolHooks)
                 preferences[LOREBOOKS] = JsonInstant.encodeToString(settings.lorebooks)
                 preferences[QUICK_MESSAGES] = JsonInstant.encodeToString(settings.quickMessages)
                 preferences[WEB_SERVER_ENABLED] = settings.webServerEnabled
@@ -520,6 +523,12 @@ class SettingsStore(
                 modeInjections = preferences[MODE_INJECTIONS]?.let { raw ->
                     runCatching { JsonInstant.decodeFromString<List<PromptInjection.ModeInjection>>(raw) }.getOrElse {
                         Log.w(TAG, "Failed to decode modeInjections, using default", it)
+                        emptyList()
+                    }
+                } ?: emptyList(),
+                toolHooks = preferences[TOOL_HOOKS]?.let { raw ->
+                    runCatching { JsonInstant.decodeFromString<List<ToolHook>>(raw) }.getOrElse {
+                        Log.w(TAG, "Failed to decode toolHooks, using default", it)
                         emptyList()
                     }
                 } ?: emptyList(),
@@ -705,6 +714,7 @@ class SettingsStore(
                     settings.providers.flatMap { it.models }.any { it.id == uuid }
                 },
                 modeInjections = settings.modeInjections.distinctBy { it.id },
+                toolHooks = settings.toolHooks.distinctBy { it.id },
                 lorebooks = settings.lorebooks.distinctBy { it.id },
                 quickMessages = settings.quickMessages.distinctBy { it.id },
             )
@@ -932,6 +942,7 @@ data class Settings(
     val asrProviders: List<ASRProviderSetting> = emptyList(),
     val selectedASRProviderId: Uuid? = null,
     val modeInjections: List<PromptInjection.ModeInjection> = DEFAULT_MODE_INJECTIONS,
+    val toolHooks: List<ToolHook> = emptyList(),
     val lorebooks: List<Lorebook> = emptyList(),
     val quickMessages: List<QuickMessage> = emptyList(),
     val webServerEnabled: Boolean = false,

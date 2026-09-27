@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="hooks_chat_entry">Hooks инструментов</string>
+    <string name="hooks_chat_entry_hint">Добавлять инструкции по результатам вызовов tools.</string>
+</resources>
