@@ -48,4 +48,4 @@ Rules are included in settings backup. Tool notice snapshots stay with conversat
 
 ## Validation
 
-Pocket.6 CI and Android visual verification are in progress. Real Termux and device-specific process behavior still require a physical-device check.
+[CI for `f33cdec`](https://github.com/shizzgar/The-Tricksters-Pocket/actions/runs/36329653500) passed 1188 JVM, 68 Python and 85 Android tests and built the optimized ARM64 release. Hook checks cover structured outcomes, scopes, skill sections, durable delivery/retry and restart recovery, background-job deduplication, context accounting, editor validation and tool-card previews. Android tests run the debug variant on an API 35 emulator; release is built separately. Four hook screens were captured and inspected. The release APK was signed and its v2/v3 signatures verified against the permanent ReBro certificate. [Release provenance](releases/2.5.1-pocket.6.json) records the source, hashes, counts and screenshot limits. Physical-device Termux and OEM overlay behavior require a device check.
