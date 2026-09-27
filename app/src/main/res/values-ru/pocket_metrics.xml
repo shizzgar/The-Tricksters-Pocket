@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pocket_stats_expand">Показать статистику</string>
+    <string name="pocket_stats_collapse">Скрыть статистику</string>
+    <string name="pocket_stats_context">Контекст %1$s</string>
+    <string name="pocket_stats_output">Выход %1$s</string>
+    <string name="pocket_stats_speed">%1$s ток/с</string>
+    <string name="pocket_stats_elapsed">Время %1$s</string>
+    <string name="pocket_stats_latest">Последний запрос</string>
+    <string name="pocket_stats_input">Вход</string>
+    <string name="pocket_stats_generated">Выход</string>
+    <string name="pocket_stats_reply">Весь ответ · запросов: %1$d</string>
+    <string name="pocket_stats_legacy">Сохранённый расход</string>
+    <string name="pocket_stats_missing_usage">Провайдер не сообщил расход этого запроса.</string>
+    <string name="pocket_stats_partial">Неполный расход · данные %1$d из %2$d запросов</string>
+    <string name="pocket_stats_queue">Очередь</string>
+    <string name="pocket_stats_first_content">Первый фрагмент</string>
+    <string name="pocket_stats_receiving">Генерация</string>
+    <string name="pocket_stats_diagnostics">Подробности и соединение</string>
+    <string name="pocket_stats_diagnostics_title">Подробности измерений</string>
+    <string name="pocket_stats_context_scope">Контекст — оценка следующего запроса. Повторно отправленный при вызовах tools вход учитывается в расходе, но не накапливается в окне контекста.</string>
+    <string name="pocket_stats_time_scope">Время включает инструменты и паузы. Скорость — измеренный выход за интервал от первого до последнего фрагмента; очередь, ожидание и инструменты исключены.</string>
+    <string name="pocket_stats_legacy_scope">В записи нет измерений отдельных запросов. Сохранённый расход нельзя отнести к последнему запросу; скорость недоступна.</string>
+    <string name="pocket_stats_http">Соединение</string>
+    <string name="pocket_stats_cached">Кешированный вход · последний запрос</string>
+    <string name="pocket_stats_cost">Сообщённая стоимость · весь ответ</string>
+    <string name="pocket_stats_idle">С последнего фрагмента</string>
+    <string name="pocket_context_reserve_short">Резерв ответа</string>
+    <string name="pocket_context_free_short">Свободно для входа</string>
+    <string name="pocket_context_compact_short">Автосжатие</string>
+    <string name="pocket_context_off_short">Выключено</string>
+    <string name="pocket_context_unknown_short">Неизвестно</string>
+    <string name="pocket_context_threshold_short">При ≈%1$s токенов</string>
+    <string name="pocket_context_configured_threshold">Заданный порог: %1$s. Рабочий порог дополнительно оставляет резерв ответа внутри окна контекста.</string>
+    <string name="pocket_context_compact_source">Оценка контекста следующего запроса</string>
+    <string name="pocket_context_stream_source">Текущая оценка · ответ ещё растёт</string>
+    <string name="pocket_context_trigger_timing">Порог проверяется после результатов tools при наличии данных провайдера о входе. Реальное переполнение контекста также запускает восстановление; превышение оценки само по себе не означает, что сжатие уже началось.</string>
+    <string name="pocket_stats_latest_cycle">Последний цикл провайдера</string>
+    <string name="pocket_stats_aggregate_scope">Провайдер объединил несколько внутренних запросов. Здесь показан их суммарный расход; для контекста используется локальная оценка.</string>
+</resources>

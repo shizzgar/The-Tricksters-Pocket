@@ -11,6 +11,8 @@ data class TokenUsage(
     // Provider-reported generation cost in USD (OpenRouter `usage.cost`). Null when the
     // provider doesn't report it. Nullable + defaulted so older persisted messages decode fine.
     val cost: Double? = null,
+    /** Billing totals spanning hidden provider continuations, not one context window. */
+    val aggregatedRequests: Boolean = false,
 )
 
 fun TokenUsage?.merge(other: TokenUsage): TokenUsage {
@@ -37,5 +39,9 @@ fun TokenUsage?.merge(other: TokenUsage): TokenUsage {
         totalTokens = totalTokens,
         cachedTokens = cachedTokens,
         cost = cost,
+        // A fresh positive prompt starts a new measurement even when the UI response is
+        // reused. Completion-only updates retain the scope of the current measurement.
+        aggregatedRequests = other.aggregatedRequests ||
+            (other.promptTokens <= 0 && this?.aggregatedRequests == true),
     )
 }

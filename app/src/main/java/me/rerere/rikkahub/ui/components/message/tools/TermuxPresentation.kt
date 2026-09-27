@@ -1,14 +1,46 @@
 package me.rerere.rikkahub.ui.components.message.tools
 
 import kotlinx.serialization.json.*
+import me.rerere.ai.ui.UIMessagePart
 
 /** Presentation only: never interpret terminal output as shell/HTML/Markdown instructions. */
 internal enum class TermuxStatus {
     PENDING, APPROVAL, DENIED, RUNNING, UNKNOWN, COMPLETED, FAILED, TIMEOUT, DISPATCHED, SESSION_UPDATED,
-    STARTING, OBSERVED_RUNNING, CANCELLING, CANCELLED, JOB_TIMEOUT, RESPONSE_RECEIVED, LOGS_REMOVED,
+    STARTING, OBSERVED_RUNNING, CANCELLING, CANCELLED, JOB_TIMEOUT, RESPONSE_RECEIVED, LOGS_REMOVED, INTERRUPTED,
 }
 
 internal enum class TermuxOutputState { ARCHIVED, MORE_AVAILABLE, PREVIEW_SHORTENED, TRUNCATED, UNAVAILABLE, REMOVED }
+
+internal enum class TermuxTimingKind { REQUEST, REQUEST_RUNNING, REQUEST_INTERRUPTED, JOB, JOB_SNAPSHOT }
+internal data class TermuxTiming(val kind: TermuxTimingKind, val durationMs: Long, val estimated: Boolean = false)
+
+/** Job results are frozen observations. Only the attempt's in-process clock may tick. */
+internal fun termuxTimings(tool: UIMessagePart.Tool, loading: Boolean, output: JsonObject?): List<TermuxTiming> = buildList {
+    val timer = tool.executionTimer
+    val elapsed = tool.executionDurationMs?.takeIf { it >= 0 } ?: timer?.elapsedMillis()
+    if (elapsed != null) add(TermuxTiming(when {
+        !tool.isExecuted && loading && timer?.isRunning == true -> TermuxTimingKind.REQUEST_RUNNING
+        !tool.isExecuted && !loading -> TermuxTimingKind.REQUEST_INTERRUPTED
+        else -> TermuxTimingKind.REQUEST
+    }, elapsed))
+    jobTiming(output)?.let(::add)
+}
+
+internal fun jobTiming(output: JsonObject?): TermuxTiming? {
+    if (output == null || output.stringValue("job_id").isNullOrBlank()) return null
+    val state = output.stringValue("state")
+    val active = state in setOf("running", "cancelling")
+    if (!active && state !in setOf("completed", "failed", "cancelled", "timed_out")) return null
+    val duration = (output["duration_ms"] as? JsonPrimitive)?.longOrNull?.takeIf { it >= 0 }
+    val kind = if (active) TermuxTimingKind.JOB_SNAPSHOT else TermuxTimingKind.JOB
+    if (duration != null) return TermuxTiming(kind, duration)
+    // Legacy snapshots can only supply a wall-clock estimate. Never use "now" here.
+    val start = (output["started_at"] as? JsonPrimitive)?.doubleOrNull ?: return null
+    val end = (output[if (active) "output_observed_at" else "finished_at"] as? JsonPrimitive)?.doubleOrNull ?: return null
+    val elapsed = (end - start) * 1000
+    if (!start.isFinite() || !end.isFinite() || elapsed < 0 || elapsed >= Long.MAX_VALUE.toDouble()) return null
+    return TermuxTiming(kind, elapsed.toLong(), estimated = true)
+}
 
 internal data class TermuxPresentation(
     val status: TermuxStatus,
@@ -75,6 +107,7 @@ internal fun presentTermux(
     val status = when {
         denied -> TermuxStatus.DENIED
         pendingApproval -> TermuxStatus.APPROVAL
+        out.str("status") in setOf("cancelled", "interrupted") -> TermuxStatus.INTERRUPTED
         out.str("state") == "unknown" -> TermuxStatus.UNKNOWN
         out.str("error") == "timeout" || out.bool("timed_out") == true -> TermuxStatus.TIMEOUT
         job && name == "termux_job_forget" && out.bool("success") == true && out.bool("logs_removed") == true -> TermuxStatus.LOGS_REMOVED

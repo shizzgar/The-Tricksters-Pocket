@@ -12,7 +12,7 @@
     <string name="context_usage_compaction_off">Автоматическое сжатие выключено.</string>
     <string name="context_usage_compaction_trigger">Порог автоматического сжатия: %1$s входных токенов.</string>
     <string name="context_usage_compaction_unknown">Автосжатие включено, но для расчёта порога нужен лимит контекста.</string>
-    <string name="context_usage_user_limit">Лимит взят из настроенного вами порога в токенах.</string>
+    <string name="context_usage_user_limit">Окно модели неизвестно; шкала использует заданный вами бюджет токенов.</string>
     <string name="context_usage_compacted">Учтены сохранённое резюме и оставленные недавние сообщения; использование отброшенного контекста исключено.</string>
     <string name="context_usage_overhead_unknown">Объём динамических инструкций, памяти и схем инструментов может отличаться до получения данных провайдера.</string>
     <string name="context_usage_near">Приближаемся к лимиту контекста или порогу сжатия.</string>

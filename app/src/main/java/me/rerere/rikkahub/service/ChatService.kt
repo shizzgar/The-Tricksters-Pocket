@@ -1426,6 +1426,7 @@ class ChatService(
                 return RerunToolResult.Failure("Execution stopped: ${it.name}")
             }
             val startedAt = System.currentTimeMillis()
+            val executionTimer = me.rerere.ai.ui.ToolExecutionTimer()
             val output = try {
                 if (toolPart.toolName.startsWith("termux_")) {
                     tool.execute(toolPart.inputAsJson())
@@ -1438,6 +1439,8 @@ class ChatService(
             } catch (t: Throwable) {
                 Log.w(TAG, "rerunTool: tool=${toolPart.toolName} threw", t)
                 return RerunToolResult.Failure("${t::class.simpleName}: ${t.message.orEmpty()}".take(500))
+            } finally {
+                executionTimer.finish()
             }
 
             // Apply against the LATEST state, not the pre-execute snapshot captured above -
@@ -1449,7 +1452,8 @@ class ChatService(
             var applied = false
             val toolReplacer: (UIMessagePart.Tool) -> UIMessagePart.Tool = {
                 applied = true
-                it.copy(output = output, executionStartedAt = startedAt)
+                it.copy(output = output, executionStartedAt = startedAt,
+                    executionDurationMs = executionTimer.elapsedMillis(), executionTimer = null)
             }
             val sessionStillTracked = mutexFor(conversationId).withLock {
                 if (!sessions.containsKey(conversationId)) return@withLock false
@@ -1922,16 +1926,15 @@ class ChatService(
                     if (messageRange != null || !settings.enableAutoCompaction) {
                         null
                     } else {
-                        val actualPromptTokens = generatedMessages.lastOrNull()?.usage
-                            ?.promptTokens
-                            ?.takeIf { it > 0 }
-                        // The provider reports usage before tool execution. Estimate only the
-                        // execution result appended afterwards so the threshold reflects the
-                        // next request without turning automatic compaction into a preflight
-                        // estimate of an otherwise unverified conversation.
-                        val nextRequestTokens = ContextBudgetPlanner
-                            .estimateInputTokens(generatedMessages)
-                        val triggerTokens = automaticCompactionTriggerTokens(settings, model)
+                        // The same per-request estimate drives gauges and the actual trigger.
+                        // Prior rounds in a merged assistant message must not be counted twice.
+                        val usage = me.rerere.rikkahub.data.ai.ContextUsageCalculator.snapshot(
+                            getConversationFlow(conversationId).value, assistant, settings, model,
+                            compactedMessageView?.compaction,
+                        )
+                        val actualPromptTokens = usage.latestPromptTokens
+                        val nextRequestTokens = usage.usedTokens
+                        val triggerTokens = usage.compactionTrigger
                         if (actualPromptTokens == null ||
                             triggerTokens == null ||
                             nextRequestTokens < triggerTokens
@@ -2349,6 +2352,7 @@ class ChatService(
 
     private fun cancelToolByUser(tool: UIMessagePart.Tool): UIMessagePart.Tool {
         return tool.copy(
+            executionDurationMs = tool.executionDurationMs ?: tool.executionTimer?.finish(),
             output = listOf(
                 UIMessagePart.Text(
                     """{"status":"cancelled","error":"Generation cancelled by user before tool execution completed."}"""
@@ -2359,6 +2363,7 @@ class ChatService(
 
     private fun cancelToolByRecovery(tool: UIMessagePart.Tool): UIMessagePart.Tool {
         return tool.copy(
+            executionDurationMs = tool.executionDurationMs ?: tool.executionTimer?.finish(),
             output = listOf(
                 UIMessagePart.Text(
                     """{"status":"interrupted","error":"The previous generation ended before this tool completed. No tool execution was resumed automatically."}"""
@@ -2577,13 +2582,13 @@ class ChatService(
                     val targetTokens = settings.getContextCompactionTargetTokens(
                         compactionContextLength(settings, model),
                     )
-                    val triggerTokens = automaticCompactionTriggerTokens(settings, model)
+                    val triggerTokens = automaticCompactionTriggerTokens(settings, model, assistant)
                     // Choose the tail boundary so the post-compaction request already lands
                     // comfortably below the trigger, instead of accepting a tail that sits right
                     // at it and re-summarizing on the next turn (see COMPACTION_TAIL_BUDGET_PERCENT).
                     val maxTailTokens = triggerTokens?.let {
-                        (it * COMPACTION_TAIL_BUDGET_PERCENT / 100 - targetTokens)
-                            .coerceAtLeast(MIN_AUTOMATIC_TAIL_BUDGET_TOKENS)
+                        (it.toLong() * COMPACTION_TAIL_BUDGET_PERCENT / 100 - targetTokens)
+                            .coerceAtLeast(MIN_AUTOMATIC_TAIL_BUDGET_TOKENS.toLong()).toInt()
                     }
                     val firstCompaction = recordAutoCompactionIfCreated(
                         createAutomaticCompaction(
@@ -2749,23 +2754,8 @@ class ChatService(
         )
     }
 
-    private fun automaticCompactionTriggerTokens(settings: Settings, model: Model): Int? =
-        when (settings.autoCompactionThresholdMode) {
-            AutoCompactionThresholdMode.PERCENT -> model.contextLength
-                ?.takeIf { it > 0 }
-                ?.let { length ->
-                    (length.toLong() * settings.autoCompactionThresholdPercent
-                        .coerceIn(5, 95) / 100L)
-                        .coerceAtLeast(1L)
-                        .toInt()
-                }
-            AutoCompactionThresholdMode.TOKENS ->
-                (settings.autoCompactionThresholdTokensK
-                    .coerceAtLeast(1)
-                    .toLong() * 1_000L)
-                    .coerceAtMost(Int.MAX_VALUE.toLong())
-                    .toInt()
-        }
+    private fun automaticCompactionTriggerTokens(settings: Settings, model: Model, assistant: Assistant): Int? =
+        me.rerere.rikkahub.data.ai.ContextUsageCalculator.budget(assistant, settings, model).compactionTrigger
 
     suspend fun compressConversation(
         conversationId: Uuid,
@@ -2894,7 +2884,7 @@ class ChatService(
         val started = SystemClock.elapsedRealtime()
         var event = ContextCompactionPresentation.startTool(
             isAuto, System.currentTimeMillis(), started,
-            ContextBudgetPlanner.estimateInputTokens(messagesToCompress), targetTokens,
+            ContextBudgetPlanner.estimateContextTokens(messagesToCompress), targetTokens,
         )
         val operationId = event.toolCallId
         session.acquire()
@@ -2990,10 +2980,8 @@ class ChatService(
             put("operation_timeout_ms", runtimeLimits.totalTimeoutMs)
             put("parallel_requests", runtimeLimits.parallelRequests)
         })
-        // In token-threshold mode the user has supplied an explicit request-size ceiling for
-        // this model family. Prefer it over missing/stale provider metadata. In percent mode we
-        // still use the model's advertised context, falling back to the planner's conservative
-        // default when a provider does not publish one.
+        // A manual working budget may narrow the compression request but must never exceed
+        // known model capacity. Without either value the planner uses its safe fallback.
         val compressionContextLength = compactionContextLength(settings, model)
         val hasExplicitCompressionContext = settings.autoCompactionThresholdMode ==
             AutoCompactionThresholdMode.TOKENS
@@ -3208,7 +3196,7 @@ class ChatService(
             sourceEndNodeId = conversation.messageNodes[rawTailStartIndex - 1].id,
             summaryModelId = model.id,
             isAuto = isAuto,
-            sourceTokenEstimate = ContextBudgetPlanner.estimateInputTokens(messagesToCompress),
+            sourceTokenEstimate = ContextBudgetPlanner.estimateContextTokens(messagesToCompress),
             createdAt = Instant.now(),
         )
         check(ContextCompactionPlanner.estimateTokens(compaction.summary) < compaction.sourceTokenEstimate) {

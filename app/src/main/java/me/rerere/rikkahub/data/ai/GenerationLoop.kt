@@ -1113,6 +1113,7 @@ class GenerationLoop(
                             )))
                             return@forEach
                         }
+                        var timedTool = tool
                         runCatching {
                             val args = parsedArgs.getOrThrow()
                             if (BuildConfig.DEBUG) {
@@ -1125,7 +1126,11 @@ class GenerationLoop(
                             // and refuse to silently re-run. The mark survives via the
                             // acknowledged persistence checkpoint — see ChatService chunk
                             // handler's needsImmediatePersist branch.
-                            val markedTool = tool.copy(executionStartedAt = System.currentTimeMillis())
+                            val markedTool = tool.copy(
+                                executionStartedAt = System.currentTimeMillis(),
+                                executionDurationMs = null,
+                                executionTimer = me.rerere.ai.ui.ToolExecutionTimer(),
+                            ).also { timedTool = it }
                             me.rerere.ai.provider.GenerationTrace.record(conversationId?.toString(), "tool.started", buildJsonObject {
                                 put("tool_call_id", tool.toolCallId); put("tool", tool.toolName); put("input", tool.input)
                                 messages.lastOrNull()?.generationMetrics?.lastOrNull()?.requestId?.let { put("parent_request_id", it) }
@@ -1169,9 +1174,10 @@ class GenerationLoop(
                                         })))
                                     }
                             }
+                            val durationMs = markedTool.executionTimer!!.finish()
                             me.rerere.ai.provider.GenerationTrace.record(conversationId?.toString(), "tool.result", buildJsonObject {
                                 put("tool_call_id", tool.toolCallId); put("tool", tool.toolName)
-                                put("elapsed_ms", System.currentTimeMillis() - requireNotNull(markedTool.executionStartedAt))
+                                put("elapsed_ms", durationMs)
                                 put("output", json.encodeToJsonElement(kotlinx.serialization.builtins.ListSerializer(UIMessagePart.serializer()), result))
                             })
                             // Upstream tool-output truncation: when the workspace shell is
@@ -1181,10 +1187,12 @@ class GenerationLoop(
                             // the context window.
                             val hasShellAccess = toolsInternal.any { it.name == "workspace_shell" }
                             executedTools += markedTool.copy(
-                                output = maybeTruncateToolOutput(tool.toolCallId, result, hasShellAccess)
+                                output = maybeTruncateToolOutput(tool.toolCallId, result, hasShellAccess),
+                                executionDurationMs = durationMs,
                             )
                         }.onFailure {
                             val failure = it
+                            val durationMs = timedTool.executionTimer?.finish()
                             withContext(kotlinx.coroutines.NonCancellable) {
                                 me.rerere.ai.provider.GenerationTrace.record(conversationId?.toString(), "tool.result", buildJsonObject {
                                     put("tool_call_id", tool.toolCallId); put("tool", tool.toolName)
@@ -1200,7 +1208,8 @@ class GenerationLoop(
                             // user-visible "java.lang.IllegalStateException at ..." walls
                             // for what was usually a one-line "name is required" problem.
                             Log.w(TAG, "tool ${tool.toolName} threw", it)
-                            executedTools += tool.copy(
+                            executedTools += timedTool.copy(
+                                executionDurationMs = durationMs,
                                 output = listOf(
                                     UIMessagePart.Text(
                                         json.encodeToString(
@@ -1362,6 +1371,7 @@ class GenerationLoop(
     ) {
         val metricsBefore = generationProgress?.completedMetrics()?.map { it.requestId }?.toSet().orEmpty()
         generationProgress?.prepare()
+        val includedMessages = messages.limitContext(assistant.contextMessageLimit)
         val internalMessages = buildList {
             // Conversation-level system prompt override (upstream): when the assistant
             // allows it and the conversation supplies one, it replaces the assistant prompt.
@@ -1399,7 +1409,7 @@ class GenerationLoop(
             // upstream's isSynthetic marker (keeps this built-up system prompt out of
             // TemplateTransformer) and its stepped truncation (which now preserves
             // prompt caching instead of trimming one message at a time).
-            addAll(messages.limitContext(assistant.contextMessageLimit).ageOldToolImages())
+            addAll(includedMessages.ageOldToolImages())
         }.transforms(
             transformers = transformers,
             context = context,
@@ -1412,6 +1422,18 @@ class GenerationLoop(
             workspaceCwd = workspaceCwd,
         )
 
+        generationProgress?.prepare(ContextRequestAccounting.capture(
+            model = model,
+            messages = messages,
+            includedMessages = includedMessages,
+            transformedMessages = internalMessages,
+            configurationKey = ContextRequestAccounting.configurationKey(
+                settings.assistants.firstOrNull { it.id == assistant.id } ?: assistant,
+                model, conversationSystemPrompt, conversationModeInjectionIds,
+                conversationLorebookIds, workspaceCwd,
+                AgentTaskPolicy.get(conversationId?.toString().orEmpty())?.systemPrompt,
+            ),
+        ))
         var messages: List<UIMessage> = messages
         val scopedPolicy = AgentTaskPolicy.get(conversationId?.toString().orEmpty())
         val executionModel = when {

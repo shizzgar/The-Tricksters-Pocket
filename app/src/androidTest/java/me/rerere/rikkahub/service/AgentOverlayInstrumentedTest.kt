@@ -1,6 +1,11 @@
 package me.rerere.rikkahub.service
 
 import android.graphics.Bitmap
+import android.content.Context
+import android.view.MotionEvent
+import android.view.ViewConfiguration
+import androidx.core.view.ViewCompat
+import me.rerere.rikkahub.R
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Surface
@@ -9,7 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.test.captureToImage
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -50,6 +55,14 @@ class AgentOverlayInstrumentedTest {
                 assertEquals(custom.generateColorScheme(false).primary.toArgb(), palette.value.primary)
             }
             capture("pocket-agent-overlay-light")
+            compose.runOnIdle { card!!.setCollapsed(true) }
+            compose.runOnIdle {
+                assertTrue(card!!.collapsed)
+                assertEquals(card!!.width, card!!.height)
+                assertTrue(card!!.contentDescription.contains("86%"))
+            }
+            capture("pocket-agent-overlay-collapsed")
+            compose.runOnIdle { card!!.setCollapsed(false) }
             compose.runOnIdle {
                 context.writeStringPreference("colorMode", ColorMode.DARK.name)
                 palette.value = agentOverlayPalette(context, settings)
@@ -70,6 +83,61 @@ class AgentOverlayInstrumentedTest {
             capture("pocket-agent-overlay-unknown")
         } finally {
             context.writeStringPreference("colorMode", previous ?: ColorMode.SYSTEM.name)
+        }
+    }
+
+    @Test fun draggingConsumesGestureAndAccessibilityCanMoveAndExpandSavedBubble() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val prefs = context.getSharedPreferences("pocket.overlay.qa", Context.MODE_PRIVATE)
+        val placement = AgentOverlayPlacement(.85f, .7f, true)
+        val store = AgentOverlayPlacementPreferences(prefs)
+        var card: AgentOverlayCard? = null
+        var toggles = 0
+        val dragPoints = mutableListOf<OverlayPoint>()
+        var accessibleMove: Pair<Int, Int>? = null
+        try {
+            store.write(placement)
+            assertEquals(placement, AgentOverlayPlacementPreferences(prefs).read())
+            compose.setContent { RikkahubTheme { Surface { Box(Modifier.padding(16.dp)) {
+                AndroidView(factory = { AgentOverlayCard(it).also { created ->
+                    card = created
+                    created.setCollapsed(store.read().collapsed)
+                    created.onToggle = { toggles++; created.setCollapsed(!created.collapsed) }
+                    created.onDrag = { delta -> dragPoints += delta }
+                    created.onMove = { dx, dy -> accessibleMove = dx to dy }
+                } })
+            } } } }
+            compose.runOnIdle {
+                val target = card!!
+                fun event(action: Int, x: Float, y: Float) {
+                    MotionEvent.obtain(0, 10, action, x, y, 0).let {
+                        try { assertTrue(target.dispatchTouchEvent(it)) } finally { it.recycle() }
+                    }
+                }
+                val distance = ViewConfiguration.get(context).scaledTouchSlop * 3f
+                event(MotionEvent.ACTION_DOWN, 10f, 10f)
+                event(MotionEvent.ACTION_MOVE, 10f + distance, 10f)
+                event(MotionEvent.ACTION_UP, 10f, 10f)
+                assertTrue(target.collapsed)
+                assertEquals(0, toggles)
+                assertTrue(dragPoints.isNotEmpty())
+                event(MotionEvent.ACTION_DOWN, 10f, 10f)
+                event(MotionEvent.ACTION_CANCEL, 10f, 10f)
+                event(MotionEvent.ACTION_UP, 10f, 10f)
+                assertEquals(0, toggles)
+                event(MotionEvent.ACTION_DOWN, 10f, 10f)
+                event(MotionEvent.ACTION_UP, 10f, 10f)
+                assertFalse(target.collapsed)
+                assertEquals(1, toggles)
+                assertTrue(ViewCompat.performAccessibilityAction(target, R.id.pocket_overlay_move_left, null))
+                assertEquals(-1 to 0, accessibleMove)
+                assertTrue(ViewCompat.performAccessibilityAction(target,
+                    androidx.core.view.accessibility.AccessibilityNodeInfoCompat.ACTION_CLICK, null))
+                assertTrue(target.collapsed)
+                assertEquals(2, toggles)
+            }
+        } finally {
+            prefs.edit().clear().commit()
         }
     }
 

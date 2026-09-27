@@ -1,8 +1,12 @@
 # The Trickster's Pocket identity
 
-The current shared UI mark is the symmetric pocket-and-ears silhouette in [`small_icon.xml`](../../app/src/main/res/drawable/small_icon.xml). Notifications, sidebar and assistant entry points, automatic/unknown model icons and the animated generation indicator reuse that exact path. The overlay draws the same mark inside its context ring. The documentation version is [pocket-mark.svg](pocket-mark.svg).
+The full application logo is the [fox in a pocket](pocket-fox.webp), used in both README headers and the launcher artwork. The compact mark below is reserved for small UI surfaces.
 
-The detailed pocket fox and individual Bro portraits are separate artwork. They remain appropriate for the launcher and assistant avatars; saved custom avatars and theme preferences are preserved. See [current interaction controls](../pocket-controls.md).
+The current shared UI mark is the symmetric pocket-and-ears silhouette in [`small_icon.xml`](../../app/src/main/res/drawable/small_icon.xml). Notifications, sidebar and assistant entry points, empty/unknown model icons and the animated generation indicator reuse that exact path. The overlay draws the same mark inside its context ring. The vector version is [pocket-mark.svg](pocket-mark.svg).
+
+The model selector prefers a recognized model icon, then the configured provider icon, then the Pocket mark. The adjacent search action always uses a magnifier; search services without their own recognizable icon also use a magnifier. Model/provider branding does not replace functional controls.
+
+The detailed pocket fox and individual Bro portraits are separate artwork. The fox identifies the application, while Bro portraits identify assistants; saved custom avatars and theme preferences are preserved. See [current interaction controls](../pocket-controls.md).
 
 ## Historical ReBro Blue artwork
 

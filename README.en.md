@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/branding/pocket-mark.svg" width="104" height="104" alt="The Trickster's Pocket" />
+<img src="docs/branding/pocket-fox.webp" width="240" height="240" alt="The Trickster's Pocket — fox in a pocket" />
 
 # The Trickster's Pocket
 
@@ -19,7 +19,7 @@ a skill workspace, and the PocketBro, ThinkBro, ReBro, NetBro, DevBro, OpsBro, V
 
 </div>
 
-**2.5.1-pocket.4:** explicit tasks from the + menu, a task card shown only after creation, a selectable reviewer, shared Termux settings inside Workspace, a themed live context overlay, and the shared pocket icon. [Usage guide](docs/pocket-controls.md).
+**2.5.1-pocket.5 — in development:** search keeps its magnifier, while the model selector uses the pocket as its fallback. The overlay can be moved and collapsed to a circle. Context accounting, compact response statistics and Termux timers are being updated. [Controls and metrics](docs/pocket-controls.md).
 
 [Tasks, results, projects and technical Bros](docs/pocket-workbench.md) · [Nested subagent chats](docs/POCKET-NESTED-CHATS.md).
 
@@ -38,7 +38,7 @@ This is a development fork of [ExTV/RikkaHub Agent](https://github.com/ExTV/rikk
   </tr>
 </table>
 
-Actual Android UI captures using test fixtures. Click an image for full resolution. [Explore all 14 screens →](docs/screenshots.md)
+Actual Android UI captures using test fixtures. Click an image for full resolution. [Explore the screenshots →](docs/screenshots.md)
 
 <a id="changes"></a>
 
@@ -54,10 +54,12 @@ These are changes in our development line relative to the ExTV base we started f
 | **Agent runtime** | Checkpoints, continuation across loop limits, cancellable waits for transient network failures | Keep a long task moving without repeated “continue” prompts |
 | **Live steering** | Queued updates enter the same task after its current operation | Adjust work without Stop or waiting for the task’s final answer |
 | **Compaction** | Configurable deadlines and concurrency, retained evidence, source validation when saving | Compress long histories without committing stale summaries |
-| **Metrics** | Measured content-receiving TPS and expandable details below the message | Separate model response speed from command execution and waiting |
+| **Metrics and context** | Send-button ring, response statistics and overlay indicators, with separate details | See window occupancy, compression threshold and measurement source |
+| **Floating status** | A themed overlay that can be dragged and collapsed to a circle | Follow the agent and context while using another app |
+| **Tasks and results** | Explicit tasks from +, criteria and artifacts, a selectable reviewer | Keep the goal in chat and choose who checks the result |
 | **Termux diagnostics** | Specific failure hints, per-call preview limits and archived full output | Repair the failing step and keep repeated requests smaller |
-| **Termux workspace** | A linked real directory, editor, import/export and command console | Work with original project files and durable jobs from the app |
-| **Bro subagents** | ReBro, NetBro, PocketBro and ThinkBro profiles link to saved assistants; OrchBro uses the current enabled roster | Coordinate specialists with their own skills, tools, search and workspace |
+| **Termux workspace** | A linked real directory, editor, import/export, command console and shared Termux settings | Work with original project files and durable jobs from the app |
+| **Bro subagents** | Nested specialist chats; PocketBro, ThinkBro, ReBro, NetBro, DevBro, OpsBro and VerifyBro retain their own settings; OrchBro uses the current enabled roster | Coordinate specialists with their own skills, tools, search and workspace |
 | **Termux jobs** | Persistent background jobs, stdout/stderr pages, read cursors, cancellation and job manager | Inspect long commands directly from chat |
 | **Skill workspace** | File operations, code editor, Markdown/image preview, HEX, imports/exports and drafts | Manage skill instructions, scripts and resources inside the app |
 | **Skills → Termux** | Versioned full-package transfer with hashes and a returned `skill_root` | Run scripts alongside their assets and references |
@@ -93,9 +95,11 @@ Agent editing is opt-in under the assistant's local tools. It exposes `skill_cre
 
 The agent saves checkpoints and can continue after individual loop limits. The overall task deadline is disabled by default, while request/tool deadlines remain bounded. **Stop**, approvals and loop detection still apply. On app restart, active work resumes only when the saved conversation state matches. Android process termination and force-stop still apply.
 
-Input/output tokens, TPS, overall time and expandable details live below the message. **TPS excludes first-content waiting, tool execution and compaction.** It measures client-side content reception, not GPU decoding. Missing or unreliable measurements display “—”.
+Context, tokens, TPS and time live below the message. A compact summary is separate from request and connection details; request token usage is separate from totals across the response. **TPS excludes first-content waiting, tool execution and compaction.** It measures client-side content reception, not GPU decoding. Missing or unreliable measurements display “—”.
 
-Termux job tools return paginated stdout/stderr with their status; previews appear in tool cards. The “+” menu includes jobs and counts, compaction, extensions and Trajectory.
+Termux cards show elapsed time for the current call and duration for completed calls. Background command duration is separate from the time spent polling status or reading output; stdout/stderr stay paginated. The “+” menu includes explicit tasks, Termux jobs, compaction, extensions and Trajectory.
+
+**Create a task from “+”** to pin its goal and criteria above the composer; the card stays hidden until a task is explicitly created. Choose the reviewing assistant yourself. Termux-backed Workspaces expose execution settings shared with the standalone integration. [Tasks, Workspaces and controls](docs/pocket-controls.md).
 
 [Runtime, timing and recovery details, RU →](docs/agent-runtime/autonomous-tasks-and-trajectory.ru.md)
 
@@ -143,7 +147,7 @@ RikkaHub and ExTV provide the multi-provider chat client, MCP, subagents, schedu
 
 ## Validation and current boundaries
 
-The [successful CI run for `2.5.1-pocket.4` (`f3b06be`)](https://github.com/shizzgar/The-Tricksters-Pocket/actions/runs/36246686773) passed **1051 JVM, 65 Python and 72 Android tests** and built an optimized release with R8. Coverage includes explicit tasks, reviewer selection, shared Termux settings, context calculations, icons, migrations and existing flows. The emulator suite runs the debug variant; release is built separately and signed with the permanent ReBro key. [Signature, hashes and validation limits](docs/releases/2.5.1-pocket.4.json). Physical-device Termux and system-overlay behavior still require a device check.
+**Last validated build:** the [successful CI run for `2.5.1-pocket.4` (`f3b06be`)](https://github.com/shizzgar/The-Tricksters-Pocket/actions/runs/36246686773) passed **1051 JVM, 65 Python and 72 Android tests** and built an optimized release with R8. Coverage includes explicit tasks, reviewer selection, shared Termux settings, context calculations, icons, migrations and existing flows. The emulator suite runs the debug variant; release is built separately and signed with the permanent ReBro key. [Signature, hashes and validation limits](docs/releases/2.5.1-pocket.4.json). Physical-device Termux and system-overlay behavior still require a device check.
 
 - Traces are local and may contain private prompts, commands and results. Inspect exports before sharing.
 - Only provider-returned reasoning can be recorded. Deterministic replay and reconstruction of previously unrecorded events are not implemented.

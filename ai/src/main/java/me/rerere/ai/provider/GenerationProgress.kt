@@ -22,22 +22,26 @@ data class GenerationProgress(
     val requestId: String = java.util.UUID.randomUUID().toString(),
     val usage: me.rerere.ai.core.TokenUsage? = null,
     val streamed: Boolean = true,
+    val context: GenerationRequestContext? = null,
 )
 
 class GenerationProgressTracker(private val clock: () -> Long = { System.nanoTime() / 1_000_000 }) {
     private val mutable = MutableStateFlow<GenerationProgress?>(null)
     val state = mutable.asStateFlow()
     private var sequence = 0L
+    private var requestContext: GenerationRequestContext? = null
     private val completed = ArrayDeque<GenerationRequestMetrics>()
     @Synchronized fun completedMetrics(): List<GenerationRequestMetrics> = completed.toList()
 
-    @Synchronized fun prepare() {
-        mutable.value = GenerationProgress(++sequence, GenerationPhase.PREPARING, clock())
+    @Synchronized fun prepare(context: GenerationRequestContext? = null) {
+        requestContext = context
+        mutable.value = GenerationProgress(++sequence, GenerationPhase.PREPARING, clock(), context = context)
     }
 
     @Synchronized fun begin(streamed: Boolean = true): GenerationRequestObserver {
         val id = ++sequence
-        mutable.value = GenerationProgress(id, GenerationPhase.QUEUED, clock(), streamed = streamed)
+        mutable.value = GenerationProgress(id, GenerationPhase.QUEUED, clock(), streamed = streamed,
+            context = requestContext?.copy(startedAtEpochMillis = System.currentTimeMillis()))
         return GenerationRequestObserver(this, id, requireNotNull(mutable.value).requestId)
     }
 

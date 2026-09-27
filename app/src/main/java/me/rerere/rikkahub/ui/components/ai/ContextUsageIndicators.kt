@@ -1,14 +1,12 @@
 package me.rerere.rikkahub.ui.components.ai
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -60,6 +58,7 @@ internal fun ContextUsageRing(snapshot: ContextUsageSnapshot?, modifier: Modifie
     }
 }
 
+/** Short enough to stay in the chat; explanations live in the separate diagnostic sheet. */
 @Composable
 fun ContextUsageDetails(snapshot: ContextUsageSnapshot, modifier: Modifier = Modifier) {
     val description = snapshot.accessibilityText()
@@ -73,7 +72,7 @@ fun ContextUsageDetails(snapshot: ContextUsageSnapshot, modifier: Modifier = Mod
             snapshot.fraction?.let { fraction ->
                 if (fraction > 0f) drawRoundRect(color, size = Size(size.width * fraction, size.height),
                     cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2))
-                snapshot.compactionTrigger?.takeIf { snapshot.contextLimit != null }?.let { trigger ->
+                snapshot.compactionTrigger?.takeIf { snapshot.autoCompactionEnabled && snapshot.contextLimit != null }?.let { trigger ->
                     val x = (trigger.toFloat() / snapshot.contextLimit!!).coerceIn(0f, 1f) * size.width
                     drawLine(color, Offset(x, 0f), Offset(x, size.height), strokeWidth = 2.dp.toPx())
                 }
@@ -82,25 +81,46 @@ fun ContextUsageDetails(snapshot: ContextUsageSnapshot, modifier: Modifier = Mod
                     Offset(size.width * (index + .35f) / 10f, size.height / 2), strokeWidth = size.height)
             }
         }
+        Text(stringResource(if (snapshot.streaming) R.string.pocket_context_stream_source else R.string.pocket_context_compact_source),
+            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            ContextMetric(stringResource(R.string.pocket_context_reserve_short), snapshot.outputReserve?.let(format::format) ?: "—")
+            ContextMetric(stringResource(R.string.pocket_context_free_short), snapshot.availableInput?.let { "≈" + format.format(it) } ?: "—")
+        }
+        ContextMetric(stringResource(R.string.pocket_context_compact_short), when {
+            !snapshot.autoCompactionEnabled -> stringResource(R.string.pocket_context_off_short)
+            snapshot.compactionTrigger != null -> stringResource(R.string.pocket_context_threshold_short, format.format(snapshot.compactionTrigger))
+            else -> stringResource(R.string.pocket_context_unknown_short)
+        })
         when (snapshot.level) {
             ContextUsageLevel.NEAR_THRESHOLD -> R.string.context_usage_near
             ContextUsageLevel.THRESHOLD_REACHED -> R.string.context_usage_threshold
             ContextUsageLevel.FULL -> R.string.context_usage_full
             else -> null
-        }?.let { Text(stringResource(it), style = MaterialTheme.typography.bodySmall, color = color) }
-        Text(stringResource(if (snapshot.streaming) R.string.context_usage_streaming else R.string.context_usage_estimate),
-            style = MaterialTheme.typography.bodySmall)
+        }?.let { Text(stringResource(it), style = MaterialTheme.typography.labelSmall, color = color) }
+    }
+}
+
+@Composable
+private fun ContextMetric(label: String, value: String) {
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.labelSmall)
+    }
+}
+
+@Composable
+fun ContextUsageExplanation(snapshot: ContextUsageSnapshot) {
+    val format = NumberFormat.getIntegerInstance()
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         snapshot.latestPromptTokens?.let {
             Text(stringResource(R.string.context_usage_latest_prompt, format.format(it)), style = MaterialTheme.typography.bodySmall)
         } ?: Text(stringResource(R.string.context_usage_no_measurement), style = MaterialTheme.typography.bodySmall)
-        Text(if (snapshot.outputReserve != null) stringResource(R.string.context_usage_reserve, format.format(snapshot.outputReserve),
-            snapshot.availableInput?.let(format::format) ?: "—") else stringResource(R.string.context_usage_reserve_unknown),
-            style = MaterialTheme.typography.bodySmall)
-        Text(when {
-            !snapshot.autoCompactionEnabled -> stringResource(R.string.context_usage_compaction_off)
-            snapshot.compactionTrigger != null -> stringResource(R.string.context_usage_compaction_trigger, format.format(snapshot.compactionTrigger))
-            else -> stringResource(R.string.context_usage_compaction_unknown)
-        }, style = MaterialTheme.typography.bodySmall)
+        if (snapshot.outputReserve == null) Text(stringResource(R.string.context_usage_reserve_unknown), style = MaterialTheme.typography.bodySmall)
+        if (snapshot.autoCompactionEnabled && snapshot.configuredCompactionTrigger != null && snapshot.configuredCompactionTrigger != snapshot.compactionTrigger) {
+            Text(stringResource(R.string.pocket_context_configured_threshold, format.format(snapshot.configuredCompactionTrigger)), style = MaterialTheme.typography.bodySmall)
+        }
+        if (snapshot.autoCompactionEnabled) Text(stringResource(R.string.pocket_context_trigger_timing), style = MaterialTheme.typography.bodySmall)
         if (snapshot.userLimit) Text(stringResource(R.string.context_usage_user_limit), style = MaterialTheme.typography.bodySmall)
         if (snapshot.compacted) Text(stringResource(R.string.context_usage_compacted), style = MaterialTheme.typography.bodySmall)
         if (!snapshot.providerAnchored) Text(stringResource(R.string.context_usage_overhead_unknown), style = MaterialTheme.typography.bodySmall)

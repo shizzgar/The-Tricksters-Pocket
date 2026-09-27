@@ -7,4 +7,14 @@
     <string name="pocket_overlay_tool">Выполняются инструменты</string>
     <string name="pocket_overlay_approval">Ожидание подтверждения</string>
     <string name="pocket_overlay_continuing">Задача продолжается</string>
+    <string name="pocket_overlay_percent">≈%1$d%%</string>
+    <string name="pocket_overlay_collapse">Свернуть в кружок</string>
+    <string name="pocket_overlay_expand">Развернуть статус агента</string>
+    <string name="pocket_overlay_collapsed">Свёрнутый статус агента</string>
+    <string name="pocket_overlay_expanded">Развёрнутый статус агента</string>
+    <string name="pocket_overlay_drag_hint">Перетащите, чтобы переместить</string>
+    <string name="pocket_overlay_move_left">Переместить влево</string>
+    <string name="pocket_overlay_move_right">Переместить вправо</string>
+    <string name="pocket_overlay_move_up">Переместить вверх</string>
+    <string name="pocket_overlay_move_down">Переместить вниз</string>
 </resources>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="termux_timer_interrupted_status">Запрос прерван; итог команды не подтверждён</string>
+    <string name="termux_timer_request">Запрос инструмента · %1$s</string>
+    <string name="termux_timer_request_running">Запрос инструмента · прошло %1$s</string>
+    <string name="termux_timer_request_interrupted">Запрос прерван через %1$s</string>
+    <string name="termux_timer_job">Длительность задачи · %1$s</string>
+    <string name="termux_timer_job_snapshot">Задача на момент снимка · %1$s</string>
+    <string name="termux_timer_unavailable">Длительность не была записана</string>
+    <string name="termux_timer_subsecond">&lt;1 с</string>
+    <string name="termux_timer_seconds">%1$d с</string>
+    <string name="termux_timer_minutes">%1$d мин %2$02d с</string>
+    <string name="termux_timer_hours">%1$d ч %2$02d мин %3$02d с</string>
+</resources>

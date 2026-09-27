@@ -11,6 +11,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
@@ -23,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
 import com.dokar.sonner.rememberToasterState
 import me.rerere.ai.provider.Model
+import me.rerere.ai.provider.BuiltInTools
 import me.rerere.ai.provider.ModelType
 import me.rerere.ai.provider.ProviderSetting
 import me.rerere.rikkahub.R
@@ -33,11 +35,15 @@ import me.rerere.rikkahub.ui.components.ui.AutoAIIcon
 import me.rerere.rikkahub.ui.components.ui.PocketLoadingIndicator
 import me.rerere.rikkahub.ui.context.LocalSettings
 import me.rerere.rikkahub.ui.context.LocalToaster
+import me.rerere.rikkahub.ui.context.LocalNavController
+import me.rerere.rikkahub.ui.context.Navigator
 import me.rerere.rikkahub.ui.theme.findPresetTheme
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import java.io.File
+import me.rerere.search.SearchServiceOptions
 
 class PocketIconInstrumentedTest {
     @get:Rule val compose = createComposeRule()
@@ -48,6 +54,9 @@ class PocketIconInstrumentedTest {
         val emptyModel = ModelListState(null, emptyList(), ModelType.CHAT)
         val model = Model(modelId = "local-workbench", displayName = "Local model")
         val unknownModel = ModelListState(
+            model.id, listOf(ProviderSetting.OpenAI(name = "Custom endpoint", models = listOf(model))), ModelType.CHAT,
+        )
+        val knownProvider = ModelListState(
             model.id, listOf(ProviderSetting.OpenAI(models = listOf(model))), ModelType.CHAT,
         )
         compose.setContent {
@@ -67,6 +76,10 @@ class PocketIconInstrumentedTest {
                             AssistantPicker(settings, {}, onClickSetting = {})
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 ModelSelectorButton(emptyModel, Modifier.testTag("empty-model"), onlyIcon = true)
+                                SearchPickerButton(
+                                    enableSearch = true, settings = settings,
+                                    onUpdateSearchMode = {}, onUpdateSearchService = {}, model = null,
+                                )
                                 Text("Choose a model")
                             }
                             ModelSelectorButton(unknownModel, Modifier.testTag("unknown-model"))
@@ -74,8 +87,8 @@ class PocketIconInstrumentedTest {
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
-                                AutoAIIcon("openai", Modifier.size(32.dp))
-                                Text("Recognized provider")
+                                ModelSelectorButton(knownProvider, onlyIcon = true)
+                                Text("Known provider · custom model")
                             }
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -103,12 +116,14 @@ class PocketIconInstrumentedTest {
         compose.onNodeWithTag("unknown-model").assertHasClickAction().performClick()
         compose.runOnIdle { assertTrue(unknownModel.visible) }
         compose.onNodeWithContentDescription("local-workbench", useUnmergedTree = true).assertIsDisplayed()
-        compose.onNodeWithContentDescription("openai", useUnmergedTree = true).assertIsDisplayed()
+        compose.onNodeWithContentDescription("OpenAI", useUnmergedTree = true).assertIsDisplayed()
         compose.onNodeWithContentDescription("auto", useUnmergedTree = true).assertIsDisplayed()
         compose.onNodeWithTag("pocket-generating").assert(
             SemanticsMatcher.expectValue(SemanticsProperties.ProgressBarRangeInfo, ProgressBarRangeInfo.Indeterminate),
         )
         val context = InstrumentationRegistry.getInstrumentation().targetContext
+        compose.onNodeWithContentDescription(context.getString(R.string.use_web_search), useUnmergedTree = true)
+            .assertIsDisplayed()
         compose.onNodeWithContentDescription(context.getString(R.string.accessibility_loading)).assertIsDisplayed()
         val name = if (dark) "pocket-icons-dark" else "pocket-icons-light"
         File(context.filesDir, "trajectory-qa/$name.png").apply { parentFile!!.mkdirs() }.outputStream().use {
@@ -118,4 +133,48 @@ class PocketIconInstrumentedTest {
 
     @Test fun lightIconsPreserveSelectionAndAccessibleActivity() = verifyAndCapture(dark = false)
     @Test fun darkIconsPreserveSelectionAndAccessibleActivity() = verifyAndCapture(dark = true)
+
+    @Test fun searchRemainsSearchAcrossServicesAndModesAndOpensItsOwnControls() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val services = listOf(
+            SearchServiceOptions.DuckDuckGoOptions(), // "Built-in" triggered the regression.
+            SearchServiceOptions.CustomJsOptions(name = "auto"),
+            SearchServiceOptions.RikkaHubOptions(),
+            SearchServiceOptions.BingLocalOptions(),
+        )
+        val selected = mutableStateOf(0)
+        val enabled = mutableStateOf(true)
+        val nativeSearch = mutableStateOf(false)
+        val requestedMode = mutableStateOf<SearchMode?>(null)
+        compose.setContent {
+            CompositionLocalProvider(LocalNavController provides Navigator(mutableListOf())) {
+                MaterialTheme {
+                    SearchPickerButton(
+                        enableSearch = enabled.value,
+                        settings = Settings(searchServices = services, searchServiceSelected = selected.value),
+                        modifier = Modifier.testTag("search-control"),
+                        onUpdateSearchMode = { requestedMode.value = it },
+                        onUpdateSearchService = { selected.value = it },
+                        model = Model(tools = if (nativeSearch.value) setOf(BuiltInTools.Search) else emptySet()),
+                    )
+                }
+            }
+        }
+        services.indices.forEach { index ->
+            compose.runOnIdle { selected.value = index }
+            compose.onNodeWithContentDescription(context.getString(R.string.use_web_search), useUnmergedTree = true)
+                .assertIsDisplayed()
+            compose.onNodeWithTag("search-control").assertIsOn()
+        }
+        compose.runOnIdle { enabled.value = false }
+        compose.onNodeWithTag("search-control").assertIsOff()
+        compose.runOnIdle { nativeSearch.value = true }
+        compose.onNodeWithTag("search-control").assertIsOn()
+        compose.onNodeWithContentDescription(context.getString(R.string.use_web_search), useUnmergedTree = true)
+            .assertIsDisplayed()
+        compose.onNodeWithTag("search-control").performClick()
+        compose.onNodeWithText(context.getString(R.string.search_picker_title)).assertIsDisplayed()
+        compose.onNodeWithText(context.getString(R.string.search_picker_turn_off)).performClick()
+        compose.runOnIdle { assertEquals(SearchMode.OFF, requestedMode.value) }
+    }
 }

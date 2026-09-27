@@ -111,7 +111,9 @@ internal suspend fun generateClaudeWithPauseTurn(
         combinedMessage = listOf(combinedMessage)
             .handleTextGenerationResult(result, model)
             .last()
-        combinedUsage = combinedUsage.sum(result.usage)
+        combinedUsage = combinedUsage.sum(result.usage)?.let {
+            if (continuationCount > 0) it.copy(aggregatedRequests = true) else it
+        }
 
         if (result.finishReason != CLAUDE_PAUSE_TURN || continuationCount == maxContinuations) {
             return result.copy(
@@ -155,7 +157,9 @@ internal fun streamClaudeWithPauseTurn(
             when (chunk) {
                 is StreamChunk.Usage -> {
                     passUsage = passUsage.merge(chunk.usage)
-                    completedUsage.sum(passUsage)?.let { emit(StreamChunk.Usage(it)) }
+                    completedUsage.sum(passUsage)?.let {
+                        emit(StreamChunk.Usage(if (continuationCount > 0) it.copy(aggregatedRequests = true) else it))
+                    }
                 }
 
                 is StreamChunk.Finish -> {
@@ -242,6 +246,7 @@ private fun TokenUsage?.sum(other: TokenUsage?): TokenUsage? {
         completionTokens = completionTokens + other.completionTokens,
         cachedTokens = cachedTokens + other.cachedTokens,
         totalTokens = totalTokens + other.totalTokens,
+        aggregatedRequests = true,
     )
 }
 

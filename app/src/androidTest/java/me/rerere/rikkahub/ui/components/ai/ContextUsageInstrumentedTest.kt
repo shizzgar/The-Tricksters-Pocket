@@ -12,7 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
 import me.rerere.ai.ui.UIMessage
@@ -65,7 +65,7 @@ class ContextUsageInstrumentedTest {
             }
         } } } }
         compose.onNodeWithTag("context-usage-details", useUnmergedTree = true).assertDoesNotExist()
-        compose.onNodeWithTag("chat-message-nerd-line").performClick()
+        compose.onNodeWithTag("message-stats-toggle").performClick()
         // The clickable statistics container merges descendant semantics in the default tree.
         compose.onNodeWithTag("context-usage-details", useUnmergedTree = true).assertIsDisplayed()
         val context = InstrumentationRegistry.getInstrumentation().targetContext
@@ -74,4 +74,38 @@ class ContextUsageInstrumentedTest {
         compose.onNodeWithText(context.getString(R.string.context_usage_accessible, "100", java.text.NumberFormat.getIntegerInstance().format(1000), 10)).assertIsDisplayed()
         capture("pocket-context-after-compaction")
     }
+    @Test fun compactStatisticsSeparateLastRequestFromReplyTotals() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val message = UIMessage.assistant("Complete").copy(generationMetrics = listOf(
+            me.rerere.ai.provider.GenerationRequestMetrics("first", "COMPLETED", 2000, 50, receivingMs = 1000,
+                usage = me.rerere.ai.core.TokenUsage(promptTokens = 100, completionTokens = 20)),
+            me.rerere.ai.provider.GenerationRequestMetrics("latest", "COMPLETED", 3000, 75, firstContentMs = 500, receivingMs = 2000,
+                usage = me.rerere.ai.core.TokenUsage(promptTokens = 800, completionTokens = 30), httpStatus = 200, backend = "primary"),
+        ))
+        val settings = Settings().let { it.copy(displaySetting = it.displaySetting.copy(showTokenUsage = true)) }
+        compose.setContent { CompositionLocalProvider(LocalSettings provides settings) { RikkahubTheme { Surface {
+            Column(Modifier.width(340.dp).padding(12.dp)) {
+                ChatMessageNerdLine(message, contextUsage = snapshot.copy(usedTokens = 950, contextLimit = 2000,
+                    latestPromptTokens = 800, outputReserve = 200, compactionTrigger = 1600, configuredCompactionTrigger = 1600, compacted = false))
+            }
+        } } } }
+        compose.onNodeWithTag("message-stats-toggle").performClick()
+        compose.onNodeWithTag("latest-request-usage").assertIsDisplayed()
+        compose.onNodeWithText("800").assertIsDisplayed()
+        compose.onNodeWithText("30").assertIsDisplayed()
+        val scopeNote = context.getString(R.string.pocket_stats_context_scope)
+        compose.onNodeWithText(scopeNote).assertDoesNotExist()
+        capture("pocket-message-stats-compact")
+        compose.onNodeWithTag("message-stats-diagnostics").performClick()
+        compose.onNodeWithTag("whole-reply-usage").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("900").assertIsDisplayed()
+        compose.onNodeWithText("50").assertIsDisplayed()
+        compose.onNodeWithText("HTTP 200 · primary").performScrollTo().assertIsDisplayed()
+        val file = File(context.filesDir, "trajectory-qa/pocket-message-stats-diagnostics.png")
+        file.parentFile!!.mkdirs()
+        file.outputStream().use {
+            compose.onNodeWithTag("message-stats-diagnostics-sheet").captureToImage().asAndroidBitmap().compress(Bitmap.CompressFormat.PNG, 100, it)
+        }
+    }
+
 }

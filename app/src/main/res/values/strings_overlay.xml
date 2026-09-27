@@ -7,4 +7,14 @@
     <string name="pocket_overlay_tool">Running tools</string>
     <string name="pocket_overlay_approval">Waiting for approval</string>
     <string name="pocket_overlay_continuing">Continuing the task</string>
+    <string name="pocket_overlay_percent">≈%1$d%%</string>
+    <string name="pocket_overlay_collapse">Collapse to a bubble</string>
+    <string name="pocket_overlay_expand">Expand agent status</string>
+    <string name="pocket_overlay_collapsed">Compact agent status</string>
+    <string name="pocket_overlay_expanded">Expanded agent status</string>
+    <string name="pocket_overlay_drag_hint">Drag to move</string>
+    <string name="pocket_overlay_move_left">Move left</string>
+    <string name="pocket_overlay_move_right">Move right</string>
+    <string name="pocket_overlay_move_up">Move up</string>
+    <string name="pocket_overlay_move_down">Move down</string>
 </resources>

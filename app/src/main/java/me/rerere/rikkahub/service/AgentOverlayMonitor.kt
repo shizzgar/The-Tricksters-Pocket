@@ -18,11 +18,9 @@ import kotlinx.coroutines.launch
 import me.rerere.ai.ui.UIMessagePart
 import me.rerere.rikkahub.data.ai.ContextUsageCalculator
 import me.rerere.rikkahub.data.datastore.Settings
-import me.rerere.rikkahub.data.datastore.findModelById
 import me.rerere.rikkahub.data.datastore.getAssistantById
 import me.rerere.rikkahub.data.datastore.getCurrentAssistant
 import me.rerere.rikkahub.data.repository.ConversationRepository
-import java.time.Instant
 
 /** Observes real lifecycle/progress events, including background and child sessions. No polling. */
 internal class AgentOverlayMonitor(
@@ -37,20 +35,13 @@ internal class AgentOverlayMonitor(
                     combine(session.state, session.generationProgress.state, session.processingStatus,
                         conversationRepo.observeCompaction(session.id), settings) { chat, progress, status, compaction, current ->
                         val assistant = current.getAssistantById(chat.assistantId) ?: current.getCurrentAssistant()
-                        val model = current.findModelById(chat.chatModelId ?: assistant.chatModelId ?: current.chatModelId)
-                        val startedAt = progress?.let {
-                            Instant.ofEpochMilli(System.currentTimeMillis() -
-                                ((System.nanoTime() / 1_000_000) - it.startedAt).coerceAtLeast(0))
-                        }
                         AgentOverlaySession(
                             id = session.id.toString(), assistantName = assistant.name,
                             phase = agentOverlayPhase(progress, chat.currentMessages.lastOrNull()?.parts
                                 ?.filterIsInstance<UIMessagePart.Tool>().orEmpty()),
                             processingStatus = status,
-                            context = ContextUsageCalculator.snapshot(chat, assistant, current, model, compaction,
-                                streaming = true, liveUsage = progress?.usage.takeIf {
-                                    chat.currentMessages.lastOrNull()?.modelId == model?.id
-                                }, liveRequestStartedAt = startedAt),
+                            context = ContextUsageCalculator.forConversation(chat, current, compaction, progress,
+                                streaming = session.isGenerating),
                         )
                     }
                 }

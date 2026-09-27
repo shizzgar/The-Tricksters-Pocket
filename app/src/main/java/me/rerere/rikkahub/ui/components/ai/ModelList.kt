@@ -87,6 +87,7 @@ import me.rerere.rikkahub.ui.components.ui.TagType
 import me.rerere.rikkahub.ui.components.ui.icons.HeartIcon
 import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.theme.extendColors
+import me.rerere.rikkahub.utils.computeModelIconName
 import me.rerere.rikkahub.utils.toDp
 import org.koin.compose.koinInject
 import sh.calvin.reorderable.ReorderableItem
@@ -204,6 +205,9 @@ internal fun ModelSelectorButton(
     onClear: () -> Unit = {},
 ) {
     val model = state.currentModel
+    val iconName = model?.let {
+        computeModelIconName(it.modelId, it.displayName, it.findProvider(state.providers)?.name)
+    }.orEmpty()
 
     if (!onlyIcon) {
         Row(
@@ -216,7 +220,7 @@ internal fun ModelSelectorButton(
                 modifier = modifier
             ) {
                 AutoAIIcon(
-                    name = model?.modelId.orEmpty(),
+                    name = iconName,
                     modifier = Modifier.padding(end = 4.dp).size(36.dp),
                     color = Color.Transparent,
                 )
@@ -248,7 +252,7 @@ internal fun ModelSelectorButton(
             if (model != null) {
                 AutoAIIcon(
                     modifier = Modifier.size(36.dp),
-                    name = model.modelId,
+                    name = iconName,
                     color = Color.Transparent
                 )
             } else {
