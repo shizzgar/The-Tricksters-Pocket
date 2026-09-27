@@ -27,7 +27,9 @@ object ContextRequestAccounting {
     private fun partsHash(parts: List<UIMessagePart>): String = digest(parts.joinToString("|") { part ->
         synchronized(partHashes) {
             partHashes.getOrPut(IdentityPart(part)) {
-                digest(Json.encodeToString(UIMessagePart.serializer(), part))
+                // Delivery labels are local metadata, not part of the model input.
+                val inputPart = if (part is UIMessagePart.Tool) part.copy(hookNotices = emptyList(), executionAttemptId = null) else part
+                digest(Json.encodeToString(UIMessagePart.serializer(), inputPart))
             }
         }
     })
@@ -79,6 +81,8 @@ object ContextRequestAccounting {
         includedMessages: List<UIMessage>,
         transformedMessages: List<UIMessage>,
         configurationKey: String,
+        hookDeliveryIds: Set<String> = emptySet(),
+        transientHookTokens: Int = 0,
     ): GenerationRequestContext {
         val responsePrefix = messages.lastOrNull()?.takeIf { it.role == MessageRole.ASSISTANT }
         val immutableInput = if (responsePrefix != null) includedMessages.dropLast(1) else includedMessages
@@ -93,6 +97,8 @@ object ContextRequestAccounting {
                 .filterIsInstance<UIMessagePart.Tool>().filter { it.isExecuted }
                 .mapTo(mutableSetOf()) { it.toolCallId },
             configurationKey = configurationKey,
+            hookDeliveryIds = hookDeliveryIds,
+            transientHookTokens = transientHookTokens.coerceAtLeast(0),
             inputMessageCount = immutableInput.size,
             inputContentHash = messagesHash(immutableInput),
             responsePrefixPartCount = responsePrefix?.parts?.size,

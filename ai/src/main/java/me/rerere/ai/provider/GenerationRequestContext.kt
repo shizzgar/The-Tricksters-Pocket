@@ -21,4 +21,7 @@ data class GenerationRequestContext(
     val responsePrefixPartCount: Int? = null,
     val responsePrefixLastTextLength: Int? = null,
     val responsePrefixContentHash: String? = null,
+    // User hooks are one-request additions, unlike the retained conversation history.
+    val hookDeliveryIds: Set<String> = emptySet(),
+    val transientHookTokens: Int = 0,
 )

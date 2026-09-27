@@ -64,6 +64,7 @@ class ChatVM(
     private val favoriteRepository: FavoriteRepository,
 ) : ViewModel() {
     private val _conversationId: Uuid = Uuid.parse(id)
+    private val hookStore = me.rerere.rikkahub.data.ai.hooks.HookRuntimeStore.at(context.filesDir)
     val conversation: StateFlow<Conversation> = chatService.getConversationFlow(_conversationId)
     var chatListInitialized by mutableStateOf(false) // 聊天列表是否已经滚动到底部
 
@@ -104,6 +105,10 @@ class ChatVM(
         // 初始化对话
         viewModelScope.launch {
             chatService.initializeConversation(_conversationId)
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching { hookStore.ensureLoaded(_conversationId.toString()) }
+                    .onFailure { android.util.Log.w(TAG, "Cannot load hook context metadata", it) }
+            }
         }
 
         // 记住对话ID, 方便下次启动恢复
@@ -137,8 +142,13 @@ class ChatVM(
     val contextUsage: StateFlow<me.rerere.rikkahub.data.ai.ContextUsageSnapshot?> = combine(
         conversation, settings, conversationRepo.observeCompaction(_conversationId), generationProgress, conversationJob,
     ) { chat, settings, compaction, progress, job ->
+        HookContextObservation(chat, settings, compaction, progress, job?.isActive == true)
+    }.combine(hookStore.revision) { state, _ ->
+        val (chat, settings, compaction, progress, streaming) = state
         me.rerere.rikkahub.data.ai.ContextUsageCalculator.forConversation(
-            chat, settings, compaction, progress, streaming = job?.isActive == true,
+            chat, settings, compaction, progress, streaming = streaming,
+            pendingHookInstructions = hookStore.pendingBatchCached(chat.id.toString(),
+                settings.toolHooks.filter { it.enabled }.map { it.id.toString() }.toSet()).instructions,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
@@ -413,3 +423,12 @@ class ChatVM(
     }
 
 }
+
+
+private data class HookContextObservation(
+    val chat: me.rerere.rikkahub.data.model.Conversation,
+    val settings: me.rerere.rikkahub.data.datastore.Settings,
+    val compaction: me.rerere.rikkahub.data.model.ConversationCompaction?,
+    val progress: me.rerere.ai.provider.GenerationProgress?,
+    val streaming: Boolean,
+)

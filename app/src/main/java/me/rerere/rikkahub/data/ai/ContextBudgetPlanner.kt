@@ -93,7 +93,9 @@ object ContextBudgetPlanner {
             receiving -> maxOf(reportedOutput, responseEstimate)
             else -> reportedOutput
         }
-        return prompt + output + freshToolResults
+        // A hook is present in this live request, but is not retained in the next one.
+        val expiredHookTokens = if (receiving) 0L else request?.transientHookTokens?.coerceAtLeast(0)?.toLong() ?: 0L
+        return (prompt - expiredHookTokens).coerceAtLeast(0L) + output + freshToolResults
     }
 
     /**
@@ -164,6 +166,9 @@ object ContextBudgetPlanner {
         UIMessagePart.Search,
             -> MEDIA_PART_TOKENS.toLong()
     }
+
+    /** Same text estimator used by the prepared-request accounting for hook instructions. */
+    fun estimateHookPromptTokens(text: String): Int = estimateTextTokens(text).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
 
     private fun estimateTextTokens(text: String): Long {
         var asciiChars = 0L

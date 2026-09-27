@@ -1,0 +1,48 @@
+{
+  "version": "2.5.1-pocket.6",
+  "version_code": 195,
+  "package_id": "excp.rikkahub.rebro",
+  "architecture": "arm64-v8a",
+  "source_commit": "f33cdec0215cbc89a9b718d793abe69640135ece",
+  "workflow_run": "https://github.com/shizzgar/The-Tricksters-Pocket/actions/runs/36329653500",
+  "apk_file": "Tricksters-Pocket-2.5.1-pocket.6-arm64-release.apk",
+  "apk_bytes": 57856812,
+  "apk_sha256": "9bd66f43f3a03d31477080e94422399411e05985cf6b89b1f08a2f19ca358ff2",
+  "unsigned_apk_sha256": "bfdcf424df102e403ba08de98b4aeb12f63279c9e7ab740103307e5a055e53ab",
+  "signer_certificate_sha256": "0FAC079E040D97CCE1786CEB21DC0855C0D09B2DF3222A43E71C46DD2C517805",
+  "signature_schemes": [
+    "v2",
+    "v3"
+  ],
+  "debuggable": false,
+  "bundled_assets_verified": [
+    "icons/pocket.svg"
+  ],
+  "tests": {
+    "jvm": 1188,
+    "python": 68,
+    "android": 85,
+    "failures": 0,
+    "skipped": 0
+  },
+  "emulator": {
+    "api": 35,
+    "variant": "debug"
+  },
+  "screenshots_captured": 39,
+  "hook_screenshots": [
+    "pocket-hooks-library",
+    "pocket-hook-editor",
+    "pocket-hook-details",
+    "pocket-hook-dry-run"
+  ],
+  "screenshot_evidence_limits": [
+    "The reviewer-picker capture shows the underlying dashboard; reviewer selection is covered by functional assertions.",
+    "The standalone Termux settings fixture omits the background supplied by the production WorkspaceDetailPage scaffold; it does not verify the complete settings-screen theme.",
+    "Hook captures use English light-theme fixtures. The editor capture shows its upper viewport and the dry-run capture shows the result card; scrolling and call selection are checked separately by UI assertions. Dark-theme, Russian-locale and keyboard layouts are not visually captured."
+  ],
+  "physical_device_termux_verified": false,
+  "physical_device_overlay_verified": false,
+  "build_reports_artifact_id": 10935612724,
+  "build_reports_artifact_digest": "sha256:cc8201f7cae0fe022a1a5140622e49adc4f0851e56d92dfa4f372107160e0363"
+}

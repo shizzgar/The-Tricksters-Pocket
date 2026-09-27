@@ -19,7 +19,7 @@ a skill workspace, and the PocketBro, ThinkBro, ReBro, NetBro, DevBro, OpsBro, V
 
 </div>
 
-**2.5.1-pocket.5:** search keeps its magnifier, while the model selector uses the pocket as its fallback. The overlay can be moved and collapsed to a circle. Context accounting, compact response statistics and Termux timers are updated. [Controls and metrics](docs/pocket-controls.md).
+**2.5.1-pocket.6:** tool hooks add instructions when tool results match configured conditions. Choose an inline prompt or skill section, assistant/workspace/chat scopes, and preview against past calls. Open Hooks beside prompt injections or from the chat composer’s **+** menu. [Hook behavior and setup](docs/tool-hooks.md).
 
 [Tasks, results, projects and technical Bros](docs/pocket-workbench.md) · [Nested subagent chats](docs/POCKET-NESTED-CHATS.md).
 
@@ -147,7 +147,7 @@ RikkaHub and ExTV provide the multi-provider chat client, MCP, subagents, schedu
 
 ## Validation and current boundaries
 
-**Validated build:** [CI for `2.5.1-pocket.5` (`8e7cebe`)](https://github.com/shizzgar/The-Tricksters-Pocket/actions/runs/36325791852) passed **1105 JVM, 68 Python and 77 Android tests** and built an optimized release with R8. Coverage includes repeated requests/tools, model/history changes, compaction, overlay placement, search/model identity, timers and diagnostic scrolling. The emulator runs the debug variant; release is built separately and signed with the permanent ReBro key. [Signature, hashes and validation limits](docs/releases/2.5.1-pocket.5.json). Termux and system-overlay behavior on a physical device remain to be checked after installation.
+**Validated build:** [CI for `2.5.1-pocket.6` (`f33cdec`)](https://github.com/shizzgar/The-Tricksters-Pocket/actions/runs/36329653500) passed **1188 JVM, 68 Python and 85 Android tests** and built an optimized release with R8. Coverage includes hook matching, scopes, skill instructions, background jobs, delivery/retries, context accounting, editing and event inspection, together with previous feature checks. The emulator runs the debug variant; release is built separately and signed with the permanent ReBro key. [Signature, hashes and validation limits](docs/releases/2.5.1-pocket.6.json). Termux and system-overlay behavior on a physical device remain to be checked after installation.
 
 - Traces are local and may contain private prompts, commands and results. Inspect exports before sharing.
 - Only provider-returned reasoning can be recorded. Deterministic replay and reconstruction of previously unrecorded events are not implemented.

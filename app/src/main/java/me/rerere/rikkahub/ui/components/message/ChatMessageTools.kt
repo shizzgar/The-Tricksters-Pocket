@@ -59,6 +59,8 @@ import me.rerere.hugeicons.stroke.Refresh03
 import me.rerere.hugeicons.stroke.Tick01
 import me.rerere.hugeicons.stroke.Tools
 import me.rerere.rikkahub.R
+import me.rerere.rikkahub.ui.components.message.tools.ToolHookNotices
+import me.rerere.rikkahub.ui.components.message.tools.rememberToolHookNotices
 import me.rerere.rikkahub.ui.components.message.tools.ToolUIContext
 import me.rerere.rikkahub.ui.components.message.tools.ToolUIRegistry
 import me.rerere.rikkahub.ui.components.richtext.ZoomableAsyncImage
@@ -136,16 +138,18 @@ fun ChainOfThoughtScope.ChatMessageToolStep(
     onToolAnswer: ((toolCallId: String, answer: String) -> Unit)? = null,
     onRerunTool: (suspend (toolCallId: String) -> me.rerere.rikkahub.service.ChatService.RerunToolResult)? = null,
 ) {
+    val toolConversationId = me.rerere.rikkahub.ui.context.LocalToolConversationId.current
+    val hookState = rememberToolHookNotices(tool, toolConversationId)
+    val hookNotices = hookState.notices
     // ask_user 是交互式问答流程, 不走注册式渲染框架
     if (tool.toolName == ASK_USER_TOOL_NAME) {
-        AskUserToolStep(tool = tool, loading = loading, onToolAnswer = onToolAnswer)
+        AskUserToolStep(tool = tool, loading = loading, onToolAnswer = onToolAnswer, hookState = hookState)
         return
     }
 
     val compressionEvent = me.rerere.rikkahub.data.ai.ContextCompactionPresentation.isDisplayTool(tool)
     val stepLoading = if (compressionEvent) me.rerere.rikkahub.data.ai.ContextCompactionPresentation.isRunning(tool) else loading
     val renderer = remember(tool.toolName) { ToolUIRegistry.resolve(tool.toolName) }
-    val toolConversationId = me.rerere.rikkahub.ui.context.LocalToolConversationId.current
     val context = remember(tool, stepLoading, toolConversationId) {
         ToolUIContext(
             tool = tool,
@@ -171,7 +175,7 @@ fun ChainOfThoughtScope.ChatMessageToolStep(
 
     // Summary detection is delegated to the registered renderer; image output, webview
     // cards, and denial reasons are common to all tools.
-    val hasExtraContent = renderer.hasSummary(context) || isDenied || images.isNotEmpty() || webviewParts.isNotEmpty()
+    val hasExtraContent = renderer.hasSummary(context) || isDenied || images.isNotEmpty() || webviewParts.isNotEmpty() || hookNotices.isNotEmpty()
 
     ControlledChainOfThoughtStep(
         expanded = expanded,
@@ -377,6 +381,7 @@ fun ChainOfThoughtScope.ChatMessageToolStep(
         content = if (hasExtraContent) {
             {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    ToolHookNotices(hookNotices, unavailablePendingIds = hookState.unavailablePendingIds)
                     renderer.Summary(context)
                     webviewParts.forEach { webviewPart ->
                         SkillWebviewCardOrNull(part = webviewPart)
@@ -436,6 +441,7 @@ fun ChainOfThoughtScope.ChatMessageToolStep(
             onDismissRequest = { showResult = false },
             content = {
                 Column {
+                    ToolHookNotices(hookNotices, Modifier.padding(horizontal = 16.dp, vertical = 4.dp), hookState.unavailablePendingIds)
                     renderer.Preview(
                         context = context,
                         onDismissRequest = { showResult = false },
@@ -531,6 +537,7 @@ private fun ChainOfThoughtScope.AskUserToolStep(
     tool: UIMessagePart.Tool,
     loading: Boolean,
     onToolAnswer: ((toolCallId: String, answer: String) -> Unit)?,
+    hookState: me.rerere.rikkahub.ui.components.message.tools.ToolHookNoticeState,
 ) {
     val isPending = tool.isPending
     val isAnswered = tool.approvalState is ToolApprovalState.Answered
@@ -593,6 +600,7 @@ private fun ChainOfThoughtScope.AskUserToolStep(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
+                ToolHookNotices(hookState.notices, unavailablePendingIds = hookState.unavailablePendingIds)
                 questions.forEach { q ->
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(

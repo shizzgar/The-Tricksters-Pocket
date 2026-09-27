@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyListState
@@ -293,6 +294,7 @@ private fun ChatPageContent(
     val hazeState = rememberHazeState()
     val assistant = setting.getCurrentAssistant()
     var showTaskEditor by rememberSaveable(conversation.id.toString()) { mutableStateOf(false) }
+    var showToolHooks by rememberSaveable(conversation.id.toString()) { mutableStateOf(false) }
     var showFilesSheet by remember { mutableStateOf(false) }
     var showTrajectory by rememberSaveable(conversation.id) { mutableStateOf(false) }
     var showTermuxJobs by rememberSaveable(conversation.id) { mutableStateOf(false) }
@@ -555,6 +557,21 @@ private fun ChatPageContent(
         if (showTrajectory) ConversationTrajectoryScreen(conversation, loadingJob != null, vm::resumeAgentTask, { showTrajectory = false })
         if (showTermuxJobs) TermuxJobsScreen(vm.termuxJobs, onDismiss = { showTermuxJobs = false })
 
+        if (showToolHooks) {
+            ModalBottomSheet(
+                sheetState = rememberBottomSheetState(
+                    initialValue = SheetValue.Hidden,
+                    enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded),
+                ),
+                onDismissRequest = { showToolHooks = false },
+            ) {
+                me.rerere.rikkahub.ui.pages.extensions.ToolHooksManager(
+                    conversationId = conversation.id,
+                    modifier = Modifier.fillMaxWidth().fillMaxHeight(.9f),
+                )
+            }
+        }
+
         if (showFilesSheet) {
             ChatFilesPickerSheet(
                 inputState = inputState,
@@ -568,6 +585,7 @@ private fun ChatPageContent(
                 onOpenTermuxJobs = { showFilesSheet = false; showTermuxJobs = true },
                 onOpenTrajectory = { showFilesSheet = false; showTrajectory = true },
                 onOpenTask = { showFilesSheet = false; showTaskEditor = true },
+                onOpenToolHooks = { showFilesSheet = false; showToolHooks = true },
             )
         }
     }
@@ -585,6 +603,7 @@ private fun ChatFilesPickerSheet(
     onOpenTermuxJobs: () -> Unit,
     onOpenTrajectory: () -> Unit,
     onOpenTask: () -> Unit,
+    onOpenToolHooks: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val jobState by vm.termuxJobs.state.collectAsStateWithLifecycle()
@@ -611,6 +630,11 @@ private fun ChatFilesPickerSheet(
     ) {
         FilesPicker(
             onOpenTrajectory = onOpenTrajectory,
+            onOpenToolHooks = {
+                focusManager.clearFocus(force = true)
+                keyboardController?.hide()
+                onOpenToolHooks()
+            },
             onOpenTask = {
                 focusManager.clearFocus(force = true)
                 keyboardController?.hide()

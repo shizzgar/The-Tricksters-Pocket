@@ -22,6 +22,7 @@
 
 | Область | Документ |
 |---|---|
+| Подсказки по результатам tools, условия и проверка на прошлых вызовах | [Tool hooks](tool-hooks.md) |
 | Waterfall, Flow, инспектор, поиск и экспорт | [Trajectory и skills](agent-runtime/trajectory-and-termux-skills.ru.md) |
 | Полный ZIP: запросы, reasoning, tools, подагенты и диагностика | [Экспорт всей трассы](trace-export.md) |
 | Уточнить задачу во время её выполнения | [Сообщения между операциями агента](live-steering.md) |

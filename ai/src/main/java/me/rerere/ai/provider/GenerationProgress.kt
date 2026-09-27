@@ -30,10 +30,21 @@ class GenerationProgressTracker(private val clock: () -> Long = { System.nanoTim
     val state = mutable.asStateFlow()
     private var sequence = 0L
     private var requestContext: GenerationRequestContext? = null
+    private var onDispatched: ((String) -> Unit)? = null
+    private var onFirstContent: ((String) -> Unit)? = null
+    private var onFinished: ((GenerationProgress) -> Unit)? = null
     private val completed = ArrayDeque<GenerationRequestMetrics>()
     @Synchronized fun completedMetrics(): List<GenerationRequestMetrics> = completed.toList()
 
-    @Synchronized fun prepare(context: GenerationRequestContext? = null) {
+    @Synchronized fun prepare(
+        context: GenerationRequestContext? = null,
+        onDispatched: ((String) -> Unit)? = null,
+        onFirstContent: ((String) -> Unit)? = null,
+        onFinished: ((GenerationProgress) -> Unit)? = null,
+    ) {
+        this.onDispatched = onDispatched
+        this.onFirstContent = onFirstContent
+        this.onFinished = onFinished
         requestContext = context
         mutable.value = GenerationProgress(++sequence, GenerationPhase.PREPARING, clock(), context = context)
     }
@@ -42,7 +53,7 @@ class GenerationProgressTracker(private val clock: () -> Long = { System.nanoTim
         val id = ++sequence
         mutable.value = GenerationProgress(id, GenerationPhase.QUEUED, clock(), streamed = streamed,
             context = requestContext?.copy(startedAtEpochMillis = System.currentTimeMillis()))
-        return GenerationRequestObserver(this, id, requireNotNull(mutable.value).requestId)
+        return GenerationRequestObserver(this, id, requireNotNull(mutable.value).requestId, onDispatched, onFirstContent, onFinished)
     }
 
     @Synchronized internal fun update(id: Long, transform: (GenerationProgress, Long) -> GenerationProgress) {
@@ -58,13 +69,21 @@ class GenerationProgressTracker(private val clock: () -> Long = { System.nanoTim
 }
 
 /** A handle belongs to exactly one attempt. Late HTTP callbacks cannot overwrite a newer attempt. */
-class GenerationRequestObserver internal constructor(private val tracker: GenerationProgressTracker, private val id: Long, val requestId: String) {
-    fun dispatched() = tracker.update(id) { p, now -> p.copy(phase = GenerationPhase.WAITING, dispatchedAt = now) }
+class GenerationRequestObserver internal constructor(private val tracker: GenerationProgressTracker, private val id: Long, val requestId: String, private val onDispatched: ((String) -> Unit)? = null, private val onFirstContent: ((String) -> Unit)? = null, private val onFinished: ((GenerationProgress) -> Unit)? = null) {
+    fun dispatched() = tracker.update(id) { p, now ->
+        // Called after leaving the local request queue, immediately before transport. A
+        // failed durable checkpoint aborts dispatch instead of losing pending instructions.
+        if (p.dispatchedAt == null) onDispatched?.invoke(requestId)
+        p.copy(phase = GenerationPhase.WAITING, dispatchedAt = p.dispatchedAt ?: now)
+    }
     fun headers(status: Int, backend: String?) = tracker.update(id) { p, now ->
         p.copy(headersAt = p.headersAt ?: now, httpStatus = status,
             backend = backend?.takeIf { it == "primary" || it == "secondary" })
     }
     fun content() = tracker.update(id) { p, now ->
+        if (p.firstContentAt == null) {
+            try { onFirstContent?.invoke(requestId) } catch (_: Exception) { /* Bookkeeping cannot discard model output. */ }
+        }
         p.copy(phase = GenerationPhase.RECEIVING, firstContentAt = p.firstContentAt ?: now, lastContentAt = now)
     }
     fun usage(usage: me.rerere.ai.core.TokenUsage) = tracker.update(id) { p, _ -> p.copy(usage = p.usage.merge(usage)) }
@@ -72,7 +91,11 @@ class GenerationRequestObserver internal constructor(private val tracker: Genera
         if (chunk.hasProgressContent()) content()
         if (chunk is StreamChunk.Usage) usage(chunk.usage)
     }
-    fun finish(phase: GenerationPhase) = tracker.update(id) { p, now -> p.copy(phase = phase, finishedAt = now) }
+    fun finish(phase: GenerationPhase) = tracker.update(id) { p, now ->
+        p.copy(phase = phase, finishedAt = now).also { finished ->
+            try { onFinished?.invoke(finished) } catch (_: Exception) { /* Preserve the actual terminal outcome. */ }
+        }
+    }
 }
 
 internal fun StreamChunk.hasProgressContent(): Boolean = when (this) {

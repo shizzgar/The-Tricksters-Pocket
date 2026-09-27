@@ -28,12 +28,18 @@ internal class AgentOverlayMonitor(
     private val settings: Flow<Settings>,
     private val conversationRepo: ConversationRepository,
 ) {
+    private val hookStore = me.rerere.rikkahub.data.ai.hooks.HookRuntimeStore.at(context.filesDir)
+
     fun start(scope: CoroutineScope, sessions: Flow<List<ConversationSession>>) = scope.launch(Dispatchers.Default) {
         try {
             val observations = agentOverlayStates(sessions.map { active ->
                 active.map { session ->
+                    kotlinx.coroutines.withContext(Dispatchers.IO) {
+                        runCatching { hookStore.ensureLoaded(session.id.toString()) }
+                            .onFailure { android.util.Log.w("AgentOverlayMonitor", "Cannot load hook context metadata", it) }
+                    }
                     combine(session.state, session.generationProgress.state, session.processingStatus,
-                        conversationRepo.observeCompaction(session.id), settings) { chat, progress, status, compaction, current ->
+                        conversationRepo.observeCompaction(session.id), combine(settings, hookStore.revision) { current, _ -> current }) { chat, progress, status, compaction, current ->
                         val assistant = current.getAssistantById(chat.assistantId) ?: current.getCurrentAssistant()
                         AgentOverlaySession(
                             id = session.id.toString(), assistantName = assistant.name,
@@ -41,7 +47,9 @@ internal class AgentOverlayMonitor(
                                 ?.filterIsInstance<UIMessagePart.Tool>().orEmpty()),
                             processingStatus = status,
                             context = ContextUsageCalculator.forConversation(chat, current, compaction, progress,
-                                streaming = session.isGenerating),
+                                streaming = session.isGenerating,
+                                pendingHookInstructions = hookStore.pendingBatchCached(session.id.toString(),
+                                    current.toolHooks.filter { it.enabled }.map { it.id.toString() }.toSet()).instructions),
                         )
                     }
                 }
