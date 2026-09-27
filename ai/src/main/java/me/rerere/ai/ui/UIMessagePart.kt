@@ -197,7 +197,10 @@ sealed class UIMessagePart {
          * "never started" (Approved-but-not-yet-tried).
          */
         val executionStartedAt: Long? = null,
-        override var metadata: JsonObject? = null
+        override var metadata: JsonObject? = null,
+        /** Monotonic duration of this tool request, including transport/waits; not job lifetime. */
+        val executionDurationMs: Long? = null,
+        @kotlinx.serialization.Transient val executionTimer: ToolExecutionTimer? = null,
     ) : UIMessagePart() {
         /** Whether the tool has been executed (has output) */
         val isExecuted: Boolean get() = output.isNotEmpty()
@@ -232,6 +235,8 @@ sealed class UIMessagePart {
                 approvalState = approvalState,
                 executionStartedAt = executionStartedAt ?: other.executionStartedAt,
                 metadata = if (other.metadata != null) other.metadata else metadata,
+                executionDurationMs = other.executionDurationMs ?: executionDurationMs,
+                executionTimer = other.executionTimer ?: executionTimer,
             )
         }
     }

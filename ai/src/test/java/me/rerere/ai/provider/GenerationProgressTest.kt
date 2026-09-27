@@ -9,6 +9,27 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class GenerationProgressTest {
+    @Test fun `request context survives provider attempts and persists in completed metrics`() {
+        val tracker = GenerationProgressTracker { 10L }
+        val context = GenerationRequestContext("model", 1, 500, "first", "response", 100, setOf("old-tool"))
+        tracker.prepare(context)
+        val first = tracker.begin()
+        first.finish(GenerationPhase.FAILED)
+        val second = tracker.begin()
+        second.usage(me.rerere.ai.core.TokenUsage(600, 20))
+        second.finish(GenerationPhase.COMPLETED)
+        val metrics = tracker.completedMetrics()
+        assertEquals(2, metrics.size)
+        assertEquals("model", metrics.last().context?.modelId)
+        assertEquals(setOf("old-tool"), metrics.last().context?.includedToolCallIds)
+        assertTrue(metrics.last().context!!.startedAtEpochMillis > 1)
+        val restored = Json.decodeFromString<GenerationRequestMetrics>(Json.encodeToString(metrics.last()))
+        assertEquals(metrics.last(), restored)
+        tracker.prepare()
+        tracker.begin()
+        assertNull(tracker.state.value?.context)
+    }
+
     @Test fun `request identities survive a newer attempt on the same tracker`() {
         val tracker = GenerationProgressTracker()
         val first = tracker.begin()

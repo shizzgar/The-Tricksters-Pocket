@@ -16,6 +16,7 @@ data class GenerationRequestMetrics(
     val backend: String? = null,
     val httpStatus: Int? = null,
     val streamed: Boolean = true,
+    val context: GenerationRequestContext? = null,
 ) {
     val tokensPerSecond: Double? get() = if (streamed && (receivingMs ?: 0) > 0 && (usage?.completionTokens ?: 0) > 0)
         usage!!.completionTokens * 1000.0 / receivingMs!! else null
@@ -34,5 +35,5 @@ fun GenerationProgress.metrics(now: Long = System.nanoTime() / 1_000_000): Gener
         ((dispatchedAt ?: end) - startedAt).coerceAtLeast(0),
         firstContentAt?.let { (it - (dispatchedAt ?: startedAt)).coerceAtLeast(0) },
         firstContentAt?.let { first -> lastContentAt?.let { (it - first).coerceAtLeast(0) } },
-        usage, backend, httpStatus, streamed)
+        usage, backend, httpStatus, streamed, context)
 }

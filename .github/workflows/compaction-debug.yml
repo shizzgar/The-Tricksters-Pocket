@@ -64,6 +64,10 @@ jobs:
           --tests 'me.rerere.rikkahub.data.ai.AgentTaskRuntimeTest'
           --tests 'me.rerere.rikkahub.data.ai.AgentTaskPolicyTest'
           --tests 'me.rerere.rikkahub.data.ai.ContextUsageSnapshotTest'
+          --tests 'me.rerere.rikkahub.data.ai.ContextBudgetPlannerTest'
+          --tests 'me.rerere.rikkahub.ui.components.message.MessageMetricsSummaryTest'
+          --tests 'me.rerere.rikkahub.utils.AIIconMatcherTest'
+          --tests 'me.rerere.rikkahub.service.AgentOverlayPlacementTest'
           --tests 'me.rerere.rikkahub.costguards.*Test'
           --tests 'me.rerere.rikkahub.data.ai.SessionJournalTest'
           --tests 'me.rerere.rikkahub.data.ai.TraceArchiveTest'
@@ -163,7 +167,7 @@ jobs:
           adb shell wm density 160
           adb shell am instrument -w -r -e class me.rerere.rikkahub.ui.pages.extensions.skills.SkillWorkbenchWideInstrumentedTest excp.rikkahub.debug.test/androidx.test.runner.AndroidJUnitRunner | tee build/trajectory-qa/wide-instrumentation.txt || test_status=$?
           grep -Fq 'OK (1 test)' build/trajectory-qa/wide-instrumentation.txt || test_status=1
-          for name in trajectory-waterfall trajectory-flow trajectory-inspector trajectory-russian-dark skill-workbench-files skill-workbench-editor skill-workbench-binary-ru skill-workbench-wide tool-access-russian trajectory-tools-compact trajectory-messages-compact trajectory-full-export rebro-theme-dark rebro-theme-light termux-workspace-create bro-subagent-profiles pocket-skill-markdown pocket-skill-code pocket-child-chat pocket-task-dashboard pocket-task-results pocket-context-ring-and-details pocket-context-after-compaction pocket-icons-light pocket-icons-dark termux-workspace-shared-settings pocket-agent-overlay-light pocket-agent-overlay-dark-compacted pocket-agent-overlay-unknown pocket-task-review-picker pocket-task-opt-in; do
+          for name in trajectory-waterfall trajectory-flow trajectory-inspector trajectory-russian-dark skill-workbench-files skill-workbench-editor skill-workbench-binary-ru skill-workbench-wide tool-access-russian trajectory-tools-compact trajectory-messages-compact trajectory-full-export rebro-theme-dark rebro-theme-light termux-workspace-create bro-subagent-profiles pocket-skill-markdown pocket-skill-code pocket-child-chat pocket-task-dashboard pocket-task-results pocket-context-ring-and-details pocket-context-after-compaction pocket-icons-light pocket-icons-dark termux-workspace-shared-settings pocket-agent-overlay-light pocket-agent-overlay-dark-compacted pocket-agent-overlay-unknown pocket-task-review-picker pocket-task-opt-in pocket-agent-overlay-collapsed pocket-termux-timing pocket-message-stats-compact pocket-message-stats-diagnostics; do
             adb exec-out run-as excp.rikkahub.debug cat "files/trajectory-qa/$name.png" > "build/trajectory-qa/$name.png" || test_status=1
           done
           cp /tmp/trajectory-emulator.log build/trajectory-qa/emulator.log

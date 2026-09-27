@@ -31,6 +31,46 @@ class PocketExperienceInstrumentedTest {
             compose.onAllNodes(isRoot()).onLast().captureToImage().asAndroidBitmap().compress(Bitmap.CompressFormat.PNG, 100, it)
         }
     }
+    @Test fun termuxDetailsSeparateRequestWaitFromJobSnapshot() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val result = buildJsonObject {
+            put("job_id", "build-release"); put("state", "running"); put("duration_ms", 90_000)
+            put("wait_timed_out", true); put("stdout", "Compiling release…")
+        }
+        val tool = me.rerere.ai.ui.UIMessagePart.Tool("timed", "termux_job_wait", "{}",
+            output = listOf(me.rerere.ai.ui.UIMessagePart.Text(result.toString())),
+            executionStartedAt = 123L, executionDurationMs = 20_000)
+        val ui = ToolUIContext(tool, tool.inputAsJson(), result, loading = false)
+        compose.setContent { RikkahubTheme { ToolUIRegistry.resolve(tool.toolName).Preview(ui) {} } }
+        val request = context.getString(me.rerere.rikkahub.R.string.termux_timer_request,
+            context.getString(me.rerere.rikkahub.R.string.termux_timer_seconds, 20L))
+        val snapshot = context.getString(me.rerere.rikkahub.R.string.termux_timer_job_snapshot,
+            context.getString(me.rerere.rikkahub.R.string.termux_timer_minutes, 1L, 30L))
+        compose.onNodeWithText(request).assertIsDisplayed()
+        compose.onNodeWithText(snapshot).assertIsDisplayed()
+        compose.mainClock.advanceTimeBy(5000)
+        compose.onNodeWithText(snapshot).assertIsDisplayed()
+        capture("pocket-termux-timing")
+    }
+
+    @Test fun termuxRunningRequestTicksAndStopsWithExecution() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        var nanos = 0L
+        val timer = me.rerere.ai.ui.ToolExecutionTimer { nanos }
+        val tool = me.rerere.ai.ui.UIMessagePart.Tool("live-timed", "termux_run_command", "{}",
+            executionStartedAt = 123L, executionTimer = timer)
+        compose.mainClock.autoAdvance = false
+        compose.setContent { RikkahubTheme { TermuxTimingRows(ToolUIContext(tool, tool.inputAsJson(), null, true)) } }
+        compose.mainClock.advanceTimeByFrame()
+        compose.runOnUiThread { nanos = 2_000_000_000L }
+        compose.mainClock.advanceTimeBy(500)
+        val elapsed = context.getString(me.rerere.rikkahub.R.string.termux_timer_seconds, 2L)
+        compose.onNodeWithText(context.getString(me.rerere.rikkahub.R.string.termux_timer_request_running, elapsed)).assertIsDisplayed()
+        compose.runOnUiThread { timer.finish(); nanos = 20_000_000_000L }
+        compose.mainClock.advanceTimeBy(500)
+        compose.onNodeWithText(context.getString(me.rerere.rikkahub.R.string.termux_timer_request, elapsed)).assertIsDisplayed()
+    }
+
     @Test fun markdownInstructionsAndPartialFailureAreVisible() {
         val view = presentSkill("use_skill", buildJsonObject { put("name", "Pocket guide") }, listOf(
             "# Working with files\n\nRead the instructions, then verify the result.\n\n- Keep user changes\n- Report the output",

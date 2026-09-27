@@ -17,6 +17,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlinx.serialization.json.*
 import me.rerere.ai.ui.UIMessagePart
 import me.rerere.ai.ui.ToolApprovalState
@@ -50,6 +51,7 @@ private class TermuxToolUI(override val toolName: String) : ToolUIRenderer {
         Text(stringResource(view.status.label()) + (view.exitCode?.let { " · " + stringResource(R.string.termux_preview_exit, it) } ?: ""),
             style = MaterialTheme.typography.labelMedium,
             color = if (view.status.isFailure()) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
+        TermuxTimingRows(context)
         view.command?.takeIf { it.isNotBlank() }?.let {
             Text(it, modifier = Modifier.fillMaxWidth(), maxLines = 2, overflow = TextOverflow.Ellipsis, softWrap = true,
                 style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, textDirection = TextDirection.Ltr))
@@ -119,6 +121,7 @@ private class TermuxToolUI(override val toolName: String) : ToolUIRenderer {
                 Surface(color = statusColor, shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(stringResource(view.status.label()), style = MaterialTheme.typography.titleMedium)
+                        TermuxTimingRows(context, showUnavailable = true)
                         view.exitCode?.let { Text(stringResource(R.string.termux_preview_exit, it), fontFamily = FontFamily.Monospace) }
                         if (view.status == TermuxStatus.TIMEOUT) Text(stringResource(R.string.termux_preview_timeout_note))
                         if (view.status == TermuxStatus.DISPATCHED) Text(stringResource(R.string.termux_preview_dispatch_note))
@@ -181,6 +184,7 @@ private class TermuxToolUI(override val toolName: String) : ToolUIRenderer {
                                     color = if (job.status.isFailure()) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
                                 job.command?.let { Field(stringResource(R.string.termux_preview_command_preview), it) }
                                 job.exitCode?.let { Text(stringResource(R.string.termux_preview_exit, it), style = MaterialTheme.typography.labelMedium) }
+                                jobTiming(session)?.let { TermuxTimingText(it) }
                                 Text(stringResource(R.string.termux_preview_snapshot_note), style = MaterialTheme.typography.bodySmall)
                                 job.outputState?.let { Text(stringResource(it.label()), style = MaterialTheme.typography.bodySmall) }
                                 listOf("job_id", "operation_id", "working_dir", "stop_reason", "reason", "error").forEach { key ->
@@ -237,6 +241,48 @@ internal fun TermuxStatus.label(): Int = when (this) {
     TermuxStatus.JOB_TIMEOUT -> R.string.termux_preview_job_timeout
     TermuxStatus.RESPONSE_RECEIVED -> R.string.termux_preview_received
     TermuxStatus.LOGS_REMOVED -> R.string.termux_preview_logs_removed
+    TermuxStatus.INTERRUPTED -> R.string.termux_timer_interrupted_status
+}
+
+@Composable
+internal fun TermuxTimingRows(context: ToolUIContext, showUnavailable: Boolean = false) {
+    // Recomposition and opening a historical preview cannot create a running clock.
+    val timer = context.tool.executionTimer
+    var tick by remember(timer) { mutableLongStateOf(0L) }
+    LaunchedEffect(timer, context.loading, context.tool.isExecuted) {
+        while (context.loading && !context.tool.isExecuted && timer?.isRunning == true) {
+            delay(250)
+            tick++
+        }
+    }
+    val timings = remember(context.tool, context.content, context.loading, tick) {
+        termuxTimings(context.tool, context.loading, context.content as? JsonObject)
+    }
+    timings.forEach { TermuxTimingText(it) }
+    if (showUnavailable && timings.isEmpty() && context.tool.executionStartedAt != null) {
+        Text(stringResource(R.string.termux_timer_unavailable), style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun TermuxTimingText(timing: TermuxTiming) {
+    val label = when (timing.kind) {
+        TermuxTimingKind.REQUEST -> R.string.termux_timer_request
+        TermuxTimingKind.REQUEST_RUNNING -> R.string.termux_timer_request_running
+        TermuxTimingKind.REQUEST_INTERRUPTED -> R.string.termux_timer_request_interrupted
+        TermuxTimingKind.JOB -> R.string.termux_timer_job
+        TermuxTimingKind.JOB_SNAPSHOT -> R.string.termux_timer_job_snapshot
+    }
+    val seconds = timing.durationMs / 1000
+    val duration = when {
+        seconds < 1 -> stringResource(R.string.termux_timer_subsecond)
+        seconds < 60 -> stringResource(R.string.termux_timer_seconds, seconds)
+        seconds < 3600 -> stringResource(R.string.termux_timer_minutes, seconds / 60, seconds % 60)
+        else -> stringResource(R.string.termux_timer_hours, seconds / 3600, seconds / 60 % 60, seconds % 60)
+    }
+    Text(stringResource(label, if (timing.estimated) "≈ $duration" else duration),
+        style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 private fun TermuxStatus.isFailure() = this in setOf(TermuxStatus.FAILED, TermuxStatus.TIMEOUT, TermuxStatus.DENIED, TermuxStatus.JOB_TIMEOUT)

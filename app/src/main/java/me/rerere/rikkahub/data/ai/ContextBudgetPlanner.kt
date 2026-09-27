@@ -2,6 +2,8 @@ package me.rerere.rikkahub.data.ai
 
 import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessagePart
+import me.rerere.ai.core.TokenUsage
+import me.rerere.ai.provider.GenerationRequestContext
 
 data class ContextBudgetPlan(
     val estimatedInputTokens: Int,
@@ -53,23 +55,45 @@ object ContextBudgetPlanner {
 
     fun estimateInputTokens(messages: List<UIMessage>): Int {
         val usageIndex = messages.indexOfLast { message ->
-            val usage = message.usage
-            usage != null && (usage.totalTokens > 0 || usage.promptTokens + usage.completionTokens > 0)
+            latestRequestUsage(message) != null || message.generationMetrics.lastOrNull()?.context != null
         }
         val estimate = if (usageIndex >= 0) {
-            val usage = messages[usageIndex].usage!!
-            val reportedTotal = usage.totalTokens.takeIf { it > 0 }
-                ?: (usage.promptTokens + usage.completionTokens)
-            // Tool outputs are attached to the assistant message only after the provider has
-            // reported usage for its tool-call response. They therefore are not represented in
-            // that usage figure, even though the next model request includes them.
-            reportedTotal.toLong() +
-                estimatePostUsageToolOutputTokens(messages[usageIndex]) +
+            val message = messages[usageIndex]
+            estimateRequestTokens(message, latestRequestUsage(message), message.generationMetrics.lastOrNull()?.context) +
                 messages.drop(usageIndex + 1).sumOf(::estimateMessageTokens)
         } else {
             messages.sumOf(::estimateMessageTokens)
         }
         return estimate.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+    }
+
+    /** A later request without usage must not inherit an earlier request's positive fields. */
+    fun latestRequestUsage(message: UIMessage): TokenUsage? =
+        (if (message.generationMetrics.isNotEmpty()) message.generationMetrics.last().usage else message.usage)
+            ?.takeIf { it.promptTokens > 0 && !it.aggregatedRequests }
+
+    fun estimateRequestTokens(
+        message: UIMessage?,
+        usage: TokenUsage?,
+        request: GenerationRequestContext?,
+        receiving: Boolean = false,
+    ): Long {
+        val prompt = usage?.promptTokens?.takeIf { it > 0 }?.toLong()
+            ?: request?.estimatedInputTokens?.coerceAtLeast(0)?.toLong() ?: 0L
+        val freshToolResults = message?.let {
+            estimatePostUsageToolOutputTokens(it, request?.includedToolCallIds.orEmpty())
+        } ?: 0L
+        val prefix = request?.takeIf { it.responseMessageId == message?.id?.toString() }
+            ?.responsePrefixTokens?.coerceAtLeast(0L) ?: 0L
+        val responseEstimate = ((message?.let(::estimateMessageTokens) ?: 0L) - prefix - freshToolResults)
+            .coerceAtLeast(0L)
+        val reportedOutput = usage?.completionTokens?.coerceAtLeast(0)?.toLong()
+        val output = when {
+            reportedOutput == null -> responseEstimate
+            receiving -> maxOf(reportedOutput, responseEstimate)
+            else -> reportedOutput
+        }
+        return prompt + output + freshToolResults
     }
 
     /**
@@ -93,9 +117,9 @@ object ContextBudgetPlanner {
      * reported usage, so counting them here would double-count that response.
      */
     @Suppress("DEPRECATION")
-    private fun estimatePostUsageToolOutputTokens(message: UIMessage): Long = message.parts.sumOf { part ->
+    private fun estimatePostUsageToolOutputTokens(message: UIMessage, includedToolCallIds: Set<String>): Long = message.parts.sumOf { part ->
         when (part) {
-            is UIMessagePart.Tool -> part.output.sumOf(::estimatePartTokens)
+            is UIMessagePart.Tool -> if (part.toolCallId in includedToolCallIds) 0L else part.output.sumOf(::estimatePartTokens)
             is UIMessagePart.ToolResult -> estimateTextTokens(part.content.toString())
             else -> 0L
         }

@@ -5,6 +5,16 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class UsageTest {
+    @org.junit.Test
+    fun `aggregate scope survives partial output but resets for a fresh prompt`() {
+        val aggregate = TokenUsage(promptTokens = 900, completionTokens = 20, aggregatedRequests = true)
+        val output = aggregate.merge(TokenUsage(completionTokens = 30))
+        org.junit.Assert.assertTrue(output.aggregatedRequests)
+        val next = output.merge(TokenUsage(promptTokens = 500, completionTokens = 10))
+        org.junit.Assert.assertFalse(next.aggregatedRequests)
+        org.junit.Assert.assertEquals(510, next.totalTokens)
+    }
+
     @Test
     fun `merge carries cost from the incoming chunk`() {
         val merged = (null as TokenUsage?).merge(

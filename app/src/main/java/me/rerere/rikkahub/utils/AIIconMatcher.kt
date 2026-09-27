@@ -2,6 +2,16 @@ package me.rerere.rikkahub.utils
 
 private val iconCache = mutableMapOf<String, String>()
 
+/** Prefer a recognized model, then its provider, before using the Pocket fallback. */
+fun computeModelIconName(modelId: String, displayName: String, providerName: String?): String =
+    listOfNotNull(modelId, displayName, providerName).firstOrNull { name ->
+        computeAIIconByName(name)?.let { it != "pocket.svg" } == true
+    } ?: modelId
+
+/** Application aliases and unidentified search services must never acquire the app's mark. */
+fun computeSearchIconByName(name: String): String? =
+    computeAIIconByName(name)?.takeUnless { it == "pocket.svg" }
+
 // https://lobehub.com/zh/icons
 fun computeAIIconByName(name: String): String? {
     iconCache[name]?.let { return it }

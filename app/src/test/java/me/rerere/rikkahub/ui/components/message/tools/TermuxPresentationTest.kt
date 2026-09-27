@@ -1,10 +1,58 @@
 package me.rerere.rikkahub.ui.components.message.tools
 
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import me.rerere.ai.ui.UIMessagePart
+import me.rerere.ai.ui.ToolExecutionTimer
 import org.junit.Assert.*
 import org.junit.Test
 
 class TermuxPresentationTest {
+    @Test fun `live timer belongs to execution not a UI or wall clock`() {
+        var nanos = 0L
+        val timer = ToolExecutionTimer { nanos }
+        val tool = UIMessagePart.Tool("live", "termux_run_command", "{}", executionStartedAt = 1L, executionTimer = timer)
+        nanos = 12_000_000_000L
+        assertEquals(listOf(TermuxTiming(TermuxTimingKind.REQUEST_RUNNING, 12_000)), termuxTimings(tool, true, null))
+        timer.finish()
+        nanos += 10_000_000_000L
+        assertEquals(listOf(TermuxTiming(TermuxTimingKind.REQUEST_INTERRUPTED, 12_000)), termuxTimings(tool, false, null))
+    }
+
+    @Test fun `queued denied and restored calls cannot acquire a timer from their timestamp`() {
+        val old = UIMessagePart.Tool("old", "termux_run_command", "{}", executionStartedAt = 1L)
+        assertTrue(termuxTimings(old, true, null).isEmpty())
+        assertTrue(termuxTimings(old.copy(executionStartedAt = null), false, null).isEmpty())
+        assertTrue(termuxTimings(old.copy(executionDurationMs = -1L), false, null).isEmpty())
+    }
+
+    @Test fun `background job snapshot duration remains separate from request wait`() {
+        val output = Json.parseToJsonElement("""{"job_id":"job","state":"running","duration_ms":90000}""").jsonObject
+        val tool = UIMessagePart.Tool("wait", "termux_job_wait", "{}", output = listOf(UIMessagePart.Text(output.toString())), executionDurationMs = 20_000)
+        assertEquals(listOf(TermuxTiming(TermuxTimingKind.REQUEST, 20_000), TermuxTiming(TermuxTimingKind.JOB_SNAPSHOT, 90_000)), termuxTimings(tool, true, output))
+        assertEquals(termuxTimings(tool, true, output), termuxTimings(tool, false, output))
+    }
+
+    @Test fun `finished job uses persisted monotonic duration despite clock adjustment`() {
+        val output = Json.parseToJsonElement("""{"job_id":"job","state":"cancelled","duration_ms":1500,"started_at":2000,"finished_at":1}""").jsonObject
+        assertEquals(TermuxTiming(TermuxTimingKind.JOB, 1500), jobTiming(output))
+    }
+
+    @Test fun `legacy duration is explicitly approximate and invalid timing stays unavailable`() {
+        fun timing(fields: String) = jobTiming(Json.parseToJsonElement("""{"job_id":"job",$fields}""").jsonObject)
+        assertEquals(TermuxTiming(TermuxTimingKind.JOB, 2500, true), timing(""""state":"completed","started_at":10,"finished_at":12.5"""))
+        assertEquals(TermuxTiming(TermuxTimingKind.JOB_SNAPSHOT, 2500, true), timing(""""state":"running","started_at":10,"output_observed_at":12.5"""))
+        assertNull(timing(""""state":"running","started_at":10"""))
+        assertNull(timing(""""state":"completed","started_at":10,"finished_at":1"""))
+        assertNull(timing(""""state":"unknown","duration_ms":10"""))
+        assertNull(timing(""""state":"starting","duration_ms":10"""))
+        assertNull(timing(""""state":"failed","duration_ms":-1"""))
+    }
+
+    @Test fun `interrupted request does not claim the external command was cancelled`() {
+        assertEquals(TermuxStatus.INTERRUPTED, present(output = """{"status":"cancelled","error":"cancelled by user"}""").status)
+    }
+
     private fun present(args: String = "{}", output: String? = null, name: String = "termux_run_command", loading: Boolean = false, started: Boolean = false) =
         presentTermux(name, Json.parseToJsonElement(args), output?.let { Json.parseToJsonElement(it) }, loading, started)
 

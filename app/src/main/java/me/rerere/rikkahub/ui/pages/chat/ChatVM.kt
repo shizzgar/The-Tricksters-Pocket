@@ -137,16 +137,8 @@ class ChatVM(
     val contextUsage: StateFlow<me.rerere.rikkahub.data.ai.ContextUsageSnapshot?> = combine(
         conversation, settings, conversationRepo.observeCompaction(_conversationId), generationProgress, conversationJob,
     ) { chat, settings, compaction, progress, job ->
-        val assistant = settings.getAssistantById(chat.assistantId) ?: settings.getCurrentAssistant()
-        val model = settings.findModelById(chat.chatModelId ?: assistant.chatModelId ?: settings.chatModelId)
-        val active = job?.isActive == true
-        val liveStartedAt = progress?.let {
-            java.time.Instant.ofEpochMilli(System.currentTimeMillis() -
-                ((System.nanoTime() / 1_000_000) - it.startedAt).coerceAtLeast(0))
-        }
-        me.rerere.rikkahub.data.ai.ContextUsageCalculator.snapshot(
-            chat, assistant, settings, model, compaction, streaming = active,
-            liveUsage = progress?.usage.takeIf { active && chat.currentMessages.lastOrNull()?.modelId == model?.id }, liveRequestStartedAt = liveStartedAt,
+        me.rerere.rikkahub.data.ai.ContextUsageCalculator.forConversation(
+            chat, settings, compaction, progress, streaming = job?.isActive == true,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 

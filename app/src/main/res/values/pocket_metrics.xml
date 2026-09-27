@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pocket_stats_expand">Show statistics</string>
+    <string name="pocket_stats_collapse">Hide statistics</string>
+    <string name="pocket_stats_context">Context %1$s</string>
+    <string name="pocket_stats_output">Output %1$s</string>
+    <string name="pocket_stats_speed">%1$s tok/s</string>
+    <string name="pocket_stats_elapsed">Elapsed %1$s</string>
+    <string name="pocket_stats_latest">Latest request</string>
+    <string name="pocket_stats_input">Input</string>
+    <string name="pocket_stats_generated">Output</string>
+    <string name="pocket_stats_reply">Whole reply · %1$d requests</string>
+    <string name="pocket_stats_legacy">Saved usage</string>
+    <string name="pocket_stats_missing_usage">Provider has not reported usage for this request.</string>
+    <string name="pocket_stats_partial">Partial usage · %1$d of %2$d requests reported</string>
+    <string name="pocket_stats_queue">Queue</string>
+    <string name="pocket_stats_first_content">First content</string>
+    <string name="pocket_stats_receiving">Generation</string>
+    <string name="pocket_stats_diagnostics">Details and connection</string>
+    <string name="pocket_stats_diagnostics_title">Measurement details</string>
+    <string name="pocket_stats_context_scope">Context estimates the next request. Repeated input sent during tool calls is counted in usage, but does not accumulate in the context window.</string>
+    <string name="pocket_stats_time_scope">Elapsed time includes tools and pauses. Speed uses measured output divided by first-to-last content time; queue, waiting and tools are excluded.</string>
+    <string name="pocket_stats_legacy_scope">This record has no per-request measurements. Saved usage cannot be attributed to the latest request; speed is unavailable.</string>
+    <string name="pocket_stats_http">Connection</string>
+    <string name="pocket_stats_cached">Cached input · latest request</string>
+    <string name="pocket_stats_cost">Reported cost · whole reply</string>
+    <string name="pocket_stats_idle">Since last content</string>
+    <string name="pocket_context_reserve_short">Output reserve</string>
+    <string name="pocket_context_free_short">Free for input</string>
+    <string name="pocket_context_compact_short">Auto-compaction</string>
+    <string name="pocket_context_off_short">Off</string>
+    <string name="pocket_context_unknown_short">Unknown</string>
+    <string name="pocket_context_threshold_short">At ≈%1$s tokens</string>
+    <string name="pocket_context_configured_threshold">Configured threshold: %1$s. The effective threshold also leaves the output reserve inside the context window.</string>
+    <string name="pocket_context_compact_source">Approximate next-request context</string>
+    <string name="pocket_context_stream_source">Live estimate · growing response</string>
+    <string name="pocket_context_trigger_timing">The threshold is checked after tool results when the provider reports input usage. A real context overflow also starts recovery; crossing the estimate alone does not mean compaction has already started.</string>
+    <string name="pocket_stats_latest_cycle">Latest provider cycle</string>
+    <string name="pocket_stats_aggregate_scope">The provider combined several internal requests. These are cumulative usage figures; context uses a local estimate.</string>
+    <string name="pocket_stats_ms_unit">ms</string>
+</resources>

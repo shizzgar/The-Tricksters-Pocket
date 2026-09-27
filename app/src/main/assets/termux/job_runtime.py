@@ -102,6 +102,11 @@ def status(folder):
             state = dict(state, state="unknown", reason="supervisor_missing_or_device_rebooted")
         elif not state.get("worker") and time.time() - spec["created_at"] > 15:
             state = dict(state, state="unknown", reason="launch_not_confirmed; do not relaunch blindly")
+    # Only a verified live supervisor may advance this clock. Wall-clock changes and
+    # device reboots must never turn an old snapshot into a fictitious running timer.
+    if state["state"] in ACTIVE and state.get("command_started_monotonic") is not None and same_process(state.get("worker")):
+        state = dict(state, duration_ms=max(0, int((time.monotonic() - state["command_started_monotonic"]) * 1000)))
+    state = {key: value for key, value in state.items() if key != "command_started_monotonic"}
     return dict(state, job_id=folder.name, operation_id=spec["operation_id"],
                 working_dir=spec["working_dir"], log_path=str(folder),
                 cancel_scope="managed process group; detached/new-session or privileged descendants may escape",
@@ -167,14 +172,18 @@ def worker(folder):
     state = {"state": "starting", "worker": own, "created_at": spec["created_at"], "started_at": time.time()}
     atomic(folder / "status.json", state)
     process = None
+    command_started = None
     try:
         if own is None:
             raise RuntimeError("process_identity_unavailable; command was not launched")
+        command_started = time.monotonic()
+        command_started_at = time.time()
         process = subprocess.Popen([BASH, "-c", spec["command"]], cwd=spec["working_dir"],
                                    stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                    start_new_session=True)
         child = identity(process.pid)
-        state.update(state="running", process=child)
+        state.update(state="running", process=child, started_at=command_started_at,
+                     command_started_monotonic=command_started)
         atomic(folder / "status.json", state)
         selector = selectors.DefaultSelector()
         outputs = {}
@@ -234,7 +243,7 @@ def worker(folder):
         for output in outputs.values():
             output.close()
         state.update(state=stopping or ("completed" if rc == 0 else "failed"), exit_code=rc,
-                     finished_at=time.time(), output_bytes=counts,
+                     finished_at=time.time(), duration_ms=max(0, int((time.monotonic() - command_started) * 1000)), output_bytes=counts,
                      logs_truncated={name: count > LOG_LIMIT for name, count in counts.items()},
                      descendant_pipes_open=pipes_open)
         atomic(folder / "status.json", state)
@@ -359,4 +368,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

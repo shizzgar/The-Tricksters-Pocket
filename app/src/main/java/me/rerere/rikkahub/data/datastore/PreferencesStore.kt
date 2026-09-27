@@ -1098,16 +1098,18 @@ fun Settings.getContextCompactionTargetTokens(contextLength: Int?): Int {
         ?: FALLBACK_CONTEXT_COMPACTION_TARGET_TOKENS
 }
 
-/** Uses the token-threshold setting as the model context ceiling when that mode is active. */
-fun Settings.getCompactionContextLength(model: Model?): Int? =
-    autoCompactionThresholdTokensK
+/** Working budget for compression requests: a manual threshold may narrow known capacity. */
+fun Settings.getCompactionContextLength(model: Model?): Int? {
+    val metadata = model?.contextLength?.takeIf { it > 0 }
+    val manual = autoCompactionThresholdTokensK
         .takeIf { autoCompactionThresholdMode == AutoCompactionThresholdMode.TOKENS }
-        ?.toLong()
-        ?.coerceAtLeast(1L)
-        ?.times(1_000L)
-        ?.coerceAtMost(Int.MAX_VALUE.toLong())
-        ?.toInt()
-        ?: model?.contextLength
+        ?.toLong()?.coerceAtLeast(1L)?.times(1_000L)
+        ?.coerceAtMost(Int.MAX_VALUE.toLong())?.toInt()
+    return when {
+        metadata != null && manual != null -> minOf(metadata, manual)
+        else -> metadata ?: manual
+    }
+}
 
 fun Settings.getCurrentAssistant(): Assistant {
     return this.assistants.find { it.id == assistantId } ?: this.assistants.first()

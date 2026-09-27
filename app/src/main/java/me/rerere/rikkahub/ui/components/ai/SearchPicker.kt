@@ -44,7 +44,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -70,6 +69,7 @@ import me.rerere.rikkahub.ui.components.ui.AutoAIIcon
 import me.rerere.rikkahub.ui.components.ui.ToggleSurface
 import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.pages.setting.SearchAbilityTagLine
+import me.rerere.rikkahub.utils.computeSearchIconByName
 
 enum class SearchMode {
     OFF,
@@ -87,7 +87,6 @@ fun SearchPickerButton(
     model: Model?,
 ) {
     var showSearchPicker by remember { mutableStateOf(false) }
-    val currentService = settings.searchServices.getOrNull(settings.searchServiceSelected)
 
     ToggleSurface(
         modifier = modifier,
@@ -106,22 +105,13 @@ fun SearchPickerButton(
                 modifier = Modifier.size(24.dp),
                 contentAlignment = Alignment.Center
             ) {
-                if (model?.tools?.contains(BuiltInTools.Search) == true) {
-                    Icon(
-                        imageVector = HugeIcons.AiSearch02,
-                        contentDescription = stringResource(R.string.use_web_search),
-                    )
-                } else if (enableSearch && currentService != null) {
-                    AutoAIIcon(
-                        name = currentService.displayName,
-                        color = Color.Transparent
-                    )
-                } else {
-                    Icon(
-                        imageVector = HugeIcons.Search01,
-                        contentDescription = stringResource(R.string.use_web_search),
-                    )
-                }
+                // This button identifies the search action, not the selected service.
+                // A service such as "Built-in" has no provider icon and used to fall
+                // through AutoAIIcon to the Pocket mark, obscuring the button's purpose.
+                Icon(
+                    imageVector = HugeIcons.Search01,
+                    contentDescription = stringResource(R.string.use_web_search),
+                )
             }
         }
     }
@@ -453,7 +443,7 @@ private fun SearchProviderPicker(
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        AutoAIIcon(
+                        SearchProviderIcon(
                             name = service.displayName,
                             modifier = Modifier.size(24.dp)
                         )
@@ -473,5 +463,14 @@ private fun SearchProviderPicker(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SearchProviderIcon(name: String, modifier: Modifier = Modifier) {
+    if (remember(name) { computeSearchIconByName(name) } != null) {
+        AutoAIIcon(name = name, modifier = modifier)
+    } else {
+        Icon(imageVector = HugeIcons.Search01, contentDescription = name, modifier = modifier)
     }
 }

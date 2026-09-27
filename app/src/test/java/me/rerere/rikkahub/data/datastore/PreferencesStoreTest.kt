@@ -71,6 +71,13 @@ class PreferencesStoreTest {
         ))
     }
 
+    @Test fun `compression working budget never exceeds advertised model capacity`() {
+        val settings = Settings(autoCompactionThresholdMode = AutoCompactionThresholdMode.TOKENS,
+            autoCompactionThresholdTokensK = 372)
+        assertEquals(128_000, settings.getCompactionContextLength(me.rerere.ai.provider.Model(contextLength = 128_000)))
+        assertEquals(372_000, settings.getCompactionContextLength(me.rerere.ai.provider.Model(contextLength = 1_000_000)))
+    }
+
     @Test
     fun `explicit compression target overrides the fixed default`() {
         val settings = Settings(contextCompactionTargetTokensK = 30)

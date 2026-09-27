@@ -301,7 +301,7 @@ class ClaudeServerToolTest {
         assertEquals("done", result.message.parts.filterIsInstance<UIMessagePart.Text>().last().text)
         assertEquals(ServerToolStatus.COMPLETED, result.message.parts
             .filterIsInstance<UIMessagePart.ServerTool>().single().status)
-        assertEquals(TokenUsage(15, 5, 0, 20), result.usage)
+        assertEquals(TokenUsage(15, 5, 0, 20, aggregatedRequests = true), result.usage)
 
         val finalToolMetadata = result.message.parts
             .filterIsInstance<UIMessagePart.ServerTool>()
@@ -373,7 +373,7 @@ class ClaudeServerToolTest {
             chunks.filterIsInstance<StreamChunk.Finish>().map { it.finishReason },
         )
         assertEquals(
-            TokenUsage(15, 5, 0, 20),
+            TokenUsage(15, 5, 0, 20, aggregatedRequests = true),
             chunks.filterIsInstance<StreamChunk.Usage>().last().usage,
         )
 

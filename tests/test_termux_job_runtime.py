@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 SOURCE = Path(__file__).resolve().parents[1] / 'app/src/main/assets/termux/job_runtime.py'
 OWNER = 'a' * 24
@@ -77,6 +78,8 @@ class JobRuntimeTest(unittest.TestCase):
         self.assertEqual(('failed', 7), (status['state'], status['exit_code']))
         self.assertEqual('out', self.rpc('read', job_id=job['job_id'])['text'])
         self.assertEqual('problem', self.rpc('read', job_id=job['job_id'], stream='stderr')['text'])
+        self.assertGreaterEqual(status['duration_ms'], 0)
+        self.assertEqual(status['duration_ms'], self.rpc('read', job_id=job['job_id'])['duration_ms'])
 
     def test_short_wait_does_not_cancel_and_fresh_client_recovers(self):
         job = self.start('sleep 2; printf recovered')
@@ -149,6 +152,43 @@ class JobRuntimeTest(unittest.TestCase):
         self.assertEqual('completed', self.finish(job)['state'])
 
 
+class JobTimingSnapshotTest(unittest.TestCase):
+    def setUp(self):
+        spec = importlib.util.spec_from_file_location('job_timing_runtime', SOURCE)
+        self.runtime = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.runtime)
+        self.temp = tempfile.TemporaryDirectory(dir=str(SOURCE.parents[6]))
+        self.folder = Path(self.temp.name)
+        self.runtime.atomic(self.folder / 'request.json', dict(
+            created_at=100, operation_id='test', working_dir=str(self.folder), command='test'))
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def test_active_snapshot_uses_verified_monotonic_time_and_hides_origin(self):
+        self.runtime.atomic(self.folder / 'status.json', dict(
+            state='running', worker={'pid': 123}, started_at=100, command_started_monotonic=10.0))
+        with patch.object(self.runtime, 'same_process', return_value=True), \
+                patch.object(self.runtime.time, 'monotonic', return_value=12.5), \
+                patch.object(self.runtime.time, 'time', return_value=-1000):
+            result = self.runtime.status(self.folder)
+        self.assertEqual(2500, result['duration_ms'])
+        self.assertNotIn('command_started_monotonic', result)
+
+    def test_finished_duration_does_not_grow_or_change_after_reboot(self):
+        self.runtime.atomic(self.folder / 'status.json', dict(
+            state='completed', duration_ms=2500, command_started_monotonic=10.0))
+        with patch.object(self.runtime.time, 'monotonic', return_value=9999.0):
+            self.assertEqual(2500, self.runtime.status(self.folder)['duration_ms'])
+
+    def test_missing_supervisor_or_reboot_cannot_advance_a_saved_clock(self):
+        self.runtime.atomic(self.folder / 'status.json', dict(
+            state='running', worker={'pid': 123}, command_started_monotonic=10.0))
+        with patch.object(self.runtime, 'same_process', return_value=False):
+            result = self.runtime.status(self.folder)
+        self.assertEqual('unknown', result['state'])
+        self.assertNotIn('duration_ms', result)
+
+
 if __name__ == '__main__':
     unittest.main()
-
