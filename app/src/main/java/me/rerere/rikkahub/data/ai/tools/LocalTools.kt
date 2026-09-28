@@ -856,7 +856,7 @@ class LocalTools(
         if (availableOptions.contains(LocalToolOption.CostGuards)) {
             tools.add(me.rerere.rikkahub.costguards.checkTokenUsageTool(settingsStore, conversationRepo, invocationContext))
         }
-        if (availableOptions.contains(LocalToolOption.SkillImport)) {
+        if (assistant != null && availableOptions.contains(LocalToolOption.SkillImport)) {
             tools.add(me.rerere.rikkahub.skills.skillInstallFromUrlTool(skillUrlImporter, settingsStore, skillManager, invocationContext.callerAssistantId))
             tools.add(me.rerere.rikkahub.skills.skillInstallFromTextTool(skillUrlImporter, settingsStore, skillManager, invocationContext.callerAssistantId))
         }

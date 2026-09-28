@@ -105,7 +105,6 @@ fun ToolHookDryRunSheet(rule: ToolHook, onDismiss: () -> Unit, currentConversati
         loading = true
         try {
             val loaded = repository.getConversationById(id) ?: return@LaunchedEffect
-            conversation = loaded
             val parents = mutableListOf<Conversation>()
             val seen = mutableSetOf(id)
             var parentId = loaded.parentConversationId
@@ -127,6 +126,9 @@ fun ToolHookDryRunSheet(rule: ToolHook, onDismiss: () -> Unit, currentConversati
                 parentWorkspaceIds = parents.mapNotNull { workspace(it) }.toSet(),
                 ancestorConversationIds = parents.map { it.id }.toSet(),
             )
+            // Publish the call picker only after its scope is ready. The workspace
+            // resolver can suspend; otherwise calls briefly appear without a result.
+            conversation = loaded
         } catch (e: CancellationException) { throw e }
         catch (e: Exception) { error = e.message.orEmpty() }
         finally { loading = false }

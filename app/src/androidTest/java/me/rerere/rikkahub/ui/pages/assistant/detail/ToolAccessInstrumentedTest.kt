@@ -50,15 +50,33 @@ class ToolAccessInstrumentedTest {
             withTimeout(15_000) { settings.settingsFlow.first { it.assistants.any { a -> a == assistant } } }
         }
         fun tools() = factory.getTools(assistant.localTools, ToolInvocationContext(callerAssistantId = id.toString(), callerConversationId = id.toString()))
+        suspend fun assertBootstrapWithoutConnectedAccess() {
+            val declarations = tools().associateBy { it.name }
+            assertTrue(declarations.keys.containsAll(listOf("skill_create", "skill_install_from_url", "skill_install_from_text")))
+            assertFalse(declarations.keys.any { it in setOf("use_skill", "skill_get_content", "run_js", "termux_skill_sync") })
+            // Management declarations remain available for bootstrap, but every operation on
+            // an existing package must still require that package to be connected.
+            val before = manager.workspace(name).snapshot().revision
+            val read = declarations.getValue("skill_read_file").execute(buildJsonObject {
+                put("name", name); put("path", "SKILL.md")
+            })
+            assertEquals(JsonPrimitive(false), Json.parseToJsonElement((read.single() as UIMessagePart.Text).text).jsonObject["ok"])
+            val write = declarations.getValue("skill_write_file").execute(buildJsonObject {
+                put("name", name); put("path", "unexpected.txt"); put("revision", before)
+                put("create", true); put("content", "Must not write into a disconnected package")
+            })
+            assertEquals(JsonPrimitive(false), Json.parseToJsonElement((write.single() as UIMessagePart.Text).text).jsonObject["ok"])
+            assertEquals(before, manager.workspace(name).snapshot().revision)
+            assertFalse(File(manager.getSkillDir(name)!!, "unexpected.txt").exists())
+        }
         try {
             save()
             var names = tools().map { it.name }
             assertTrue("termux_run_command" in names && "conversation_history_read" in names)
             assertTrue(factory.getTools(assistant.localTools, ToolInvocationContext(callerAssistantId = id.toString()), includeDisabled = true).any { it.name == "conversation_history_read" })
-            assertFalse(names.any(::isSkillTool))
+            assertBootstrapWithoutConnectedAccess()
             assertFalse("text_to_speech" in names || "whisper_status" in names || "transcribe_audio_file" in names)
-            assistant = assistant.copy(enabledSkills = setOf(name), localTools = allGroups + LocalToolOption.Tts + LocalToolOption.Whisper)
-            save()
+            // Create the first connected skill directly from chat; no seed skill is enabled.
             val createResult = tools().first { it.name == "skill_create" }.execute(buildJsonObject {
                 put("name", createdName); put("description", "Created through an agent tool"); put("instructions", "Newly created instructions")
             })
@@ -66,7 +84,10 @@ class ToolAccessInstrumentedTest {
             assertTrue(createdName in settings.settingsFlow.value.assistants.first { it.id == id }.enabledSkills)
             val loaded = tools().first { it.name == "use_skill" }.execute(buildJsonObject { put("name", createdName) })
             assertTrue((loaded.first() as UIMessagePart.Text).text.contains("Newly created instructions"))
-            assistant = settings.settingsFlow.value.assistants.first { it.id == id }
+            assistant = settings.settingsFlow.value.assistants.first { it.id == id }.let {
+                it.copy(enabledSkills = it.enabledSkills + name, localTools = allGroups + LocalToolOption.Tts + LocalToolOption.Whisper)
+            }
+            save()
             val enabledTools = tools()
             names = enabledTools.map { it.name }
             assertTrue(names.containsAll(listOf("use_skill", "skill_create", "skill_write_file", "text_to_speech", "whisper_status", "transcribe_audio_file")))
@@ -87,6 +108,11 @@ class ToolAccessInstrumentedTest {
             save()
             assertFalse(tools().any { isSkillTool(it.name) })
             assistant = assistant.copy(disabledLocalTools = emptySet(), enabledSkills = emptySet())
+            save()
+            assertBootstrapWithoutConnectedAccess()
+            val staleRun = enabledTools.first { it.name == "run_js" }.execute(buildJsonObject { put("skill_name", name) })
+            assertTrue((staleRun.single() as UIMessagePart.Text).text.contains("tool_disabled"))
+            assistant = assistant.copy(localTools = emptyList())
             save()
             assertFalse(tools().any { isSkillTool(it.name) })
         } finally {
