@@ -59,10 +59,10 @@ Saved child identity/policy survives pruning of repeated result payloads. Termux
 - The optimized ARM64 release was built separately. Downloaded artifact digests, reconstructed APK/signing-tool hashes, source commit, version/package, non-debuggable flag and bundled `icons/pocket.svg` were verified.
 - The first integration run exposed an outdated first-skill access assertion and a hook preview initialization race. The access test now creates the first package and checks caller/package isolation; the preview publishes the loaded conversation only after scope resolution. The complete CI gate was rerun successfully.
 
-[Release provenance](releases/2.5.1-pocket.7.json) records the unsigned APK SHA-256, artifact IDs/digests and screenshot limits. Signing remains pending because the original ReBro key is unavailable; no replacement key was generated.
+[Release provenance](releases/2.5.1-pocket.7.json) records the signed and unsigned APK SHA-256 hashes, signing certificate, artifact IDs/digests and screenshot limits. The release was signed with the original ReBro key; APK v2/v3 signatures and the certificate were verified. Every ZIP entry in the signed APK matches the unsigned build byte for byte.
 
 Physical-device Termux RUN_COMMAND/SSH network behavior and OEM overlays still require device checks. The emulator exercises the debug variant; the optimized release is built separately. No claim of a physical-device test is made.
 
 ## Compatibility
 
-Release candidate: **2.5.1-pocket.7**, code **196**, package **excp.rikkahub.rebro**. Existing user-edited assistant settings are preserved. Signing must use the original ReBro certificate. The original key is currently unavailable to this build workspace, so signing is pending; an unsigned candidate is not an installable update.
+Release: **2.5.1-pocket.7**, code **196**, package **excp.rikkahub.rebro**. Existing user-edited assistant settings are preserved. The ARM64 APK is signed with the original ReBro certificate and can update an installed release using that certificate in place.

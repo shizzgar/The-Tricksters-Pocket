@@ -48,6 +48,6 @@ Rules are included in settings backup. Tool notice snapshots stay with conversat
 
 ## Validation
 
-The September hook fixes are covered by the [pocket.7 follow-up](review-follow-up-2026-09.md); its full CI passed; signing with the original key is still pending.
+The September hook fixes are covered by the [pocket.7 follow-up](review-follow-up-2026-09.md). Its full CI passed, and the ARM64 release was signed with the original ReBro key; APK v2/v3 signatures and the certificate were verified.
 
 **Historical hook release, 2.5.1-pocket.6:** [CI for `f33cdec`](https://github.com/shizzgar/The-Tricksters-Pocket/actions/runs/36329653500) passed 1188 JVM, 68 Python and 85 Android tests and built the optimized ARM64 release. Hook checks cover structured outcomes, scopes, skill sections, durable delivery/retry and restart recovery, background-job deduplication, context accounting, editor validation and tool-card previews. Android tests run the debug variant on an API 35 emulator; release is built separately. Four hook screens were captured and inspected. The release APK was signed and its v2/v3 signatures verified against the permanent ReBro certificate. [Release provenance](releases/2.5.1-pocket.6.json) records the source, hashes, counts and screenshot limits. Physical-device Termux and OEM overlay behavior require a device check.
