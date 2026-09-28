@@ -1,0 +1,121 @@
+{
+  "version": "2.5.1-pocket.7",
+  "version_code": 196,
+  "package_id": "excp.rikkahub.rebro",
+  "architecture": "arm64-v8a",
+  "source_commit": "3061b9913771765c7720b2cea5bbc8152761674f",
+  "source_tree": "fa5bed811a45d5bf41b302c48210812fc7d462c5",
+  "source_pr": "https://github.com/shizzgar/The-Tricksters-Pocket/pull/12",
+  "source_merge_commit": "dd1be97c44a024839a4984c5b03a7b70564b4342",
+  "workflow_run": "https://github.com/shizzgar/The-Tricksters-Pocket/actions/runs/36438754795",
+  "workflow_conclusion": "success",
+  "build_status": "verified_unsigned",
+  "unsigned_apk_file": "tricksters-pocket-2.5.1-pocket.7-arm64-unsigned.apk",
+  "unsigned_apk_bytes": 57906600,
+  "unsigned_apk_sha256": "99cfa8f92e949e3cafdb36e44b63971401e48b2355d7f035f0397a401830a9c0",
+  "signing_status": "pending_original_key",
+  "required_signer_certificate_sha256": "0FAC079E040D97CCE1786CEB21DC0855C0D09B2DF3222A43E71C46DD2C517805",
+  "signature_verified": false,
+  "debuggable": false,
+  "bundled_assets_verified": [
+    "icons/pocket.svg"
+  ],
+  "tests": {
+    "jvm": 1337,
+    "python": 72,
+    "android": 100,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "emulator": {
+    "api": 35,
+    "variant": "debug",
+    "main_tests": 99,
+    "wide_tests": 1
+  },
+  "screenshots_captured": 41,
+  "screenshots_decoded": 41,
+  "visually_reviewed_screenshots_this_update": [
+    "pocket-hook-dry-run",
+    "pocket-chat-environment-ru",
+    "termux-output-archives"
+  ],
+  "screenshot_evidence_limits": [
+    "The reviewer-picker capture shows the underlying dashboard; reviewer selection is covered by functional assertions.",
+    "The standalone Termux settings fixture omits the background supplied by the production WorkspaceDetailPage scaffold; it does not verify the complete settings-screen theme.",
+    "Hook captures use English light-theme fixtures. The editor capture shows its upper viewport and the dry-run capture shows the result card; scrolling and call selection are checked separately by UI assertions. Dark-theme, Russian-locale and keyboard layouts are not visually captured.",
+    "New screenshots cover the archive dialog in English dark theme and chat-environment content in Russian dark theme; they do not capture every navigation, keyboard or large-font state.",
+    "All 41 required screenshots were decoded; the two new screens and repaired hook dry-run result were manually inspected in this update."
+  ],
+  "physical_device_termux_verified": false,
+  "physical_device_overlay_verified": false,
+  "build_reports_artifact_id": 10978361307,
+  "build_reports_artifact_digest": "sha256:240cb5685900b13f431ec21456516aeebf94a7ff09a0ab8ed23b78f2e121b8cb",
+  "downloaded_artifact_digests_verified": [
+    "trajectory-visual-checks",
+    "compaction-test-results",
+    "pocket-release-part-0",
+    "pocket-release-part-1",
+    "pocket-release-part-2",
+    "pocket-release-provenance"
+  ],
+  "artifacts": [
+    {
+      "id": 10979255196,
+      "name": "trajectory-visual-checks",
+      "size_in_bytes": 6823510,
+      "digest": "sha256:6a8bd10db93593990f79aee29982c7ba60a69842fe2388f2cf749733c57869c4",
+      "expires_at": "2026-10-12T15:07:44Z"
+    },
+    {
+      "id": 10979155334,
+      "name": "rebro-arm64-release-unsigned",
+      "size_in_bytes": 55332708,
+      "digest": "sha256:ee4d7c717f41ce56a6117ed0c8b1420013df8ee1266a49955a5eb42ece160a36",
+      "expires_at": "2026-10-28T15:08:34Z"
+    },
+    {
+      "id": 10979130367,
+      "name": "pocket-release-part-0",
+      "size_in_bytes": 25078515,
+      "digest": "sha256:218e9c6c4365d25510195e8329e8b57c4b5c1fb213d84c6acd3bd161b26e7515",
+      "expires_at": "2026-12-27T14:48:28Z"
+    },
+    {
+      "id": 10978905510,
+      "name": "pocket-release-part-2",
+      "size_in_bytes": 4597017,
+      "digest": "sha256:4a100cd59d27ccc1d651fb5dabc1d7ca6b7168c6d4f19a2eac98c781112a455f",
+      "expires_at": "2026-12-27T14:48:28Z"
+    },
+    {
+      "id": 10978865506,
+      "name": "pocket-release-provenance",
+      "size_in_bytes": 1078777,
+      "digest": "sha256:12ac89999f37f892473cc7c4f602a6b33866bba186a834cf05232166b037760b",
+      "expires_at": "2026-12-27T14:48:28Z"
+    },
+    {
+      "id": 10978865495,
+      "name": "pocket-release-part-1",
+      "size_in_bytes": 24578157,
+      "digest": "sha256:a6b36c2684a74b0fce8a6dbbe64de1655265b39b74fbbb9f30f562942b9772d0",
+      "expires_at": "2026-12-27T14:48:28Z"
+    },
+    {
+      "id": 10978795323,
+      "name": "compaction-test-results",
+      "size_in_bytes": 334037,
+      "digest": "sha256:c8a343f5a0b9f67c56a60c67b20a4d08b523df56e2a59b13c435a9644582e5a9",
+      "expires_at": "2026-10-12T15:07:53Z"
+    },
+    {
+      "id": 10978361307,
+      "name": "rebro-release-build-reports",
+      "size_in_bytes": 45120819,
+      "digest": "sha256:240cb5685900b13f431ec21456516aeebf94a7ff09a0ab8ed23b78f2e121b8cb",
+      "expires_at": "2026-10-28T15:05:37Z"
+    }
+  ]
+}
