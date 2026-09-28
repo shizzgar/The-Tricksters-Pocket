@@ -42,7 +42,7 @@ adb install -r app/build/outputs/apk/debug/*arm64-v8a*.apk
 
 An update requires the same application ID and signing certificate. A local debug key can differ from the key used by CI. Preserve an app backup before any installation migration; do not delete another app instance to resolve a signing mismatch.
 
-Release signing is configured separately through the `REBRO_*` environment variables described below or `local.properties` (`storeFile`, `storePassword`, `keyAlias`, `keyPassword`). Keep the keystore and credentials out of Git. The runtime workflow publishes debug APKs; the Pocket release workflow produces optimized unsigned APKs after the same validation gate. Sign release artifacts with the permanent owner-held key before installation.
+Release signing is configured separately through the `REBRO_*` environment variables documented in [release signing](termux-workspaces-and-release.md#release-identity-and-signing) or `local.properties` (`storeFile`, `storePassword`, `keyAlias`, `keyPassword`). Keep the keystore and credentials out of Git. The runtime workflow publishes debug APKs; the Pocket release workflow produces optimized unsigned APKs after the same validation gate. Sign release artifacts with the permanent owner-held key before installation.
 
 ## Tests
 
@@ -93,6 +93,8 @@ JVM and Python tests exercise runtime contracts; emulator tests exercise Android
 
 ## The Trickster's Pocket release
 
-The current release family is `2.5.1-pocket.N`; the source configuration for this update is `2.5.1-pocket.4` (version code `193`). The **Tricksters Pocket release APK** workflow remains at `rebro-release.yml` and builds optimized APKs for signing with the permanent owner-held ReBro key. The package ID stays `excp.rikkahub.rebro`, so a correctly signed release updates an installed ReBro/Pocket release in place without deletion or manual data transfer. Version `2.5.1-rebro.4` is the historical release that established this identity.
+The current release family is `2.5.1-pocket.N`; the source configuration for this update is `2.5.1-pocket.7` (version code `196`). The **Tricksters Pocket release APK** workflow remains at `rebro-release.yml` and builds optimized APKs for signing with the permanent owner-held ReBro key. The package ID stays `excp.rikkahub.rebro`, so a correctly signed release updates an installed ReBro/Pocket release in place without deletion or manual data transfer. Version `2.5.1-rebro.4` is the historical release that established this identity.
 
-The verified archive is still named `rebro-arm64-release-unsigned`; for this version it contains `tricksters-pocket-2.5.1-pocket.4-arm64-unsigned.apk` and provenance/signing files. The archive name is a retained CI identifier, not the app name. It must be signed before installation. The intermediate `rebro-arm64-release-candidate` is not a validated release. Verified release archives and build reports are retained for 30 days. See [application IDs, migration and signing](termux-workspaces-and-release.md#release-identity-and-signing).
+After validation and the optimized build succeed, the workflow publishes `rebro-arm64-release-unsigned`; for this version it contains `tricksters-pocket-2.5.1-pocket.7-arm64-unsigned.apk` and provenance/signing files. The archive name is a retained CI identifier, not the app name. It must be signed before installation. The intermediate `rebro-arm64-release-candidate` is not a validated release. Verified release archives and build reports are retained for 30 days. See [application IDs, migration and signing](termux-workspaces-and-release.md#release-identity-and-signing).
+
+The `2.5.1-pocket.7` candidate is undergoing CI. The original ReBro signing key is currently unavailable to this build workspace, so release signing remains pending; no signed update is claimed for this candidate.

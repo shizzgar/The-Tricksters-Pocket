@@ -19,7 +19,9 @@ a skill workspace, and the PocketBro, ThinkBro, ReBro, NetBro, DevBro, OpsBro, V
 
 </div>
 
-**2.5.1-pocket.6:** tool hooks add instructions when tool results match configured conditions. Choose an inline prompt or skill section, assistant/workspace/chat scopes, and preview against past calls. Open Hooks beside prompt injections or from the chat composer’s **+** menu. [Hook behavior and setup](docs/tool-hooks.md).
+**2.5.1-pocket.7 — release candidate:** fixes from the full review cover safe deletion and Undo, request-level token totals, tool recovery, isolated skill HTML, Workspace and subagent consistency. Chat environment details, project actions, Termux output archive management and individual hook dismissal are now available. [Review checklist](docs/review-follow-up-2026-09.md).
+
+CI for the `pocket.7` candidate passed. Signing with the original ReBro key is pending; an unsigned APK is not an installable update.
 
 [Tasks, results, projects and technical Bros](docs/pocket-workbench.md) · [Nested subagent chats](docs/POCKET-NESTED-CHATS.md).
 
@@ -85,7 +87,7 @@ Writes check the package revision and file hash so a concurrent agent edit is no
 
 Enable **Settings → Termux → Skills in Termux** to transfer a complete package. The agent receives the exact version directory as `skill_root`; existing jobs keep their earlier revision. Python/Node and system dependencies are installed separately.
 
-Agent editing is opt-in under the assistant's local tools. It exposes `skill_create`, `skill_list_files`, `skill_read_file`, `skill_write_file`, `skill_edit_file`, `skill_manage_files` and `skill_delete`. Without an existing connected skill, skill-tool definitions and automatic skill instructions are omitted from model requests. Connect one existing skill before asking the agent to create its first package.
+Agent editing is opt-in under the assistant's local tools. It exposes `skill_create`, `skill_list_files`, `skill_read_file`, `skill_write_file`, `skill_edit_file`, `skill_manage_files` and `skill_delete`. With skill management enabled, the agent can create its first package from chat; importing requires the separate skill-import option. Neither needs a previously connected package. Reading, execution and automatic skill instructions still require an existing connected skill.
 
 [Editor, binary view and wide layout →](docs/screenshots.md#skills) · [Full guide and limits, RU](docs/agent-runtime/trajectory-and-termux-skills.ru.md)
 
@@ -147,7 +149,7 @@ RikkaHub and ExTV provide the multi-provider chat client, MCP, subagents, schedu
 
 ## Validation and current boundaries
 
-**Validated build:** [CI for `2.5.1-pocket.6` (`f33cdec`)](https://github.com/shizzgar/The-Tricksters-Pocket/actions/runs/36329653500) passed **1188 JVM, 68 Python and 85 Android tests** and built an optimized release with R8. Coverage includes hook matching, scopes, skill instructions, background jobs, delivery/retries, context accounting, editing and event inspection, together with previous feature checks. The emulator runs the debug variant; release is built separately and signed with the permanent ReBro key. [Signature, hashes and validation limits](docs/releases/2.5.1-pocket.6.json). Termux and system-overlay behavior on a physical device remain to be checked after installation.
+**Validated:** [CI for `2.5.1-pocket.7` (`3061b99`)](https://github.com/shizzgar/The-Tricksters-Pocket/actions/runs/36438754795) passed **1337 JVM, 72 Python and 100 Android tests** without failures or skips. The optimized ARM64 release with R8 passed version, package ID, non-debuggable, checksum and bundled Pocket-icon checks. All 41 required screenshots were captured. The emulator runs the debug variant; release is built separately. **The APK remains unsigned:** the original ReBro key is required. [Hashes and validation limits](docs/releases/2.5.1-pocket.7.json). Termux and system-overlay behavior on a physical device remain to be checked after installation.
 
 - Traces are local and may contain private prompts, commands and results. Inspect exports before sharing.
 - Only provider-returned reasoning can be recorded. Deterministic replay and reconstruction of previously unrecorded events are not implemented.
