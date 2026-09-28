@@ -24,6 +24,7 @@ import kotlin.uuid.Uuid
 @Composable
 fun ProjectsPage(conversationId: String? = null) {
     val repository: ProjectRepository = koinInject()
+    val chatService: me.rerere.rikkahub.service.ChatService = koinInject()
     val workspaceRepository: WorkspaceRepository = koinInject()
     val projects by repository.projects.collectAsStateWithLifecycle()
     val loadError by repository.loadError.collectAsStateWithLifecycle()
@@ -33,6 +34,8 @@ fun ProjectsPage(conversationId: String? = null) {
     var attachingTo by remember { mutableStateOf<String?>(null) }
     val nav = LocalNavController.current
     var editing by remember { mutableStateOf<PocketProject?>(null) }
+    var deleting by remember { mutableStateOf<PocketProject?>(null) }
+    var unlinking by remember { mutableStateOf<Pair<PocketProject, ProjectReferenceFile>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var selectedProject by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(conversationId, projects) { selectedProject = conversationId?.let { repository.projectForConversation(Uuid.parse(it))?.id } }
@@ -45,13 +48,20 @@ fun ProjectsPage(conversationId: String? = null) {
             }
         } catch (e: Exception) { error = e.message } }
     }
-    fun save(project: PocketProject) { scope.launch { try { repository.save(project); editing = null } catch (e: Exception) { error = e.message } } }
+    fun bind(projectId: String?) {
+        val id = conversationId ?: return
+        scope.launch {
+            try { chatService.bindProjectContext(projectId, Uuid.parse(id)) }
+            catch (failure: Exception) { error = failure.message }
+        }
+    }
+    fun save(project: PocketProject) { scope.launch { try { chatService.saveProjectContext(project); editing = null } catch (e: Exception) { error = e.message } } }
     Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.pocket_projects)) }, navigationIcon = { BackButton() }, actions = { TextButton(onClick = { editing = PocketProject(name = "") }) { Text(stringResource(R.string.pocket_new)) } }) }) { padding ->
         LazyColumn(contentPadding = padding + PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { Text(stringResource(R.string.pocket_project_help), style = MaterialTheme.typography.bodyMedium) }
             (error ?: loadError)?.let { item { Text(it, color = MaterialTheme.colorScheme.error) } }
             if (conversationId != null) item {
-                TextButton(onClick = { scope.launch { repository.bindConversation(null, Uuid.parse(conversationId)) } }, enabled = selectedProject != null) { Text(stringResource(R.string.pocket_project_unlink)) }
+                TextButton(onClick = { bind(null) }, enabled = selectedProject != null) { Text(stringResource(R.string.pocket_project_unlink)) }
             }
             items(projects, key = { it.id }) { project ->
                 Card {
@@ -62,11 +72,17 @@ fun ProjectsPage(conversationId: String? = null) {
                         if (project.knowledge.isNotBlank()) Text(project.knowledge, maxLines = 3, style = MaterialTheme.typography.bodySmall)
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             TextButton(onClick = { editing = project }) { Text(stringResource(R.string.pocket_edit)) }
-                            if (conversationId != null) TextButton(onClick = { scope.launch { repository.bindConversation(project.id, Uuid.parse(conversationId)) } }, enabled = selectedProject != project.id) { Text(stringResource(if (selectedProject == project.id) R.string.pocket_project_linked else R.string.pocket_project_link)) }
+                            if (conversationId != null) TextButton(onClick = { bind(project.id) }, enabled = selectedProject != project.id) { Text(stringResource(if (selectedProject == project.id) R.string.pocket_project_linked else R.string.pocket_project_link)) }
                             TextButton(onClick = { nav.navigate(Screen.ProjectMemory(project.id)) }) { Text(stringResource(R.string.pocket_memory)) }
+                            TextButton(onClick = { deleting = project }) { Text(stringResource(R.string.project_delete), color = MaterialTheme.colorScheme.error) }
                         }
                         TextButton(onClick = { attachingTo = project.id; pickFiles.launch(arrayOf("*/*")) }) { Text(stringResource(R.string.pocket_project_add_files)) }
-                        project.files.forEach { file -> Text(file.name, style = MaterialTheme.typography.bodySmall) }
+                        project.files.forEach { file ->
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                Text(file.name, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                                TextButton(onClick = { unlinking = project to file }) { Text(stringResource(R.string.project_reference_unlink)) }
+                            }
+                        }
                         project.conversationIds.forEach { id ->
                             ProjectChatLink(id)
                         }
@@ -74,6 +90,34 @@ fun ProjectsPage(conversationId: String? = null) {
                 }
             }
         }
+    }
+    deleting?.let { project ->
+        AlertDialog(
+            onDismissRequest = { deleting = null },
+            title = { Text(stringResource(R.string.project_delete_title, project.name)) },
+            text = { Text(stringResource(R.string.project_delete_help)) },
+            confirmButton = { TextButton(onClick = {
+                scope.launch {
+                    try { chatService.removeProjectContext(project.id); deleting = null }
+                    catch (failure: Exception) { error = failure.message; deleting = null }
+                }
+            }) { Text(stringResource(R.string.project_delete)) } },
+            dismissButton = { TextButton(onClick = { deleting = null }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
+    unlinking?.let { (project, reference) ->
+        AlertDialog(
+            onDismissRequest = { unlinking = null },
+            title = { Text(stringResource(R.string.project_reference_unlink_title, reference.name)) },
+            text = { Text(stringResource(R.string.project_reference_unlink_help)) },
+            confirmButton = { TextButton(onClick = {
+                scope.launch {
+                    try { repository.removeFile(project.id, reference.relativePath); unlinking = null }
+                    catch (failure: Exception) { error = failure.message; unlinking = null }
+                }
+            }) { Text(stringResource(R.string.project_reference_unlink)) } },
+            dismissButton = { TextButton(onClick = { unlinking = null }) { Text(stringResource(R.string.cancel)) } },
+        )
     }
     editing?.let { project ->
         var name by remember(project.id) { mutableStateOf(project.name) }

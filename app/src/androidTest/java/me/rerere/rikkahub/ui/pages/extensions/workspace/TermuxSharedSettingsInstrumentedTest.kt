@@ -16,13 +16,18 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import me.rerere.rikkahub.R
+import me.rerere.rikkahub.data.ai.tools.local.TermuxOutputArchive
 import me.rerere.rikkahub.data.preferences.TermuxPreferences
 import me.rerere.rikkahub.data.preferences.TermuxRuntime
 import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.context.Navigator
 import me.rerere.rikkahub.ui.pages.setting.termux.SettingTermuxViewModel
 import me.rerere.rikkahub.ui.pages.setting.termux.TermuxRuntimeSettings
+import me.rerere.rikkahub.ui.pages.setting.termux.TermuxArchiveSettings
 import me.rerere.rikkahub.ui.theme.ColorMode
 import me.rerere.rikkahub.ui.theme.RikkahubTheme
 import org.junit.Assert.assertEquals
@@ -30,9 +35,44 @@ import org.junit.Rule
 import org.junit.Test
 import org.koin.core.context.GlobalContext
 import java.io.File
+import java.util.UUID
 
 class TermuxSharedSettingsInstrumentedTest {
     @get:Rule val compose = createComposeRule()
+
+    @Test fun outputArchiveSelectionRequiresConfirmationAndPreservesOtherOutput() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val owner = "archive-ui-${UUID.randomUUID()}"
+        val removeRef = TermuxOutputArchive.save(context, owner, "Old command output", "").getValue("output_ref").jsonPrimitive.content
+        val keepRef = TermuxOutputArchive.save(context, owner, "Keep this output", "").getValue("output_ref").jsonPrimitive.content
+        val refs = setOf(removeRef, keepRef)
+        fun read(ref: String) = TermuxOutputArchive.read(context, owner, buildJsonObject { put("output_ref", ref) })
+        try {
+            compose.setContent {
+                RikkahubTheme(colorMode = ColorMode.DARK) {
+                    androidx.compose.material3.Surface { TermuxArchiveSettings() }
+                }
+            }
+            compose.waitUntil(5_000) { compose.onAllNodesWithText(context.getString(R.string.termux_archive_manage)).fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithText(context.getString(R.string.termux_archive_manage)).performClick()
+            compose.waitUntil(5_000) { compose.onAllNodesWithTag("termux-archive-select-$removeRef").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithText(context.getString(R.string.termux_archive_delete_selected, 0)).assertIsNotEnabled()
+            compose.onNodeWithTag("termux-archive-select-$removeRef").performClick()
+            val image = compose.onNode(isDialog()).captureToImage().asAndroidBitmap()
+            File(context.filesDir, "trajectory-qa/termux-output-archives.png").apply {
+                parentFile!!.mkdirs()
+                outputStream().use { image.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            }
+            compose.onNodeWithText(context.getString(R.string.termux_archive_delete_selected, 1)).performClick()
+            compose.onNodeWithText(context.getString(R.string.termux_archive_delete_warning)).assertIsDisplayed()
+            assertEquals("Old command output", read(removeRef).getValue("text").jsonPrimitive.content)
+            compose.onNodeWithText(context.getString(R.string.common_delete)).performClick()
+            compose.waitUntil(5_000) { read(removeRef)["error"]?.jsonPrimitive?.content == "output_not_found" }
+            assertEquals("Keep this output", read(keepRef).getValue("text").jsonPrimitive.content)
+        } finally {
+            TermuxOutputArchive.delete(context, TermuxOutputArchive.list(context).filter { it.ref in refs })
+        }
+    }
 
     @Test fun workspaceEditsPersistAndAppearInStandaloneSettingsWithoutChangingItsDirectory() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext

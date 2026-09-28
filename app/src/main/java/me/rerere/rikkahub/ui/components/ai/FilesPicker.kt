@@ -116,6 +116,7 @@ internal fun FilesPicker(
     onOpenTrajectory: () -> Unit = {},
     onOpenTask: () -> Unit = {},
     onOpenToolHooks: () -> Unit = {},
+    onOpenEnvironment: () -> Unit = {},
     jobTotal: Long? = null,
     jobsRunning: Long? = null,
 ) {
@@ -163,6 +164,14 @@ internal fun FilesPicker(
 
         HorizontalDivider(
             modifier = Modifier.fillMaxWidth()
+        )
+
+        ListItem(
+            leadingContent = { Icon(HugeIcons.Settings02, null) },
+            headlineContent = { Text(stringResource(R.string.chat_environment_title)) },
+            supportingContent = { Text(stringResource(R.string.chat_environment_hint)) },
+            colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+            modifier = Modifier.testTag("chat-environment-entry").clip(MaterialTheme.shapes.large).clickable { onOpenEnvironment() },
         )
 
         if (workspaces.isNotEmpty()) {

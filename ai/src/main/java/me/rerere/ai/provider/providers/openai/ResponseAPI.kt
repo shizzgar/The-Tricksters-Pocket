@@ -868,7 +868,7 @@ class ResponseAPI(
                 role = MessageRole.ASSISTANT,
                 parts = parts,
             ),
-            finishReason = jsonObject["status"]?.jsonPrimitive?.contentOrNull,
+            finishReason = responseFinishReason(jsonObject),
             usage = parseTokenUsage(jsonObject["usage"]?.jsonObject)
         )
     }

@@ -91,6 +91,19 @@ def job_dir(owner, job_id):
     return BASE / validate_id(owner) / validate_id(job_id)
 
 
+def request_owners(request):
+    # Aliases are supplied only by the app for the old path-owned workspace namespace.
+    aliases = request.get("legacy_owners", [])
+    if not isinstance(aliases, list) or len(aliases) > 1:
+        raise ValueError("invalid legacy owners")
+    return list(dict.fromkeys([validate_id(request["owner"])] + [validate_id(x) for x in aliases]))
+
+
+def request_folder(request, job_id):
+    folders = [job_dir(owner, job_id) for owner in request_owners(request)]
+    return next((folder for folder in folders if (folder / "request.json").exists()), folders[0])
+
+
 def status(folder):
     spec = read(folder / "request.json")
     try:
@@ -130,6 +143,13 @@ def start(request):
     job_id = hashlib.sha256((owner + ":" + operation).encode()).hexdigest()[:24]
     folder = job_dir(owner, job_id)
     with lock(BASE / ".launch.lock"):
+        # Preserve old operation receipts and live worker paths across the UUID fix.
+        for old_owner in request_owners(request):
+            old_id = hashlib.sha256((old_owner + ":" + operation).encode()).hexdigest()[:24]
+            existing = job_dir(old_owner, old_id)
+            if (existing / "request.json").exists():
+                folder, job_id = existing, old_id
+                break
         if folder.exists():
             old = read(folder / "request.json")
             if old["fingerprint"] != fingerprint:
@@ -271,14 +291,17 @@ def page(folder, request):
             src.seek(min(cursor, size))
             data = src.read(limit + 4)
     data = data[:limit]
-    # Preserve complete UTF-8 sequences at page boundaries, including concurrent appends.
+    result = status(folder)
+    # A capped stream or terminal EOF cannot receive the missing UTF-8 suffix.
+    immutable_eof = (min(cursor, size) + len(data) >= size and
+                     (size >= LOG_LIMIT or result.get("state") in {"completed", "failed", "cancelled", "timed_out"}))
+    # Preserve sequences only where another page/live append can complete them.
     try:
         text = data.decode("utf-8")
     except UnicodeDecodeError as exc:
-        if exc.reason == "unexpected end of data" and exc.start >= len(data) - 4:
+        if not immutable_eof and exc.reason == "unexpected end of data" and exc.start >= len(data) - 4:
             data = data[:exc.start]
         text = data.decode("utf-8", errors="replace")
-    result = status(folder)
     return dict(result, stream=stream, text=text, cursor=cursor, next_cursor=min(cursor, size) + len(data),
                 stored_bytes=size, has_more=min(cursor, size) + len(data) < size,
                 encoding="utf-8; non-UTF8 bytes replaced")
@@ -304,10 +327,12 @@ def dispatch(request):
     if action == "start":
         result = start(request)
         if result.get("job_id") and result.get("error") != "operation_id_conflict":
-            return output_preview(job_dir(owner, result["job_id"]), request, result)
+            return output_preview(request_folder(request, result["job_id"]), request, result)
         return result
     if action == "list":
-        jobs = sorted((BASE / owner).glob("*/request.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+        jobs = sorted((p for current_owner in request_owners(request)
+                       for p in (BASE / current_owner).glob("*/request.json")),
+                      key=lambda p: p.stat().st_mtime, reverse=True)
         cursor = max(0, int(request.get("cursor", 0)))
         snapshots = [status(p.parent) for p in jobs]
         results = snapshots[cursor:cursor + 20]
@@ -315,7 +340,7 @@ def dispatch(request):
             item["command"] = item["command"][:240]
         return {"success": True, "jobs": results, "next_cursor": cursor + len(results), "has_more": cursor + len(results) < len(jobs),
                 "total_jobs": len(jobs), "active_jobs": sum(item["state"] in ACTIVE for item in snapshots)}
-    folder = job_dir(owner, request["job_id"])
+    folder = request_folder(request, request["job_id"])
     if not (folder / "request.json").exists():
         return {"success": False, "error": "job_not_found"}
     if action == "read":

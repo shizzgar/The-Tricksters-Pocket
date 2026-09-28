@@ -70,7 +70,8 @@ class SubAgentRegistry(private val storageFile: java.io.File? = null) {
         update(runId) { it.copy(resultDeliveredEpoch = maxOf(it.resultDeliveredEpoch, epoch)) }
     }
 
-    private fun publish(next: Map<String, SubAgentRun>) {
+    private fun publish(updated: Map<String, SubAgentRun>) {
+        val next = pruneIfNeeded(updated)
         storageFile?.let { file ->
             check(file.parentFile!!.isDirectory || file.parentFile!!.mkdirs())
             val temp = java.io.File(file.parentFile, file.name + ".tmp")
@@ -85,11 +86,11 @@ class SubAgentRegistry(private val storageFile: java.io.File? = null) {
     @Synchronized fun tryReserve(run: SubAgentRun, perAssistantCap: Int, globalCap: Int = SubAgentDefaults.GLOBAL_CONCURRENCY_CAP): Boolean {
         if (_runs.value[run.id]?.status?.isActive() == true) return false
         if (globalActiveCount() >= globalCap || activeCountForAssistant(run.parentAssistantId) >= perAssistantCap) return false
-        publish(pruneIfNeeded(_runs.value) + (run.id to run))
+        publish(_runs.value + (run.id to run))
         return true
     }
     @Synchronized fun addPending(run: SubAgentRun, job: Job? = null) {
-        publish(pruneIfNeeded(_runs.value) + (run.id to run))
+        publish(_runs.value + (run.id to run))
         if (job != null) activeJobs[run.id] = job
     }
     @Synchronized fun update(id: String, transform: (SubAgentRun) -> SubAgentRun) {
@@ -158,14 +159,14 @@ class SubAgentRegistry(private val storageFile: java.io.File? = null) {
     }
 
     private fun pruneIfNeeded(current: Map<String, SubAgentRun>): Map<String, SubAgentRun> {
-        if (current.size < SubAgentDefaults.REGISTRY_LRU_CAP) return current
-        // Evict the oldest TERMINAL run; never evict a running one. If every run is
-        // running, the cap would be exceeded — we accept this since it should be rare
-        // (50 concurrent sub-agents would already have been blocked by the global cap of 30).
-        val terminalSorted = current.values
-            .filter { !it.status.isActive() && it.resultDeliveredEpoch >= it.executionEpoch }
-            .sortedBy { it.finishedAtMs ?: it.startedAtMs }
-        val toEvictId = terminalSorted.firstOrNull()?.id
-        return if (toEvictId != null) current - toEvictId else current
+        // Saved child chats need their durable execution identity for every later turn.
+        // Bound only the duplicate result cache, never the records/policy references.
+        val cached = current.values
+            .filter { !it.status.isActive() && it.resultDeliveredEpoch >= it.executionEpoch && it.result != null }
+            .sortedByDescending { it.finishedAtMs ?: it.startedAtMs }
+        val stale = cached.drop(SubAgentDefaults.REGISTRY_LRU_CAP).mapTo(mutableSetOf()) { it.id }
+        return if (stale.isEmpty()) current else current.mapValues { (id, run) ->
+            if (id in stale) run.copy(result = null) else run
+        }
     }
 }

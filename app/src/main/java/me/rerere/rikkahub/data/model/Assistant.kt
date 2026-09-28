@@ -291,7 +291,7 @@ fun extractContextForMatching(
     scanDepth: Int
 ): String {
     return messages
-        .takeLast(scanDepth)
+        .takeLast(scanDepth.coerceAtLeast(0))
         .joinToString("\n") { it.toText() }
 }
 

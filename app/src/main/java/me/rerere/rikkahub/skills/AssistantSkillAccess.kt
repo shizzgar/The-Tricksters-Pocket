@@ -3,6 +3,7 @@ package me.rerere.rikkahub.skills
 import me.rerere.rikkahub.data.ai.tools.LocalToolOption
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.files.SkillManager
+import me.rerere.rikkahub.data.model.Assistant
 import kotlin.uuid.Uuid
 
 internal class AssistantSkillAccess(
@@ -13,8 +14,7 @@ internal class AssistantSkillAccess(
     private fun assistant() = settings.settingsFlow.value.assistants.firstOrNull { it.id == assistantId }
     override fun allowed(tool: String): Boolean {
         val assistant = assistant() ?: return false
-        return LocalToolOption.SkillManagement in assistant.localTools &&
-            tool !in assistant.disabledLocalTools && "use_skill" !in assistant.disabledLocalTools && skills().isNotEmpty()
+        return canManageSkillPackages(assistant, tool)
     }
     override fun skills() = manager.listSkills().filter { it.name in assistant()?.enabledSkills.orEmpty() }
     override fun workspace(name: String) = manager.workspace(name)
@@ -27,3 +27,8 @@ internal class AssistantSkillAccess(
     override suspend fun delete(name: String, revision: String) = manager.deleteSkill(name, revision)
     override fun changed(name: String) = manager.invalidateSkill(name)
 }
+
+/** Existing-package operations separately require a connected package in resolve(). */
+internal fun canManageSkillPackages(assistant: Assistant, tool: String): Boolean =
+    LocalToolOption.SkillManagement in assistant.localTools &&
+        tool !in assistant.disabledLocalTools && "use_skill" !in assistant.disabledLocalTools

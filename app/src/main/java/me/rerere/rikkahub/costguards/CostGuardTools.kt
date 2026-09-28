@@ -38,7 +38,10 @@ fun checkTokenUsageTool(
         Read measured input/output token usage for this task, including its parent and
         descendant chats and stored alternate answers. Compare with the root assistant's
         soft/hard caps. WARN means wrap up; OVER_HARD means the configured measured budget
-        is exhausted. Missing provider usage is reported separately, never as measured zero.
+        is exhausted. Totals count unique model requests, with message-level fallback for legacy history.
+        request_count and per_request_max describe those measurements; the older message_count,
+        per_message_max and unmeasured_messages keys are compatibility aliases.
+        Missing provider usage is reported separately, never as measured zero.
         Omit conversation_id to use the invoking chat. Read-only.
     """.trimIndent().replace("\n", " "),
     parameters = {
@@ -74,6 +77,9 @@ fun checkTokenUsageTool(
             put("conversation_id", conv.id.toString())
             put("task_conversation_id", root.id.toString())
             put("conversation_count", snapshot.conversationCount)
+            put("unmeasured_requests", snapshot.totals.unmeasuredMessages)
+            put("request_count", snapshot.totals.messageCount)
+            put("per_request_max", snapshot.totals.perMessageMax)
             put("unmeasured_messages", snapshot.totals.unmeasuredMessages)
             put("usage_complete", snapshot.totals.unmeasuredMessages == 0)
             put("input_tokens", snapshot.totals.inputTokens)

@@ -124,7 +124,7 @@ object LorebookSerializer : ExportSerializer<Lorebook> {
         }
     }
 
-    private fun tryImportNative(json: String): Lorebook? {
+    internal fun tryImportNative(json: String): Lorebook? {
         return runCatching {
             val exportData = ExportSerializer.DefaultJson.decodeFromString(
                 ExportData.serializer(),
@@ -137,12 +137,12 @@ object LorebookSerializer : ExportSerializer<Lorebook> {
                     id = Uuid.random(),
                     entries = ExportSerializer.DefaultJson
                         .decodeFromJsonElement<Lorebook>(exportData.data)
-                        .entries.map { it.copy(id = Uuid.random()) }
+                        .entries.map { it.copy(id = Uuid.random(), scanDepth = it.scanDepth.coerceAtLeast(0)) }
                 )
         }.getOrNull()
     }
 
-    private fun tryImportSillyTavern(json: String, fileName: String?): Lorebook? {
+    internal fun tryImportSillyTavern(json: String, fileName: String?): Lorebook? {
         return runCatching {
             val stLorebook = ExportSerializer.DefaultJson.decodeFromString(
                 SillyTavernLorebook.serializer(),
@@ -165,7 +165,7 @@ object LorebookSerializer : ExportSerializer<Lorebook> {
                         keywords = entry.key,
                         useRegex = false, // SillyTavern 格式不支持 useRegex
                         caseSensitive = entry.caseSensitive ?: false,
-                        scanDepth = entry.scanDepth ?: 4,
+                        scanDepth = (entry.scanDepth ?: 4).coerceAtLeast(0),
                         constantActive = entry.constant,
                     )
                 }

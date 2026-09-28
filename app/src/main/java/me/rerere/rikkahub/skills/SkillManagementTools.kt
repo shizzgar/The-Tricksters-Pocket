@@ -33,7 +33,7 @@ internal fun createSkillManagementTools(access: SkillManagementAccess): List<Too
         needsApproval = { write },
         execute = { input -> withContext(Dispatchers.IO) {
             val result = try {
-                require(access.allowed(name)) { "Skill management is disabled or no skills are connected for the calling assistant" }
+                require(access.allowed(name)) { "Skill management is disabled for the calling assistant" }
                 run(input as? JsonObject ?: error("Expected an object"))
             } catch (e: CancellationException) { throw e
             } catch (e: SkillConflict) {

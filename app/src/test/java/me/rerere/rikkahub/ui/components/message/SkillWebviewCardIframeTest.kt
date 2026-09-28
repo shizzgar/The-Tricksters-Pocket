@@ -44,6 +44,11 @@ class SkillWebviewCardIframeTest {
     }
 
     @Test
+    fun `virtual skill origin opens directly so its local assets keep their origin`() {
+        assertFalse(shouldWrapInIframe("https://piano-abc.appassets.androidplatform.net/skill/ui.html", iframe = true))
+    }
+
+    @Test
     fun `shouldWrapInIframe is false when iframe is false`() {
         assertFalse(shouldWrapInIframe("https://example.com", iframe = false))
     }

@@ -104,6 +104,7 @@ internal fun collectInjections(
 
         enabledLorebooks.forEach { lorebook ->
             lorebook.entries
+                .filter { it.enabled }
                 .filter { entry ->
                     val context = extractContextForMatching(nonSystemMessages, entry.scanDepth)
                     entry.isTriggered(context)

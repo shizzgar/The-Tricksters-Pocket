@@ -16,6 +16,9 @@ interface MessageNodeDAO {
     @Query("SELECT EXISTS(SELECT 1 FROM message_node WHERE instr(messages, :encodedFileUrl) > 0)")
     suspend fun hasFileReference(encodedFileUrl: String): Boolean
 
+    @Query("SELECT EXISTS(SELECT 1 FROM message_node WHERE conversation_id != :conversationId AND instr(messages, :encodedFileUrl) > 0)")
+    suspend fun hasFileReferenceOutsideConversation(encodedFileUrl: String, conversationId: String): Boolean
+
     @Query("SELECT * FROM message_node WHERE conversation_id = :conversationId ORDER BY node_index ASC")
     suspend fun getNodesOfConversation(conversationId: String): List<MessageNodeEntity>
 

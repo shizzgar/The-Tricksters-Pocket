@@ -5,6 +5,13 @@ import java.io.IOException
 import java.io.InputStream
 import java.util.concurrent.TimeUnit
 
+/** The directory passed to proot and exposed in environment details. */
+fun rootfsWorkingDirectory(cwd: String): String {
+    val normalized = cwd.trim().trim('/')
+    return if (normalized.isBlank()) WorkspaceManager.ROOTFS_WORKSPACE_DIR
+    else "${WorkspaceManager.ROOTFS_WORKSPACE_DIR}/$normalized"
+}
+
 interface WorkspaceShellRunner {
     fun execute(context: WorkspaceShellContext): WorkspaceCommandResult
 

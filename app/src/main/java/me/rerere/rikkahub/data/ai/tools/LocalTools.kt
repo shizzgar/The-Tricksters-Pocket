@@ -782,7 +782,7 @@ class LocalTools(
             tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxSessionKillTool(context, termuxOwner))
             tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxSessionListTool(context, termuxOwner))
             tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxSessionManageTool(context, termuxOwner))
-            tools.addAll(me.rerere.rikkahub.data.ai.tools.local.termuxJobTools(context, termuxOwner, termuxDirectory))
+            tools.addAll(me.rerere.rikkahub.data.ai.tools.local.termuxJobTools(context, termuxOwner, termuxDirectory, invocationContext.termuxWorkspace?.root?.let { "workspace:$it" }))
             tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxOutputReadTool(context, termuxOwner))
         }
         if (availableOptions.contains(LocalToolOption.Whisper)) {
@@ -856,7 +856,7 @@ class LocalTools(
         if (availableOptions.contains(LocalToolOption.CostGuards)) {
             tools.add(me.rerere.rikkahub.costguards.checkTokenUsageTool(settingsStore, conversationRepo, invocationContext))
         }
-        if (availableOptions.contains(LocalToolOption.SkillImport)) {
+        if (assistant != null && availableOptions.contains(LocalToolOption.SkillImport)) {
             tools.add(me.rerere.rikkahub.skills.skillInstallFromUrlTool(skillUrlImporter, settingsStore, skillManager, invocationContext.callerAssistantId))
             tools.add(me.rerere.rikkahub.skills.skillInstallFromTextTool(skillUrlImporter, settingsStore, skillManager, invocationContext.callerAssistantId))
         }

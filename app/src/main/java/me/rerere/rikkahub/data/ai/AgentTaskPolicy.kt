@@ -86,7 +86,7 @@ object AgentTaskPolicy {
 /** Explicit read operations only: shell, scripts, arbitrary MCP and mutating skills never qualify. */
 object AgentToolPolicy {
     private val readTools = setOf(
-        "workspace_read_file", "workspace_read_folder", "workspace_background_status",
+        "workspace_read_file", "workspace_read_folder", "workspace_background_status", "read_project_reference",
         "read_text_file", "read_file", "find_files", "list_files", "list_directory", "file_info", "show_image",
         "termux_read_file", "termux_list_files", "termux_read_file_chunk", "termux_stat",
         "web_search", "search", "search_web", "fetch_webpage", "fetch_url", "scrape_webpage",

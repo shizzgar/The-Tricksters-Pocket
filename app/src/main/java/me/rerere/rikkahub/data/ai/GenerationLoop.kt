@@ -214,22 +214,10 @@ private fun clearRetryStatus(processingStatus: MutableStateFlow<String?>) {
     processingStatus.value = null
 }
 
-// Marks the retry loop's "meaningful output already arrived" flag. Only chunks that carry
-// actual model output (text/reasoning/tool/image content, or annotations) count - the bare
-// Start/End markers and Usage/Finish bookkeeping chunks don't, mirroring the old
-// choice.delta/message.parts.isNotEmpty() check against the pre-refactor chunk shape.
-private fun isMeaningfulStreamChunk(chunk: StreamChunk): Boolean = when (chunk) {
-    is StreamChunk.TextDelta,
-    is StreamChunk.ReasoningDelta,
-    is StreamChunk.ToolCallDelta,
-    is StreamChunk.ImageDelta,
-    is StreamChunk.ImageSnapshot,
-    is StreamChunk.ServerToolStart,
-    is StreamChunk.ServerToolInputDelta,
-    is StreamChunk.ServerToolEnd,
-    is StreamChunk.Annotations -> true
-    else -> false
-}
+// Includes a named tool proposal even before its arguments arrive: StreamChunkHandler
+// has already materialized that call, so replay would retain a ghost side effect.
+internal fun isMeaningfulStreamChunk(chunk: StreamChunk): Boolean =
+    me.rerere.ai.ui.hasMeaningfulModelOutput(chunk)
 
 private suspend fun <T> retryGenerationTransportRequest(
     maxRetries: Int,
@@ -672,7 +660,8 @@ class GenerationLoop(
                     ).let(this::addAll)
                 }
                 addAll(refreshTools?.invoke() ?: tools)
-            }.let { AgentToolPolicy.filter(it, conversationId?.toString(), assistant.readOnlyTools) }
+            }.let { me.rerere.rikkahub.data.ai.tools.filterLocalTools(it, assistant.disabledLocalTools) }
+                .let { AgentToolPolicy.filter(it, conversationId?.toString(), assistant.readOnlyTools) }
 
             // Check if we have tool calls ready to continue after user interaction.
             val pendingTools = messages.lastOrNull()?.getTools()?.filter {
@@ -808,7 +797,8 @@ class GenerationLoop(
                 if (toolCalls.isEmpty()) {
                     stopReason = when {
                         messages.last().toText().isBlank() || messages.last().toText() == textBeforeRequest -> GenerationStopReason.NO_PROGRESS
-                        modelFinishReason?.lowercase() in setOf("length", "max_tokens", "max_output_tokens") -> GenerationStopReason.OUTPUT_LIMIT
+                        me.rerere.ai.provider.classifyGenerationFinish(modelFinishReason) == me.rerere.ai.provider.GenerationFinishKind.OUTPUT_LIMIT -> GenerationStopReason.OUTPUT_LIMIT
+                        me.rerere.ai.provider.classifyGenerationFinish(modelFinishReason) != me.rerere.ai.provider.GenerationFinishKind.COMPLETE -> GenerationStopReason.FAILED
                         else -> GenerationStopReason.COMPLETED
                     }
                     break

@@ -60,10 +60,12 @@ class ToolHookRuntime(
             for (result in observations) {
                 val first = ToolHookEventNormalizer.normalize(tool.toolName, tool.inputAsJson(), result, tool.toolCallId)
                 val jobId = first.jobId
-                if (jobId != null && isJobLaunchTool(tool.toolName)) {
+                val confirmedLaunch = confirmsJobLaunch(tool.toolName, result)
+                if (jobId != null && confirmedLaunch) {
                     state = state.copy(jobs = state.jobs + (jobId to ToolHookJobOrigin(tool.toolName, tool.inputAsJson(), tool.toolCallId)))
                 }
-                val origin = jobId?.let { state.jobs[it] }
+                val origin = if (isJobLaunchTool(tool.toolName) && !confirmedLaunch) null
+                    else jobId?.let { state.jobs[it] }
                 val event = if (origin == null) first else ToolHookEventNormalizer.normalize(
                     tool.toolName, tool.inputAsJson(), result, tool.toolCallId, origin,
                 )
@@ -139,6 +141,19 @@ class ToolHookRuntime(
         }
 
         internal fun isJobLaunchTool(name: String) = name in setOf("termux_job_start", "termux_run_command", "workspace_run_background", "workspace_shell")
+
+        /** A rejected idempotent launch can return the existing job ID, but never its origin. */
+        internal fun confirmsJobLaunch(name: String, result: JsonElement): Boolean {
+            if (!isJobLaunchTool(name)) return false
+            val out = result as? JsonObject ?: return false
+            if ((out["success"] as? JsonPrimitive)?.booleanOrNull == false ||
+                (out["isError"] as? JsonPrimitive)?.booleanOrNull == true ||
+                (out["error"] as? JsonPrimitive)?.contentOrNull?.isNotBlank() == true) return false
+            val id = ((out["job_id"] ?: if (name == "workspace_run_background") out["id"] else null)
+                as? JsonPrimitive)?.contentOrNull
+            val state = ((out["state"] ?: out["status"]) as? JsonPrimitive)?.contentOrNull
+            return !id.isNullOrBlank() && state in setOf("starting", "running", "cancelling", "completed", "failed", "cancelled", "timed_out", "exited")
+        }
 
         internal fun observations(parts: List<UIMessagePart>): List<JsonElement> {
             val observations = parts.filterIsInstance<UIMessagePart.Text>().flatMap { part ->

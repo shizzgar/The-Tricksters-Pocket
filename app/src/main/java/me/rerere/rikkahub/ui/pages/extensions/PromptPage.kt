@@ -1156,6 +1156,10 @@ private fun RegexInjectionEditDialog(
                         it.toIntOrNull()?.let { d -> onEdit(entry.copy(scanDepth = d)) }
                     },
                     label = { Text(stringResource(R.string.prompt_page_scan_depth)) },
+                    isError = entry.scanDepth < 0,
+                    supportingText = {
+                        if (entry.scanDepth < 0) Text(stringResource(R.string.prompt_scan_depth_nonnegative))
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
@@ -1185,7 +1189,7 @@ private fun RegexInjectionEditDialog(
             }
         },
         confirmButton = {
-            val canSave = entry.keywords.isNotEmpty() || entry.constantActive
+            val canSave = entry.scanDepth >= 0 && (entry.keywords.isNotEmpty() || entry.constantActive)
             TextButton(
                 onClick = onConfirm,
                 enabled = canSave

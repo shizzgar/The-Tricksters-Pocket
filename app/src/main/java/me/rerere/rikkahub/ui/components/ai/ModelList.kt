@@ -101,6 +101,19 @@ internal fun Model.matchesPickerType(pickerType: ModelType): Boolean =
     type == pickerType ||
         (pickerType == ModelType.IMAGE && Modality.IMAGE in outputModalities)
 
+/** Use the same provider surface as regular rows; keep saved favorites for later re-enabling. */
+internal fun pickerFavoriteModels(
+    favoriteIds: List<Uuid>,
+    providers: List<ProviderSetting>,
+    type: ModelType,
+): List<Pair<Model, ProviderSetting>> = favoriteIds.mapNotNull { id ->
+    val provider = providers.firstOrNull { it.enabled && it.models.any { model -> model.id == id } }
+        ?: return@mapNotNull null
+    val model = provider.models.firstOrNull { it.id == id && it.matchesPickerType(type) }
+        ?: return@mapNotNull null
+    model to provider
+}
+
 class ModelListState internal constructor(
     modelId: Uuid?,
     providers: List<ProviderSetting>,
@@ -327,12 +340,7 @@ private fun ColumnScope.ModelList(
     val settings = settingsStore.settingsFlow
         .collectAsStateWithLifecycle()
 
-    val favoriteModels = settings.value.favoriteModels.mapNotNull { modelId ->
-        val model = settings.value.providers.findModelById(modelId) ?: return@mapNotNull null
-        if (!model.matchesPickerType(modelType)) return@mapNotNull null
-        val provider = model.findProvider(providers = settings.value.providers, checkOverwrite = false) ?: return@mapNotNull null
-        model to provider
-    }
+    val favoriteModels = pickerFavoriteModels(settings.value.favoriteModels, providers, modelType)
 
     var searchKeywords by remember { mutableStateOf("") }
 

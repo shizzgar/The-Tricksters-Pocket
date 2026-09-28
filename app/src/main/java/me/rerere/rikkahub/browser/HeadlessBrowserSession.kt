@@ -110,11 +110,9 @@ class HeadlessBrowserSession(private val context: Context) {
                     view: WebView?,
                     request: WebResourceRequest?,
                 ): Boolean {
-                    // Same file:// navigation gate as the foreground BrowserView: headless
-                    // sessions are model-driven (Telegram/cron), so a page- or JS-initiated
-                    // hop into file:// would expose app-private files to browser_get_text.
-                    val toFile = request?.url?.scheme.equals("file", ignoreCase = true)
-                    return toFile && view?.url?.startsWith("file:", ignoreCase = true) != true
+                    // Keep navigation consistent with the shared file/content access settings.
+                    val scheme = request?.url?.scheme
+                    return scheme.equals("file", true) || scheme.equals("content", true)
                 }
 
                 override fun onPageStarted(view: WebView, url: String?, favicon: android.graphics.Bitmap?) {

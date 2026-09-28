@@ -350,7 +350,9 @@ internal data class ProbeOutcome(
     val failures: List<Pair<String, String>>,
     val resolvedIp: String,
     val totalMs: Long,
-)
+) {
+    val reachable: Boolean get() = winningLabel != null
+}
 
 /**
  * Race a TCP handshake to (host, port) across every available transport in parallel. The
@@ -588,7 +590,7 @@ internal suspend fun execOneShot(
     // java.net.Socket first lets us tell the model exactly which layer is failing, AND
     // pick the working network for JSch to bind to.
     val outcome = probeReachability(context, host, port)
-    if (outcome.winningNetwork == null && outcome.failures.isNotEmpty()) {
+    if (!outcome.reachable) {
         return unreachableEnvelope(host, port, outcome)
     }
 

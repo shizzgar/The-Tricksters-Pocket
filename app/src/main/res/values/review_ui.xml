@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="web_auth_stop_to_change">Stop the server before changing access protection or its password. The switch shows the protection of the running server.</string>
+    <string name="prompt_scan_depth_nonnegative">Scan depth must be zero or greater.</string>
+    <string name="chat_environment_title">Chat environment</string>
+    <string name="chat_environment_hint">Effective workspace, tools, skills and access limits for this chat.</string>
+    <string name="chat_environment_error">Could not inspect environment: %1$s</string>
+    <string name="chat_environment_refresh">Refresh</string>
+    <string name="chat_environment_source">Workspace source: %1$s</string>
+    <string name="chat_environment_source_none">not configured</string>
+    <string name="chat_environment_source_scope">task or review policy</string>
+    <string name="chat_environment_source_project">project</string>
+    <string name="chat_environment_source_assistant">assistant settings</string>
+    <string name="chat_environment_source_parent">parent assistant</string>
+    <string name="chat_environment_project">Project: %1$s</string>
+    <string name="chat_environment_cwd">Working directory: %1$s</string>
+    <string name="chat_environment_tools">Available tools: %1$d</string>
+    <string name="chat_environment_excluded">Disabled in assistant settings</string>
+    <string name="chat_environment_policy">Blocked by task or read-only policy</string>
+    <string name="chat_environment_skills">Attached installed skills: %1$d</string>
+    <string name="chat_environment_skills_blocked">Skill instructions cannot be activated with the current model or tool access. Check the issues and exclusions above.</string>
+    <string name="chat_environment_show">show names</string>
+    <string name="chat_environment_hide">hide names</string>
+</resources>

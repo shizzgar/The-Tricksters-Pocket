@@ -30,6 +30,19 @@ import org.junit.Test
 class ResponseApiStreamDecoderTest {
     private val api = ResponseAPI(OkHttpClient())
 
+    @Test fun `stream and nonstream incomplete response agree with compaction and continuation classifier`() {
+        val payload = json.parseToJsonElement("""{"id":"resp","model":"test","status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},"output":[{"type":"message","content":[{"type":"output_text","text":"partial handoff"}]}]}""").jsonObject
+        val nonstream = api.parseResponseOutput(payload)
+        val streamed = ResponseApiStreamDecoder().accept(SseEvent(event = "response.incomplete", data =
+            buildJsonObject { put("type", "response.incomplete"); put("response", payload) }.toString()))
+        val streamedReason = streamed.chunks.filterIsInstance<StreamChunk.Finish>().single().finishReason
+        assertEquals("incomplete:max_output_tokens", nonstream.finishReason)
+        assertEquals(nonstream.finishReason, streamedReason)
+        assertEquals(me.rerere.ai.provider.GenerationFinishKind.OUTPUT_LIMIT,
+            me.rerere.ai.provider.classifyGenerationFinish(streamedReason))
+        assertEquals("partial handoff", nonstream.message.toText())
+    }
+
     @Test
     fun `incomplete response should preserve terminal metadata and usage`() {
         val decoder = ResponseApiStreamDecoder()

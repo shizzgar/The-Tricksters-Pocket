@@ -229,6 +229,8 @@ fun SettingTermuxPage(
 
             TermuxRuntimeSettings(vm)
 
+            TermuxArchiveSettings()
+
             // Section 4: Help
             CardGroup(
                 title = { Text(stringResource(R.string.setting_termux_section_help)) },

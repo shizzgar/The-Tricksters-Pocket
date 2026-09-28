@@ -185,12 +185,9 @@ fun browserOpenTool(context: Context, invocationContext: ToolInvocationContext? 
         // API key, or credit-card-shaped digit run, attach a warning so the LLM treats
         // the destination with care. Best-effort, not a security boundary.
         val exfilHits = SensitiveContentDetector.scanUrlQuery(url)
-        // Scheme allow-list IS a security boundary: the browser WebViews run with
-        // allowFileAccess on (skill webview cards open file:// pages there), so a
-        // model-driven file:// navigation followed by browser_get_text would read
-        // app-private files (datastore, DB, known_hosts) into the conversation —
-        // including via prompt injection from a browsed page. file://, content://,
-        // javascript:, intent: etc. are therefore rejected at the tool boundary.
+        // Keep the tool boundary narrow in addition to WebView's disabled file/content
+        // access. Local skill viewers use their own confined HTTPS asset mount; model
+        // browsing accepts only public URL schemes, never arbitrary local files or code.
         // Scheme-less input is passed through unchanged (pre-existing behaviour).
         val scheme = url?.let { android.net.Uri.parse(it.trim()).scheme?.lowercase() }
         val rawOut = if (url == null) {

@@ -161,3 +161,16 @@ internal fun List<UIMessagePart>.localFileUrls(): Set<String> = buildSet {
         if (url?.startsWith("file://") == true) add(url)
     }
 }
+
+/** Apply the same ownership transfer to direct attachments and nested tool results. */
+internal fun UIMessagePart.copyLocalAttachments(copyFile: (String) -> String): UIMessagePart {
+    fun copied(url: String) = if (url.startsWith("file:")) copyFile(url) else url
+    return when (this) {
+        is UIMessagePart.Image -> copy(url = copied(url))
+        is UIMessagePart.Document -> copy(url = copied(url))
+        is UIMessagePart.Video -> copy(url = copied(url))
+        is UIMessagePart.Audio -> copy(url = copied(url))
+        is UIMessagePart.Tool -> copy(output = output.map { it.copyLocalAttachments(copyFile) })
+        else -> this
+    }
+}

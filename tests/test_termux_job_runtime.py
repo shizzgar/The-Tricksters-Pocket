@@ -189,6 +189,82 @@ class JobTimingSnapshotTest(unittest.TestCase):
         self.assertEqual('unknown', result['state'])
         self.assertNotIn('duration_ms', result)
 
+    def test_terminal_partial_utf8_consumes_immutable_tail(self):
+        self.runtime.atomic(self.folder / 'status.json', dict(state='completed'))
+        data = ('a' + '😀' * (2 * 1024 * 1024)).encode()[:self.runtime.LOG_LIMIT]
+        (self.folder / 'stdout.log').write_bytes(data)
+        result = self.runtime.page(self.folder, dict(cursor=len(data) - 7))
+        self.assertEqual('😀�', result['text'])
+        self.assertEqual(len(data), result['next_cursor'])
+        self.assertFalse(result['has_more'])
+        self.assertEqual('', self.runtime.page(self.folder, dict(cursor=result['next_cursor']))['text'])
+
+    def test_live_uncapped_utf8_waits_for_suffix_but_capped_stream_can_advance(self):
+        self.runtime.atomic(self.folder / 'status.json', dict(state='running', worker={'pid': 123}))
+        (self.folder / 'stdout.log').write_bytes(b'hello\xf0\x9f')
+        with patch.object(self.runtime, 'same_process', return_value=True):
+            result = self.runtime.page(self.folder, {})
+            self.assertEqual('hello', result['text'])
+            self.assertEqual(5, result['next_cursor'])
+            (self.folder / 'stdout.log').write_bytes(b'hello\xf0\x9f\x98\x80')
+            self.assertEqual('😀', self.runtime.page(self.folder, dict(cursor=5))['text'])
+            with patch.object(self.runtime, 'LOG_LIMIT', 7):
+                (self.folder / 'stdout.log').write_bytes(b'hello\xf0\x9f')
+                result = self.runtime.page(self.folder, dict(cursor=5))
+                self.assertEqual(7, result['next_cursor'])
+                self.assertFalse(result['has_more'])
+
+    def test_page_boundary_still_preserves_complete_utf8_in_finished_log(self):
+        self.runtime.atomic(self.folder / 'status.json', dict(state='completed'))
+        expected = '😀' * 100
+        (self.folder / 'stdout.log').write_bytes(expected.encode())
+        first = self.runtime.page(self.folder, dict(max_bytes=257))
+        second = self.runtime.page(self.folder, dict(cursor=first['next_cursor']))
+        self.assertEqual(expected, first['text'] + second['text'])
+
+
+class WorkspaceOwnerCompatibilityTest(unittest.TestCase):
+    def test_old_workspace_jobs_remain_observable_and_deduplicated_in_uuid_namespace(self):
+        spec = importlib.util.spec_from_file_location('job_owner_runtime', SOURCE)
+        runtime = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(runtime)
+        with tempfile.TemporaryDirectory(dir=str(SOURCE.parents[6])) as temp:
+            base = Path(temp)
+            old_owner, new_owner = 'a' * 24, 'b' * 24
+            operation = 'existing-operation'
+            old_id = hashlib.sha256((old_owner + ':' + operation).encode()).hexdigest()[:24]
+            folder = base / old_owner / old_id
+            folder.mkdir(parents=True)
+            key = dict(command='printf old', working_dir=temp, execution_timeout_seconds=3600)
+            fingerprint = hashlib.sha256(json.dumps(key, sort_keys=True).encode()).hexdigest()
+            runtime.atomic(folder / 'request.json', dict(key, fingerprint=fingerprint,
+                created_at=100, operation_id=operation, owner=old_owner))
+            runtime.atomic(folder / 'status.json', dict(state='completed'))
+            (folder / 'stdout.log').write_text('old output')
+            request = dict(owner=new_owner, legacy_owners=[old_owner])
+            with patch.object(runtime, 'BASE', base):
+                self.assertEqual(0, runtime.dispatch(dict(action='list', owner=new_owner))['total_jobs'])
+                self.assertEqual(1, runtime.dispatch(dict(request, action='list'))['total_jobs'])
+                self.assertEqual('old output', runtime.dispatch(dict(request, action='read', job_id=old_id))['text'])
+                repeated = runtime.dispatch(dict(request, action='start', operation_id=operation, **key))
+                self.assertTrue(repeated['reused'])
+                self.assertEqual(old_id, repeated['job_id'])
+                conflict = runtime.dispatch(dict(request, action='start', operation_id=operation,
+                    command='different', working_dir=temp))
+                self.assertEqual('operation_id_conflict', conflict['error'])
+                self.assertEqual('completed', runtime.dispatch(dict(request, action='cancel', job_id=old_id))['state'])
+                runtime.atomic(folder / 'status.json', dict(state='running', worker={'pid': 123}))
+                with patch.object(runtime, 'same_process', return_value=True), \
+                        patch.object(runtime.time, 'monotonic', side_effect=[0, 2]):
+                    cancelled = runtime.dispatch(dict(request, action='cancel', job_id=old_id, timeout_seconds=1))
+                    self.assertFalse(cancelled['cancel_confirmed'])
+                    self.assertTrue((folder / 'cancel.request').exists())
+                runtime.atomic(folder / 'status.json', dict(state='completed'))
+                runtime.dispatch(dict(request, action='forget', job_id=old_id))
+                self.assertFalse((folder / 'stdout.log').exists())
+                self.assertTrue(folder.exists())  # Receipts and worker paths are never moved.
+                self.assertFalse((base / new_owner).exists())
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -10,7 +10,8 @@ internal fun availableLocalOptions(
 ): List<LocalToolOption> = options.filter { option ->
     when (option) {
         LocalToolOption.Whisper -> LocalToolOption.Termux in options
-        LocalToolOption.SkillImport, LocalToolOption.SkillManagement, LocalToolOption.JsSkills ->
+        // Installation and creation are explicit opt-ins and must work before the first skill.
+        LocalToolOption.JsSkills ->
             enabledSkills.any { it in installedSkills }
         else -> true
     }

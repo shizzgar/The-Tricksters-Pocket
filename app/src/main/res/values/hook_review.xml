@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="hook_discard_pending">Discard this instruction</string>
+    <string name="hook_discard_hint">The rule stays enabled. If a request is waiting to send this instruction, it will be cancelled; send again to continue.</string>
+    <string name="hook_discard_failed">Could not discard the instruction. Try again.</string>
+</resources>

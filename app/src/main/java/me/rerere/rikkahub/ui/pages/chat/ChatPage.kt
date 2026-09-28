@@ -295,6 +295,7 @@ private fun ChatPageContent(
     val assistant = setting.getCurrentAssistant()
     var showTaskEditor by rememberSaveable(conversation.id.toString()) { mutableStateOf(false) }
     var showToolHooks by rememberSaveable(conversation.id.toString()) { mutableStateOf(false) }
+    var showEnvironment by rememberSaveable(conversation.id.toString()) { mutableStateOf(false) }
     var showFilesSheet by remember { mutableStateOf(false) }
     var showTrajectory by rememberSaveable(conversation.id) { mutableStateOf(false) }
     var showTermuxJobs by rememberSaveable(conversation.id) { mutableStateOf(false) }
@@ -557,6 +558,10 @@ private fun ChatPageContent(
         if (showTrajectory) ConversationTrajectoryScreen(conversation, loadingJob != null, vm::resumeAgentTask, { showTrajectory = false })
         if (showTermuxJobs) TermuxJobsScreen(vm.termuxJobs, onDismiss = { showTermuxJobs = false })
 
+        if (showEnvironment) {
+            me.rerere.rikkahub.ui.components.ai.ChatEnvironmentSheet(vm, setting, conversation) { showEnvironment = false }
+        }
+
         if (showToolHooks) {
             ModalBottomSheet(
                 sheetState = rememberBottomSheetState(
@@ -586,6 +591,7 @@ private fun ChatPageContent(
                 onOpenTrajectory = { showFilesSheet = false; showTrajectory = true },
                 onOpenTask = { showFilesSheet = false; showTaskEditor = true },
                 onOpenToolHooks = { showFilesSheet = false; showToolHooks = true },
+                onOpenEnvironment = { showFilesSheet = false; showEnvironment = true },
             )
         }
     }
@@ -604,6 +610,7 @@ private fun ChatFilesPickerSheet(
     onOpenTrajectory: () -> Unit,
     onOpenTask: () -> Unit,
     onOpenToolHooks: () -> Unit,
+    onOpenEnvironment: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val jobState by vm.termuxJobs.state.collectAsStateWithLifecycle()
@@ -629,6 +636,11 @@ private fun ChatFilesPickerSheet(
         onDismissRequest = { dismissAll() },
     ) {
         FilesPicker(
+            onOpenEnvironment = {
+                focusManager.clearFocus(force = true)
+                keyboardController?.hide()
+                onOpenEnvironment()
+            },
             onOpenTrajectory = onOpenTrajectory,
             onOpenToolHooks = {
                 focusManager.clearFocus(force = true)

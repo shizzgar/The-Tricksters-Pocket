@@ -462,13 +462,17 @@ class ClaudeProvider(private val client: OkHttpClient, context: Context? = null)
                 } catch (e: Throwable) {
                     Log.w(TAG, "onFailure: failed to parse from $bodyRaw", e)
                 } finally {
-                    close(exception)
+                    close(exception ?: java.io.IOException("Model stream failed before completion"))
                 }
             }
 
             override fun onClosed(eventSource: EventSource) {
-                sendChunks(decoder.onClosed())
-                close()
+                try {
+                    sendChunks(decoder.onClosed())
+                    close()
+                } catch (failure: Exception) {
+                    close(failure)
+                }
             }
         }
 
