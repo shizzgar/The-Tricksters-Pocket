@@ -19,9 +19,9 @@ a skill workspace, and the PocketBro, ThinkBro, ReBro, NetBro, DevBro, OpsBro, V
 
 </div>
 
-**2.5.1-pocket.7 — release candidate:** fixes from the full review cover safe deletion and Undo, request-level token totals, tool recovery, isolated skill HTML, Workspace and subagent consistency. Chat environment details, project actions, Termux output archive management and individual hook dismissal are now available. [Review checklist](docs/review-follow-up-2026-09.md).
+**2.5.1-pocket.7:** fixes from the full review cover safe deletion and Undo, request-level token totals, tool recovery, isolated skill HTML, Workspace and subagent consistency. Chat environment details, project actions, Termux output archive management and individual hook dismissal are now available. [Review checklist](docs/review-follow-up-2026-09.md).
 
-CI for the `pocket.7` candidate passed. Signing with the original ReBro key is pending; an unsigned APK is not an installable update.
+CI for `pocket.7` passed. The ARM64 release is signed with the original ReBro key; APK v2/v3 signatures and the certificate were verified.
 
 [Tasks, results, projects and technical Bros](docs/pocket-workbench.md) · [Nested subagent chats](docs/POCKET-NESTED-CHATS.md).
 
@@ -149,7 +149,7 @@ RikkaHub and ExTV provide the multi-provider chat client, MCP, subagents, schedu
 
 ## Validation and current boundaries
 
-**Validated:** [CI for `2.5.1-pocket.7` (`3061b99`)](https://github.com/shizzgar/The-Tricksters-Pocket/actions/runs/36438754795) passed **1337 JVM, 72 Python and 100 Android tests** without failures or skips. The optimized ARM64 release with R8 passed version, package ID, non-debuggable, checksum and bundled Pocket-icon checks. All 41 required screenshots were captured. The emulator runs the debug variant; release is built separately. **The APK remains unsigned:** the original ReBro key is required. [Hashes and validation limits](docs/releases/2.5.1-pocket.7.json). Termux and system-overlay behavior on a physical device remain to be checked after installation.
+**Validated:** [CI for `2.5.1-pocket.7` (`3061b99`)](https://github.com/shizzgar/The-Tricksters-Pocket/actions/runs/36438754795) passed **1337 JVM, 72 Python and 100 Android tests** without failures or skips. The optimized ARM64 release with R8 passed version, package ID, non-debuggable, checksum and bundled Pocket-icon checks. All 41 required screenshots were captured. The emulator runs the debug variant; release is built separately. The ARM64 APK is signed with the original ReBro key; v2/v3 signatures and the certificate were verified. [Hashes and validation limits](docs/releases/2.5.1-pocket.7.json). Termux and system-overlay behavior on a physical device remain to be checked after installation.
 
 - Traces are local and may contain private prompts, commands and results. Inspect exports before sharing.
 - Only provider-returned reasoning can be recorded. Deterministic replay and reconstruction of previously unrecorded events are not implemented.

@@ -11,7 +11,7 @@
 - Одну ожидающую hook-инструкцию можно отменить, оставив правило включённым.
 - Первый skill можно создать прямо из чата при разрешённом управлении или импортировать при разрешённом импорте.
 
-[Все пункты и проверки](docs/review-follow-up-2026-09.md). Package ID сохранён; version code — 196. [CI](https://github.com/shizzgar/The-Tricksters-Pocket/actions/runs/36438754795): **1337 JVM + 72 Python + 100 Android-тестов**, без ошибок и пропусков; 41 снимок интерфейса. [Хеши и сведения о сборке](docs/releases/2.5.1-pocket.7.json). Подпись прежним ключом ReBro ожидается. Unsigned APK не является готовым обновлением для установки.
+[Все пункты и проверки](docs/review-follow-up-2026-09.md). Package ID сохранён; version code — 196. [CI](https://github.com/shizzgar/The-Tricksters-Pocket/actions/runs/36438754795): **1337 JVM + 72 Python + 100 Android-тестов**, без ошибок и пропусков; 41 снимок интерфейса. [Хеши и сведения о сборке](docs/releases/2.5.1-pocket.7.json). ARM64 release подписан прежним ключом ReBro; подписи v2/v3 и сертификат проверены.
 
 ## 2.5.1-pocket.6 — событийные hooks инструментов
 

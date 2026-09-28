@@ -44,6 +44,6 @@ Workspace edits use revision checks and atomic saves. External shell writers are
 
 ## Validation
 
-The additions from the September review are tracked in the [pocket.7 follow-up](review-follow-up-2026-09.md); its full CI passed; signing with the original key is still pending.
+The additions from the September review are tracked in the [pocket.7 follow-up](review-follow-up-2026-09.md). Its full CI passed, and the ARM64 release was signed with the original ReBro key; APK v2/v3 signatures and the certificate were verified.
 
 **Historical workbench release, 2.5.1-pocket.3:** package `excp.rikkahub.rebro`, version code 192. CI runs JVM tests, Android integration tests and screenshot fixtures, and builds an unsigned optimized ARM64 APK. Validation completed on commit `e181596ea16824796fd7776e5617c1fbc77f187b`: 982 JVM tests, 65 Python tests and 66 Android tests passed with no failures or skipped tests. Context gauges, skill rendering and task-result screens were visually inspected. The optimized ARM64 APK was signed locally with the existing ReBro key; the certificate and APK v2/v3 signatures were verified. See the [release manifest](releases/2.5.1-pocket.3.json) for hashes and build provenance.

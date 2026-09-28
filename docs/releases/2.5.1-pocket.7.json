@@ -9,13 +9,21 @@
   "source_merge_commit": "dd1be97c44a024839a4984c5b03a7b70564b4342",
   "workflow_run": "https://github.com/shizzgar/The-Tricksters-Pocket/actions/runs/36438754795",
   "workflow_conclusion": "success",
-  "build_status": "verified_unsigned",
+  "build_status": "verified_signed",
+  "apk_file": "Tricksters-Pocket-2.5.1-pocket.7-arm64-release.apk",
+  "apk_bytes": 57918252,
+  "apk_sha256": "b16899cc7299c6f2a32743b59154721eb27fb2fdf54fa60592336443585a1c30",
   "unsigned_apk_file": "tricksters-pocket-2.5.1-pocket.7-arm64-unsigned.apk",
   "unsigned_apk_bytes": 57906600,
   "unsigned_apk_sha256": "99cfa8f92e949e3cafdb36e44b63971401e48b2355d7f035f0397a401830a9c0",
-  "signing_status": "pending_original_key",
+  "signing_status": "signed_verified",
   "required_signer_certificate_sha256": "0FAC079E040D97CCE1786CEB21DC0855C0D09B2DF3222A43E71C46DD2C517805",
-  "signature_verified": false,
+  "signer_certificate_sha256": "0FAC079E040D97CCE1786CEB21DC0855C0D09B2DF3222A43E71C46DD2C517805",
+  "signature_schemes": [
+    "v2",
+    "v3"
+  ],
+  "signature_verified": true,
   "debuggable": false,
   "bundled_assets_verified": [
     "icons/pocket.svg"
