@@ -15,6 +15,36 @@ import java.nio.file.Files
 
 class WorkspaceBackgroundProcessesTest {
 
+    @Test
+    fun `foreground and background share mounts cwd and compatibility settings`() {
+        val base = Files.createTempDirectory("workspace-context-test").toFile()
+        val captured = mutableListOf<WorkspaceShellContext>()
+        val runner = object : WorkspaceShellRunner {
+            override fun execute(context: WorkspaceShellContext): WorkspaceCommandResult {
+                captured += context
+                return WorkspaceCommandResult(0, "", "", false, false)
+            }
+            override fun start(context: WorkspaceShellContext): Process {
+                captured += context
+                return FakeProcess()
+            }
+        }
+        val mounts = listOf(WorkspaceBindMount(base.resolve("upload"), "/upload"))
+        val manager = WorkspaceManager(base, shellRunner = runner, bindMounts = mounts)
+        try {
+            manager.ensureWorkspace("test")
+            manager.filesDir("test").resolve("nested").mkdirs()
+            manager.executeCommand("test", "cat /upload/input", "nested", shellCompatibilityMode = true)
+            manager.startBackground("test", "cat /upload/input", "nested", shellCompatibilityMode = true)
+            assertEquals(captured[0].copy(timeoutMillis = 0), captured[1])
+            assertEquals(mounts, captured[1].bindMounts)
+            assertTrue(captured[1].shellCompatibilityMode)
+        } finally {
+            manager.killAllBackground("test")
+            base.deleteRecursively()
+        }
+    }
+
     // ---- TailBuffer: pure, deterministic (no process spawning) ----
 
     @Test

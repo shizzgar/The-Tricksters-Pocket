@@ -19,7 +19,7 @@ class SkillManagementToolsTest {
     private val skills by lazy { temp.newFolder("skills") }
     private val state by lazy { temp.newFolder("state") }
     private val access = object : SkillManagementAccess {
-        override fun allowed(tool: String) = allowed && enabled.isNotEmpty()
+        override fun allowed(tool: String) = allowed
         override fun skills() = skills.listFiles().orEmpty().filter { it.name in enabled }.map {
             SkillMetadata(it.name, "fixture", skillDir = it)
         }
@@ -47,6 +47,16 @@ class SkillManagementToolsTest {
     }
     private fun revision(name: String = "sample") = access.workspace(name).snapshot().revision
     private fun assertOk(result: JsonObject) = assertEquals(result.toString(), JsonPrimitive(true), result["ok"])
+
+    @Test fun `first package can be created from an empty assistant and is then readable`() {
+        assertTrue(enabled.isEmpty())
+        assertOk(call("skill_create", "name" to "first-skill", "description" to "First", "instructions" to "Do work"))
+        assertEquals(setOf("first-skill"), enabled)
+        assertOk(call("skill_read_file", "name" to "first-skill", "path" to "SKILL.md"))
+        allowed = false
+        assertEquals(JsonPrimitive(false), call("skill_create", "name" to "denied", "description" to "No", "instructions" to "No")["ok"])
+        assertFalse(File(skills, "denied").exists())
+    }
 
     @Test fun `create preserves quoted metadata and never replaces a package`() {
         seed()

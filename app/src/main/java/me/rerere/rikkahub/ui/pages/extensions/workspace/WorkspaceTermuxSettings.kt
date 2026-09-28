@@ -38,5 +38,6 @@ internal fun WorkspaceTermuxSettings(
         }
         TermuxRuntimeSettings(vm, workspaceDirectory = directory)
         TermuxSkillsSettings(vm)
+        me.rerere.rikkahub.ui.pages.setting.termux.TermuxArchiveSettings()
     }
 }

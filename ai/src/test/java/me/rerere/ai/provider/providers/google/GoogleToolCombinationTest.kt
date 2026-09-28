@@ -107,6 +107,7 @@ class GoogleToolCombinationTest {
         val event = SseEvent(data = json.encodeToString(buildJsonObject {
             putJsonArray("candidates") {
                 add(buildJsonObject {
+                    put("finishReason", "STOP")
                     put("content", buildJsonObject {
                         put("role", "model")
                         put("parts", buildJsonArray {

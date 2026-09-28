@@ -15,6 +15,24 @@ import kotlin.uuid.Uuid
 
 class PromptInjectionTransformerTest {
 
+    @Test
+    fun `legacy negative scan depth and disabled malformed entries cannot abort a generation`() {
+        val book = createLorebook(entries = listOf(
+            createRegexInjection(scanDepth = -1, content = "bad", keywords = listOf("trigger")),
+            createRegexInjection(scanDepth = Int.MIN_VALUE, enabled = false, constantActive = true, content = "disabled"),
+            createRegexInjection(scanDepth = 1, content = "valid", keywords = listOf("trigger")),
+        ))
+        val result = transformMessages(
+            messages = listOf(UIMessage.system("system"), UIMessage.user("trigger")),
+            assistant = createAssistant(lorebookIds = setOf(book.id)),
+            modeInjections = emptyList(),
+            lorebooks = listOf(book),
+        )
+        assertTrue(getMessageText(result.first()).contains("valid"))
+        assertFalse(getMessageText(result.first()).contains("bad"))
+        assertFalse(getMessageText(result.first()).contains("disabled"))
+    }
+
     // region Helper functions
     private fun createAssistant(
         modeInjectionIds: Set<Uuid> = emptySet(),

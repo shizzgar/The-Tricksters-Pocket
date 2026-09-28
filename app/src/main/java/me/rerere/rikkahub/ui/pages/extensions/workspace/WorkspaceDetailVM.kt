@@ -57,98 +57,29 @@ class WorkspaceDetailVM(
         _settingsError.value = null
     }
 
+    private val files by lazy {
+        WorkspaceFilesController(_state, viewModelScope) { area, path ->
+            repository.listFiles(id = id, area = area, path = path)
+        }
+    }
+
     init {
         loadWorkspace()
         refresh()
     }
 
-    fun selectArea(area: WorkspaceStorageArea) {
-        _state.update {
-            it.copy(
-                area = area,
-                path = "",
-                entries = emptyList(),
-                error = null,
-            )
-        }
-        refresh()
-    }
+    fun selectArea(area: WorkspaceStorageArea) = files.selectArea(area)
+    fun open(entry: WorkspaceFileEntry) = files.open(entry)
+    fun goUp() = files.goUp()
+    fun refresh() = files.refresh()
+    fun toggleExpand(entry: WorkspaceFileEntry) = files.toggleExpand(entry)
 
-    fun open(entry: WorkspaceFileEntry) {
-        if (!entry.isDirectory) return
-        _state.update { it.copy(path = entry.path, entries = emptyList(), error = null) }
-        refresh()
-    }
-
-    fun goUp() {
-        val path = state.value.path
-        if (path.isBlank()) return
-        _state.update {
-            it.copy(
-                path = path.substringBeforeLast('/', missingDelimiterValue = ""),
-                entries = emptyList(),
-                error = null,
-            )
-        }
-        refresh()
-    }
-
-    fun refresh() {
-        viewModelScope.launch {
-            // 重新加载当前目录时, 已展开子树的缓存可能与新数据不一致 (文件被删除/新增等), 一并清空
-            _state.update { it.copy(loading = true, error = null, expandedPaths = emptySet(), childrenCache = emptyMap()) }
-            runCatching {
-                repository.listFiles(
-                    id = id,
-                    area = state.value.area,
-                    path = state.value.path,
-                )
-            }.onSuccess { entries ->
-                _state.update { it.copy(entries = entries, loading = false) }
-            }.onFailure { error ->
-                _state.update {
-                    it.copy(
-                        entries = emptyList(),
-                        loading = false,
-                        error = error.message ?: "加载工作区文件失败",
-                    )
-                }
-            }
-        }
-    }
-
-    /** 展开/折叠一个目录条目的树形子节点; 展开时若尚未缓存过子项则加载一次并缓存 */
-    fun toggleExpand(entry: WorkspaceFileEntry) {
-        if (!entry.isDirectory) return
-        val path = entry.path
-        if (path in state.value.expandedPaths) {
-            _state.update { it.copy(expandedPaths = it.expandedPaths - path) }
-            return
-        }
-        _state.update { it.copy(expandedPaths = it.expandedPaths + path) }
-        if (path in state.value.childrenCache) return
-        viewModelScope.launch {
-            runCatching {
-                repository.listFiles(id = id, area = state.value.area, path = path)
-            }.onSuccess { children ->
-                _state.update { it.copy(childrenCache = it.childrenCache + (path to children)) }
-            }.onFailure { error ->
-                _state.update {
-                    it.copy(
-                        expandedPaths = it.expandedPaths - path,
-                        error = error.message ?: "加载工作区文件失败",
-                    )
-                }
-            }
-        }
-    }
-
-    fun delete(entry: WorkspaceFileEntry) {
+    fun delete(entry: WorkspaceFileEntry, area: WorkspaceStorageArea = state.value.area) {
         viewModelScope.launch {
             runCatching {
                 repository.deleteFile(
                     id = id,
-                    area = state.value.area,
+                    area = area,
                     path = entry.path,
                     recursive = entry.isDirectory,
                 )
@@ -161,12 +92,14 @@ class WorkspaceDetailVM(
     }
 
     fun importFile(inputStream: InputStream, fileName: String) {
+        val area = state.value.area
+        val path = state.value.path
         viewModelScope.launch {
             runCatching {
                 repository.importFile(
                     id = id,
-                    area = state.value.area,
-                    destinationPath = state.value.path,
+                    area = area,
+                    destinationPath = path,
                     fileName = fileName,
                     inputStream = inputStream,
                 )
@@ -178,12 +111,12 @@ class WorkspaceDetailVM(
         }
     }
 
-    fun exportFile(entry: WorkspaceFileEntry, outputStream: OutputStream) {
+    fun exportFile(entry: WorkspaceFileEntry, outputStream: OutputStream, area: WorkspaceStorageArea = state.value.area) {
         viewModelScope.launch {
             runCatching {
                 repository.exportFile(
                     id = id,
-                    area = state.value.area,
+                    area = area,
                     path = entry.path,
                     outputStream = outputStream,
                 )
@@ -202,7 +135,7 @@ class WorkspaceDetailVM(
      * 把当前区域下的文件导出到 cacheDir 的临时文件, 完成后回调 [onReady].
      * 供分享 / 图片预览 / 交给系统应用打开等复用 (它们都需要一个 FileProvider 可访问的真实 File).
      */
-    fun exportToCacheFile(entry: WorkspaceFileEntry, cacheDir: File, onReady: (File) -> Unit) {
+    fun exportToCacheFile(entry: WorkspaceFileEntry, cacheDir: File, area: WorkspaceStorageArea = state.value.area, onReady: (File) -> Unit) {
         viewModelScope.launch {
             runCatching {
                 val dir = File(cacheDir, "workspace_share").apply { mkdirs() }
@@ -210,7 +143,7 @@ class WorkspaceDetailVM(
                 file.outputStream().use { output ->
                     repository.exportFile(
                         id = id,
-                        area = state.value.area,
+                        area = area,
                         path = entry.path,
                         outputStream = output,
                     )
@@ -230,10 +163,10 @@ class WorkspaceDetailVM(
     fun exportFolder(
         entry: WorkspaceFileEntry,
         destinationTree: DocumentFile,
+        area: WorkspaceStorageArea = state.value.area,
         openOutputStream: (Uri) -> OutputStream?,
     ) {
         viewModelScope.launch {
-            val area = state.value.area
             runCatching {
                 withContext(Dispatchers.IO) {
                     val listing = mutableMapOf<String, List<WorkspaceFileEntry>>()

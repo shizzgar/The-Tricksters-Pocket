@@ -53,7 +53,7 @@ private suspend fun withSavedHostSession(
     // app's outgoing connections away from WiFi LAN even though WiFi is up — meaning every
     // recent fix that gave SSH exec the WiFi-binding behaviour was bypassed for SFTP.
     val outcome = probeReachability(context, h.host, h.port)
-    if (outcome.winningNetwork == null && outcome.failures.isNotEmpty()) {
+    if (!outcome.reachable) {
         return unreachableEnvelope(h.host, h.port, outcome)
     }
     return runInterruptible(Dispatchers.IO) {
@@ -156,10 +156,8 @@ fun sshDownloadTool(context: Context, repo: SshHostRepository): Tool = Tool(
         val payload = runCancellableSshOp(timeoutSec * 1000L) { sessionRef ->
             withSavedHostSession(context, repo, name, timeoutSec * 1000, sessionRef) { session ->
                 val sftp = openSftp(session)
-                var ok = false
                 try {
-                    localFile.outputStream().use { output -> sftp.get(remotePath, output) }
-                    ok = true
+                    replaceDownloadedFile(localFile) { output -> sftp.get(remotePath, output) }
                     buildJsonObject {
                         put("success", true)
                         put("local_path", localFile.absolutePath)
@@ -168,10 +166,6 @@ fun sshDownloadTool(context: Context, repo: SshHostRepository): Tool = Tool(
                 } catch (e: Throwable) {
                     buildJsonObject { put("error", "sftp get failed: ${e.message ?: "unknown"}") }
                 } finally {
-                    // Delete partial files left by a failed get. Otherwise the user is left
-                    // with a half-written file that LOOKS like a successful download —
-                    // misleading and (for binaries) dangerous to execute.
-                    if (!ok) try { if (localFile.exists()) localFile.delete() } catch (_: Throwable) {}
                     try { sftp.disconnect() } catch (_: Throwable) {}
                 }
             }

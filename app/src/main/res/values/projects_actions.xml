@@ -1,0 +1,8 @@
+<resources>
+    <string name="project_delete">Delete project</string>
+    <string name="project_delete_title">Delete “%1$s”?</string>
+    <string name="project_delete_help">Removes project settings and chat links. Chats, workspace contents and reference files stay on the device. Linked chats will use their assistant’s workspace settings. Active chats changing workspace will stop and their working directories will reset.</string>
+    <string name="project_reference_unlink">Unlink</string>
+    <string name="project_reference_unlink_title">Unlink “%1$s”?</string>
+    <string name="project_reference_unlink_help">Removes this reference from project context. The uploaded copy remains in Files; the original document is unchanged. Delete the uploaded copy separately in Files if you no longer need it.</string>
+</resources>

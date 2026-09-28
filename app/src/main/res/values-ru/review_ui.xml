@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="web_auth_stop_to_change">Остановите сервер, чтобы изменить защиту доступа или пароль. Переключатель показывает защиту запущенного сервера.</string>
+    <string name="prompt_scan_depth_nonnegative">Глубина просмотра должна быть не меньше нуля.</string>
+    <string name="chat_environment_title">Окружение чата</string>
+    <string name="chat_environment_hint">Фактический workspace, инструменты, скиллы и ограничения этого чата.</string>
+    <string name="chat_environment_error">Не удалось проверить окружение: %1$s</string>
+    <string name="chat_environment_refresh">Обновить</string>
+    <string name="chat_environment_source">Источник workspace: %1$s</string>
+    <string name="chat_environment_source_none">не настроен</string>
+    <string name="chat_environment_source_scope">правила задачи или проверки</string>
+    <string name="chat_environment_source_project">проект</string>
+    <string name="chat_environment_source_assistant">настройки ассистента</string>
+    <string name="chat_environment_source_parent">родительский ассистент</string>
+    <string name="chat_environment_project">Проект: %1$s</string>
+    <string name="chat_environment_cwd">Рабочая папка: %1$s</string>
+    <string name="chat_environment_tools">Доступные инструменты: %1$d</string>
+    <string name="chat_environment_excluded">Отключены в настройках ассистента</string>
+    <string name="chat_environment_policy">Недоступны по правилам задачи или доступа только для чтения</string>
+    <string name="chat_environment_skills">Подключённые установленные скиллы: %1$d</string>
+    <string name="chat_environment_skills_blocked">Инструкции скиллов недоступны при текущей модели или настройках инструментов. Проверьте ограничения выше.</string>
+    <string name="chat_environment_show">показать названия</string>
+    <string name="chat_environment_hide">скрыть названия</string>
+</resources>

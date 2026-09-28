@@ -339,8 +339,12 @@ class GoogleProvider(private val client: OkHttpClient, context: Context? = null)
 
             override fun onClosed(eventSource: EventSource) {
                 println("[onClosed] 连接已关闭")
-                sendChunks(decoder.onClosed())
-                close()
+                try {
+                    sendChunks(decoder.onClosed())
+                    close()
+                } catch (failure: Exception) {
+                    close(failure)
+                }
             }
         }
 

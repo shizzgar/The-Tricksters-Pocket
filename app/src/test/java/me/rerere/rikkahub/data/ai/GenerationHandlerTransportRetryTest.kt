@@ -7,8 +7,19 @@ import me.rerere.ai.util.HttpException
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import me.rerere.ai.ui.StreamChunk
+import me.rerere.ai.ui.StreamChunkHandler
+import me.rerere.ai.ui.UIMessage
+import org.junit.Assert.assertEquals
 
 class GenerationHandlerTransportRetryTest {
+    @Test fun `materialized tool name forbids retry before its first arguments arrive`() {
+        val chunk = StreamChunk.ToolCallStart("abandoned", "stop_media")
+        val messages = StreamChunkHandler().handle(listOf(UIMessage.user("play music")), chunk)
+        assertEquals("stop_media", messages.last().getTools().single().toolName)
+        assertFalse(shouldRetryGenerationStreamFailure(IOException("socket reset"), 0, 2,
+            receivedMeaningfulOutput = isMeaningfulStreamChunk(chunk)))
+    }
     @Test
     fun `does not report an empty stream once a chunk arrived, even without parseable parts`() {
         assertFalse(shouldReportEmptyGenerationStream(receivedAnyChunk = true))

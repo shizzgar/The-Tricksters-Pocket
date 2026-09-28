@@ -90,11 +90,15 @@ internal class PendingRestore(
         val payload = File(pending, "payload")
         val paths = payload.walkTopDown().filter { it.isFile }.map {
             it.relativeTo(payload).invariantSeparatorsPath
-        }.toList().sorted()
+        }.filterNot { it == "files/tool-hook-runtime" || it.startsWith("files/tool-hook-runtime/") }.toList().sorted()
         val entries = paths.map { path ->
             RestoreEntry(path, install = true, hadOriginal = targetFile(path).exists())
         }.toMutableList()
         if (paths.contains("database/${databaseFile.name}")) {
+            // Runtime delivery state belongs to the replaced history. Journal its removal so
+            // a failed restore restores the original outbox together with the original DB.
+            val hookPath = "files/tool-hook-runtime"
+            entries.add(0, RestoreEntry(hookPath, install = false, hadOriginal = targetFile(hookPath).exists()))
             // The new database is standalone. Keep the old DB's sidecars with the old DB only.
             for (suffix in listOf("-wal", "-shm", "-journal")) {
                 val path = "database/${databaseFile.name}$suffix"

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="termux_archive_title">Архивы вывода</string>
+    <string name="termux_archive_manage">Управление сохранённым выводом</string>
+    <string name="termux_archive_summary">Архивов: %1$d · %2$s из %3$s</string>
+    <string name="termux_archive_description">Сохранённый вывод команд из всех чатов и рабочих пространств. Удаление освобождает память приложения; краткий вывод в чате останется.</string>
+    <string name="termux_archive_select_old">Выбрать старше 30 дней</string>
+    <string name="termux_archive_empty">Сохранённого вывода нет</string>
+    <string name="termux_archive_delete_selected">Удалить выбранные (%1$d)</string>
+    <string name="termux_archive_delete_warning">Удалить выбранные архивы вывода? Старые ссылки output_ref в чатах больше не откроют полный вывод. Команды и фоновые задачи останутся без изменений.</string>
+</resources>

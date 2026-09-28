@@ -80,4 +80,31 @@ class SubAgentDurabilityTest {
         assertTrue(SubAgentRegistry(file).pendingCompletions().isEmpty())
         assertEquals(1, restored.get("child")?.executionEpoch)
     }
+    @Test fun `saved child remains resumable beyond result cache cap and process restart`() {
+        val file = File(temp.newFolder(), "runs.json")
+        val original = run("child-0", status = SubAgentStatus.SUCCEEDED).copy(
+            conversationId = "child-0", result = "First result", finishedAtMs = 0,
+            executionEpoch = 3, resultDeliveredEpoch = 3,
+        )
+        val registry = SubAgentRegistry(file)
+        registry.addPending(original)
+        repeat(SubAgentDefaults.REGISTRY_LRU_CAP + 5) { index ->
+            registry.addPending(run("later-$index", status = SubAgentStatus.SUCCEEDED).copy(
+                result = "Later result", finishedAtMs = index.toLong() + 1, resultDeliveredEpoch = 0,
+            ))
+        }
+        val restored = SubAgentRegistry(file)
+        val old = requireNotNull(restored.get(original.id))
+        assertEquals(original.tools, old.tools)
+        assertEquals(original.maxTrips, old.maxTrips)
+        assertEquals(original.timeoutSeconds, old.timeoutSeconds)
+        assertEquals(original.executionEpoch, old.executionEpoch)
+        assertNull(old.result) // Duplicate text cache can expire; the child identity cannot.
+        assertEquals(SubAgentDefaults.REGISTRY_LRU_CAP, restored.runs.value.values.count { it.result != null })
+        assertTrue(restored.tryReserve(old.copy(status = SubAgentStatus.RUNNING, executionEpoch = 4), 1))
+        assertEquals(SubAgentStatus.PROCESS_LOST, SubAgentRegistry(file).get(original.id)?.status)
+        restored.forgetConversation(original.conversationId!!)
+        assertNull(SubAgentRegistry(file).get(original.id))
+    }
+
 }

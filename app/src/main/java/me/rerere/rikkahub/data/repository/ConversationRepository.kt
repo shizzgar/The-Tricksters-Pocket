@@ -63,8 +63,22 @@ class ConversationRepository(
     suspend fun getConversationForSubAgent(runId: String): Conversation? =
         conversationDAO.getBySubAgentRunId(runId)?.let { conversationEntityToConversation(it, loadMessageNodes(it.id)) }
 
-    suspend fun hasFileReference(fileUrl: String): Boolean =
-        messageNodeDAO.hasFileReference(JsonInstant.encodeToString(fileUrl))
+    suspend fun hasFileReference(fileUrl: String, excludingConversationId: Uuid? = null): Boolean {
+        val encoded = JsonInstant.encodeToString(fileUrl)
+        val inConversation = if (excludingConversationId == null) {
+            messageNodeDAO.hasFileReference(encoded)
+        } else {
+            messageNodeDAO.hasFileReferenceOutsideConversation(encoded, excludingConversationId.toString())
+        }
+        if (inConversation) return true
+        val path = runCatching {
+            me.rerere.rikkahub.data.files.FileUtils.getRelativePathInFilesDir(
+                context.filesDir, java.io.File(java.net.URI(fileUrl)),
+            )
+        }.getOrNull() ?: return false
+        return org.koin.core.context.GlobalContext.getOrNull()?.getOrNull<ProjectRepository>()
+            ?.projects?.value.orEmpty().any { project -> project.files.any { it.relativePath == path } }
+    }
 
     suspend fun getRecentConversations(assistantId: Uuid, limit: Int = 10): List<Conversation> {
         return conversationDAO.getRecentConversationsOfAssistant(
@@ -392,11 +406,7 @@ class ConversationRepository(
 
     suspend fun deleteConversation(conversation: Conversation) {
         // 获取完整的 Conversation（包含 messageNodes）以正确清理文件
-        val fullConversation = if (conversation.messageNodes.isEmpty()) {
-            getConversationById(conversation.id) ?: conversation
-        } else {
-            conversation
-        }
+        val fullConversation = getConversationById(conversation.id) ?: conversation
         database.withTransaction {
             // message_node 会通过 CASCADE 自动删除
             conversationDAO.delete(
@@ -419,7 +429,10 @@ class ConversationRepository(
             me.rerere.rikkahub.data.ai.hooks.HookRuntimeStore.at(context.filesDir).removeConversation(conversation.id.toString())
         }
         org.koin.core.context.GlobalContext.getOrNull()?.getOrNull<ProjectRepository>()?.removeConversation(conversation.id.toString())
-        filesManager.deleteChatFiles(fullConversation.files)
+        // Old forks and imported histories may share attachment URLs. Deleting one chat
+        // must not remove files still used by another branch/chat or a project reference.
+        val unusedFiles = fullConversation.files.filterNot { hasFileReference(it.toString()) }
+        filesManager.deleteChatFiles(unusedFiles)
     }
 
     suspend fun searchMessages(

@@ -174,4 +174,45 @@ class PendingRestoreTest {
     }
 
     private class SimulatedProcessDeath : Error()
+
+    @Test fun replacingHistoryRemovesNewerHookQueueAndRollbackRestoresIt() = runBlocking {
+        write(database(), "old database")
+        val hook = write(File(temporary.root, "files/tool-hook-runtime/chat.json"), "newer pending instruction")
+        stage(restore())
+        try {
+            restore().apply {
+                assertFalse(hook.exists())
+                throw IOException("Settings unavailable")
+            }
+            error("Expected failure")
+        } catch (_: RestoreFailedException) {
+            assertEquals("newer pending instruction", hook.readText())
+            assertEquals("old database", database().readText())
+        }
+        stage(restore())
+        restore().apply { assertFalse(hook.exists()) }
+        assertFalse(hook.exists())
+        assertEquals("new database", database().readText())
+    }
+
+    @Test fun filesOnlyRestorePreservesHookQueueForUnchangedHistory() = runBlocking {
+        val hook = write(File(temporary.root, "files/tool-hook-runtime/chat.json"), "pending")
+        val restore = restore()
+        val staging = restore.createStagingDirectory()
+        write(File(staging, "payload/files/fonts/custom.ttf"), "font")
+        restore.publish(staging)
+        restore.apply { error("No settings") }
+        assertEquals("pending", hook.readText())
+    }
+
+    @Test fun restartAfterInterruptedRestoreCannotReplayNewerHookQueue() = runBlocking {
+        write(database(), "old database")
+        val hook = write(File(temporary.root, "files/tool-hook-runtime/chat.json"), "newer pending")
+        stage(restore())
+        try { restore().apply { throw SimulatedProcessDeath() } } catch (_: SimulatedProcessDeath) { }
+        assertFalse(hook.exists())
+        restore().apply { }
+        assertFalse(hook.exists())
+    }
+
 }

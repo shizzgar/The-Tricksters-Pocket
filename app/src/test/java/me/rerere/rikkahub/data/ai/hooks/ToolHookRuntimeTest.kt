@@ -274,4 +274,68 @@ class ToolHookRuntimeTest {
         assertTrue(runtime(HookRuntimeStore.isolated(directory), { listOf(rule) }).pending().ids.isEmpty())
     }
 
+
+    @Test fun rejectedJobLaunchCannotReplaceOriginalCommandAcrossRestart() {
+        val directory = temporary.newFolder()
+        val rule = rule()
+        val first = runtime(HookRuntimeStore.isolated(directory), { listOf(rule) })
+        first.completed(tool(id = "launch", name = "termux_job_start", input = """{"command":"echo original"}""",
+            output = """{"job_id":"job-1","state":"running"}"""))
+        first.completed(tool(id = "conflict", name = "termux_job_start",
+            output = """{"success":false,"error":"operation_id_conflict","job_id":"job-1"}"""))
+        val restarted = runtime(HookRuntimeStore.isolated(directory), { listOf(rule) })
+        assertTrue(restarted.completed(tool(id = "poll", name = "termux_job_wait", input = """{"job_id":"job-1"}""",
+            output = """{"job_id":"job-1","state":"failed","exit_code":2}""")).hookNotices.isEmpty())
+        assertTrue(restarted.pending().ids.isEmpty())
+    }
+
+    @Test fun discardedDeliveryStaysDiscardedWithoutDisablingRuleOrConsumingOtherDelivery() {
+        val directory = temporary.newFolder()
+        val store = HookRuntimeStore.isolated(directory)
+        val rule = rule()
+        val runtime = runtime(store, { listOf(rule) })
+        val first = runtime.completed(tool()).hookNotices.single()
+        val second = runtime.completed(tool(id = "call-2")).hookNotices.single()
+        val prepared = runtime.pending()
+        assertTrue(store.discardPending(conversationId.toString(), first.id))
+        assertThrows(kotlinx.coroutines.CancellationException::class.java) { runtime.dispatched(prepared, "stale-request") }
+        assertEquals(setOf(second.id), runtime.pending().ids)
+        val restarted = runtime(HookRuntimeStore.isolated(directory), { listOf(rule) })
+        assertEquals(setOf(second.id), restarted.pending().ids)
+        assertTrue(restarted.completed(tool()).hookNotices.isEmpty())
+        assertEquals(1, restarted.completed(tool(id = "call-3")).hookNotices.size)
+        val next = restarted.pending()
+        restarted.dispatched(next, "next-request")
+        assertFalse(store.discardPending(conversationId.toString(), first.id))
+    }
+
+    @Test fun historyReplacementWithdrawsPendingDeliveryEvenWithSameRuleAndConversationIds() {
+        val store = HookRuntimeStore.isolated(temporary.newFolder())
+        val rule = rule()
+        val user = UIMessage(role = MessageRole.USER, parts = listOf(UIMessagePart.Text("Task")))
+        val runtime = runtime(store, { listOf(rule) }, user.id.toString())
+        val completed = runtime.completed(tool())
+        val history = listOf(user, UIMessage(role = MessageRole.ASSISTANT, parts = listOf(completed)))
+        store.reconcileHistory(conversationId.toString(), history)
+        assertEquals(1, runtime.pending().ids.size)
+        // The restored earlier history has the same user turn, but not its later tool.
+        store.reconcileHistory(conversationId.toString(), listOf(user))
+        assertTrue(runtime.pending().ids.isEmpty())
+        assertEquals(ToolHookNoticeStatus.SKIPPED, store.noticesCached(conversationId.toString(), "call-1").single().status)
+        store.reconcileHistory(conversationId.toString(), history)
+        assertTrue(runtime.pending().ids.isEmpty())
+    }
+
+    @Test fun rerunningHistoricalToolKeepsInstructionBoundToCurrentTurnAndOriginalCard() {
+        val store = HookRuntimeStore.isolated(temporary.newFolder())
+        val rule = rule()
+        val oldUser = UIMessage(role = MessageRole.USER, parts = listOf(UIMessagePart.Text("Old task")))
+        val newUser = UIMessage(role = MessageRole.USER, parts = listOf(UIMessagePart.Text("Try again")))
+        val runtime = runtime(store, { listOf(rule) }, newUser.id.toString())
+        val rerun = runtime.completed(tool(attempt = "rerun-old-tool"))
+        store.reconcileHistory(conversationId.toString(), listOf(oldUser,
+            UIMessage(role = MessageRole.ASSISTANT, parts = listOf(rerun)), newUser))
+        assertEquals(rerun.hookNotices.map { it.id }.toSet(), runtime.pending().ids)
+    }
+
 }

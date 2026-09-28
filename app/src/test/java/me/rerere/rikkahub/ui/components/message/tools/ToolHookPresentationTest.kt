@@ -97,4 +97,15 @@ class ToolHookPresentationTest {
         val unstarted = terminal().copy(executionStartedAt = null)
         assertTrue(toolHookPastCalls(listOf(pending, unstarted)).isEmpty())
     }
+
+    @Test fun `rejected duplicate launch does not poison dry run correlation`() {
+        val conflict = tool("conflict", "termux_job_start", """{"command":"jadx --bad"}""",
+            """{"success":false,"error":"operation_id_conflict","job_id":"job-1"}""")
+        val calls = toolHookPastCalls(listOf(start("echo original"), conflict, terminal()))
+        assertEquals("jadx --bad", calls[1].event.command)
+        val event = calls.last().event
+        assertEquals("echo original", event.command)
+        assertFalse(ToolHookMatcher.evaluate(rule, event, scope).matched)
+    }
+
 }

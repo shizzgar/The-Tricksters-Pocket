@@ -13,6 +13,9 @@ import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 import me.rerere.rikkahub.ui.theme.RikkahubTheme
 import java.io.File
+import me.rerere.rikkahub.data.files.SkillManager
+import me.rerere.rikkahub.skills.js.SkillViewerAssets
+import org.koin.android.ext.android.inject
 
 /**
  * Visible foreground browser the LLM drives via the 17 browser tools (Pass 2).
@@ -34,6 +37,7 @@ import java.io.File
 @OptIn(ExperimentalUuidApi::class)
 class BrowserActivity : ComponentActivity() {
 
+    private val skillManager: SkillManager by inject()
     private var webView: WebView? = null
     private val canGoBack = mutableStateOf(false)
     private val canGoForward = mutableStateOf(false)
@@ -76,6 +80,10 @@ class BrowserActivity : ComponentActivity() {
             }
         })
 
+        val skillAssets = intent?.getStringExtra(EXTRA_SKILL_NAME)
+            ?.let { skillManager.getSkillDir(it) }?.takeIf { it.isDirectory }
+            ?.let { SkillViewerAssets(this, it) }
+
         setContent {
             RikkahubTheme {
                 BrowserView(
@@ -108,6 +116,7 @@ class BrowserActivity : ComponentActivity() {
                     },
                     initialUrl = intent?.getStringExtra(EXTRA_INITIAL_URL) ?: "about:blank",
                     conversationId = conversationId,
+                    skillAssets = skillAssets,
                 )
             }
         }
@@ -130,6 +139,9 @@ class BrowserActivity : ComponentActivity() {
     }
 
     companion object {
+        /** Selects a single installed skill mount; callers cannot pass arbitrary directories. */
+        private const val EXTRA_SKILL_NAME = "me.rerere.rikkahub.browser.EXTRA_SKILL_NAME"
+
         /** Optional extra: initial URL to navigate to on launch. Defaults to about:blank. */
         const val EXTRA_INITIAL_URL = "me.rerere.rikkahub.browser.EXTRA_INITIAL_URL"
 
@@ -149,9 +161,11 @@ class BrowserActivity : ComponentActivity() {
             context: android.content.Context,
             url: String? = null,
             conversationId: String? = null,
+            skillName: String? = null,
         ): Intent =
             Intent(context, BrowserActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                if (skillName != null) putExtra(EXTRA_SKILL_NAME, skillName)
                 if (url != null) putExtra(EXTRA_INITIAL_URL, url)
                 if (conversationId != null) putExtra(EXTRA_CONVERSATION_ID, conversationId)
             }

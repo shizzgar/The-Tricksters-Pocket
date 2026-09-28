@@ -41,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.res.stringResource
@@ -222,7 +223,7 @@ fun SettingWebPage() {
                                 singleLine = true,
                                 isError = portText.toIntOrNull()?.let { it !in 1024..65535 } ?: true,
                                 modifier = Modifier.width(100.dp),
-                                enabled = !serverState.isRunning,
+                                enabled = !serverState.isRunning && !serverState.isLoading,
                                 shape = CircleShape,
                                 colors = TextFieldDefaults.colors(
                                     focusedIndicatorColor = Color.Transparent,
@@ -247,24 +248,26 @@ fun SettingWebPage() {
                                     }
                                 },
                                 // 运行中不允许切换 需重启服务生效
-                                enabled = !serverState.isRunning,
+                                enabled = !serverState.isRunning && !serverState.isLoading,
                             )
                         },
                     )
                     item(
                         headlineContent = { Text(stringResource(R.string.setting_page_web_server_jwt_enable)) },
-                        supportingContent = { Text(stringResource(R.string.setting_page_web_server_jwt_enable_desc)) },
+                        supportingContent = {
+                            Text(stringResource(if (serverState.isRunning || serverState.isLoading)
+                                R.string.web_auth_stop_to_change else R.string.setting_page_web_server_jwt_enable_desc))
+                        },
                         trailingContent = {
-                            Switch(
-                                checked = settings.webServerJwtEnabled,
+                            WebAuthenticationSwitch(
+                                serverState = serverState,
+                                configuredEnabled = settings.webServerJwtEnabled,
+                                passwordConfigured = accessPasswordText.isNotBlank(),
                                 onCheckedChange = { checked ->
                                     scope.launch {
-                                        settingsStore.update {
-                                            it.copy(webServerJwtEnabled = checked)
-                                        }
+                                        settingsStore.update { it.copy(webServerJwtEnabled = checked) }
                                     }
                                 },
-                                enabled = settings.webServerJwtEnabled || accessPasswordText.isNotBlank(),
                             )
                         },
                     )
@@ -274,6 +277,7 @@ fun SettingWebPage() {
                         trailingContent = {
                             TextField(
                                 value = accessPasswordText,
+                                enabled = !serverState.isRunning && !serverState.isLoading,
                                 onValueChange = { value ->
                                     accessPasswordText = value
                                     scope.launch {
@@ -375,4 +379,21 @@ fun SettingWebPage() {
             }
         }
     }
+}
+
+
+@Composable
+internal fun WebAuthenticationSwitch(
+    serverState: me.rerere.rikkahub.web.WebServerState,
+    configuredEnabled: Boolean,
+    passwordConfigured: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    val locked = serverState.isRunning || serverState.isLoading
+    Switch(
+        checked = if (locked) serverState.jwtEnabled else configuredEnabled,
+        onCheckedChange = onCheckedChange,
+        enabled = !locked && (configuredEnabled || passwordConfigured),
+        modifier = Modifier.testTag("web-auth-switch"),
+    )
 }

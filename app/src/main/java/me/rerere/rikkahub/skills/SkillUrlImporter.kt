@@ -3,9 +3,15 @@ package me.rerere.rikkahub.skills
 import me.rerere.rikkahub.data.files.SkillFrontmatterParser
 import me.rerere.rikkahub.data.files.SkillManager
 import me.rerere.rikkahub.data.files.SkillMetadata
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.contentOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.io.ByteArrayOutputStream
+import java.io.IOException
 import java.net.InetAddress
 import java.net.URI
 import java.util.concurrent.TimeUnit
@@ -41,8 +47,15 @@ interface SkillSaver {
  */
 class SkillUrlImporter(
     private val skillManager: SkillSaver,
-    private val httpClient: OkHttpClient = defaultClient(),
+    httpClient: OkHttpClient = defaultClient(),
 ) {
+
+    // Apply the boundary even when a caller supplies a shared/custom client.
+    private val httpClient = httpClient.newBuilder()
+        .followRedirects(false)
+        .followSslRedirects(false)
+        .callTimeout(30, TimeUnit.SECONDS)
+        .build()
 
     /** Convenience constructor for production wiring — bridges the SkillManager. */
     constructor(skillManager: SkillManager) : this(skillManager.asSaver())
@@ -57,13 +70,15 @@ class SkillUrlImporter(
     enum class SkillFormat { NATIVE, OPENCLAW, HERMES }
 
     suspend fun importFromUrl(url: String, overrideName: String? = null): Result {
-        val urlCheck = checkUrl(url)
-        if (urlCheck != null) return Result.Err(urlCheck.first, urlCheck.second)
-
         val raw = try {
-            fetch(url)
-        } catch (t: Throwable) {
-            return Result.Err("fetch_failed", t.message ?: "network error")
+            withTimeoutOrNull(30_000) { runInterruptible(Dispatchers.IO) { fetch(url) } }
+                ?: return Result.Err("fetch_timeout", "Skill URL did not finish within 30 seconds")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: FetchRejected) {
+            return Result.Err(e.code, e.message.orEmpty())
+        } catch (e: Exception) {
+            return Result.Err("fetch_failed", e.message ?: "network error")
         }
         return importFromText(raw, sourceLabel = url, overrideName = overrideName)
     }
@@ -103,8 +118,8 @@ class SkillUrlImporter(
                 "URL returned HTML, not a skill file. Use the raw SKILL.md URL (e.g. raw.githubusercontent.com path), not the web page URL."
             )
         }
-        if (raw.length > MAX_BODY_BYTES) return Result.Err("body_too_large",
-            "skill body exceeds ${MAX_BODY_BYTES / 1024}KB cap (got ${raw.length / 1024}KB)")
+        if (raw.length > MAX_BODY_BYTES || raw.toByteArray(Charsets.UTF_8).size > MAX_BODY_BYTES) return Result.Err("body_too_large",
+            "skill body exceeds ${MAX_BODY_BYTES / 1024}KB cap (UTF-8 bytes)")
 
         val sourceForFrontmatter = sourceLabel?.takeIf { it.isNotBlank() } ?: "imported"
         val format = detectFormat(raw)
@@ -152,18 +167,41 @@ class SkillUrlImporter(
         return rewritten + rest
     }
 
+    private class FetchRejected(val code: String, detail: String) : IOException(detail)
+
     private fun fetch(url: String): String {
-        val req = Request.Builder()
-            .url(url)
-            .header("User-Agent", "TrickstersPocket/skill-importer")
-            .header("Accept", "text/markdown, text/plain, application/json, */*")
-            .build()
-        httpClient.newCall(req).execute().use { resp ->
-            if (!resp.isSuccessful) {
-                throw RuntimeException("HTTP ${resp.code}")
+        var destination = url
+        repeat(MAX_REDIRECTS + 1) { hop ->
+            checkUrl(destination)?.let { throw FetchRejected(it.first, it.second) }
+            val req = Request.Builder()
+                .url(destination)
+                .header("User-Agent", "TrickstersPocket/skill-importer")
+                .header("Accept", "text/markdown, text/plain, application/json, */*")
+                .build()
+            httpClient.newCall(req).execute().use { resp ->
+                if (resp.code in setOf(301, 302, 303, 307, 308)) {
+                    if (hop == MAX_REDIRECTS) throw FetchRejected("too_many_redirects", "Skill URL exceeded $MAX_REDIRECTS redirects")
+                    destination = resp.header("Location")?.let { req.url.resolve(it) }?.toString()
+                        ?: throw FetchRejected("invalid_redirect", "Skill URL returned an invalid redirect")
+                } else {
+                    if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
+                    // Read only cap + one byte, including chunked/decompressed bodies and lying
+                    // Content-Length values. Never buffer an unbounded response before checking.
+                    val bytes = ByteArrayOutputStream()
+                    val buffer = ByteArray(8192)
+                    resp.body.byteStream().use { input ->
+                        while (bytes.size() <= MAX_BODY_BYTES) {
+                            val count = input.read(buffer, 0, minOf(buffer.size, MAX_BODY_BYTES + 1 - bytes.size()))
+                            if (count < 0) break
+                            bytes.write(buffer, 0, count)
+                        }
+                    }
+                    if (bytes.size() > MAX_BODY_BYTES) throw FetchRejected("body_too_large", "Skill body exceeds ${MAX_BODY_BYTES / 1024}KB cap")
+                    return bytes.toString((resp.body.contentType()?.charset(Charsets.UTF_8) ?: Charsets.UTF_8).name()).removePrefix("\uFEFF")
+                }
             }
-            return resp.body.string()
         }
+        error("Unreachable redirect state")
     }
 
     private fun detectFormat(raw: String): SkillFormat {
@@ -340,12 +378,15 @@ class SkillUrlImporter(
     }
 
     companion object {
+        private const val MAX_REDIRECTS = 5
         const val MAX_BODY_BYTES = 256 * 1024  // 256 KB
 
         fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)
-            .followRedirects(true)
+            .followRedirects(false)
+            .followSslRedirects(false)
+            .callTimeout(30, TimeUnit.SECONDS)
             .build()
             .also { me.rerere.rikkahub.utils.NetworkChangeMonitor.register(it) }
     }

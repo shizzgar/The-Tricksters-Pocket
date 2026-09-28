@@ -64,9 +64,9 @@ fun Application.configureWebApi(
     conversationRepo: ConversationRepository,
     folderRepo: FolderRepository,
     settingsStore: SettingsStore,
-    filesManager: FilesManager
+    filesManager: FilesManager,
+    jwtEnabled: Boolean = settingsStore.settingsFlow.value.webServerJwtEnabled,
 ) {
-    val jwtEnabled = settingsStore.settingsFlow.value.webServerJwtEnabled
 
     install(ContentNegotiation) {
         json(JsonInstant)
@@ -141,7 +141,7 @@ fun Application.configureWebApi(
         route("/api") {
             post("/auth/token") {
                 val settings = settingsStore.settingsFlow.value
-                if (!settings.webServerJwtEnabled) {
+                if (!jwtEnabled) {
                     throw BadRequestException("JWT auth is disabled")
                 }
 

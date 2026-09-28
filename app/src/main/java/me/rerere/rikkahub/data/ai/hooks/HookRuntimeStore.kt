@@ -5,6 +5,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import me.rerere.ai.ui.ToolHookNotice
+import me.rerere.ai.ui.UIMessage
+import me.rerere.ai.ui.UIMessagePart
+import me.rerere.ai.core.MessageRole
 import me.rerere.ai.ui.ToolHookNoticeStatus
 import java.io.File
 import java.nio.file.Files
@@ -123,10 +126,47 @@ class HookRuntimeStore private constructor(private val directory: File) {
         return batch(cache.getValue(conversationId), enabledRuleIds)
     }
 
+    /** Validate against full selected history before slicing/compaction, not the truncated request. */
+    fun reconcileHistory(conversationId: String, messages: List<UIMessage>) = transaction(conversationId) { old ->
+        val turns = messages.filter { it.role == MessageRole.USER }.map { it.id.toString() }.toSet() + conversationId
+        val present = mutableSetOf<Pair<String, String>>()
+        val calls = mutableSetOf<String>()
+        messages.forEach { message ->
+            message.parts.filterIsInstance<UIMessagePart.Tool>().filter { it.isExecuted }.forEach { tool ->
+                calls += tool.toolCallId
+                tool.hookNotices.forEach { notice -> present += tool.toolCallId to notice.id }
+            }
+        }
+        old.copy(
+            deliveries = old.deliveries.map { entry ->
+                if (entry.notice.status == ToolHookNoticeStatus.PENDING &&
+                    (entry.turnId !in turns || (entry.toolCallId to entry.notice.id) !in present))
+                    entry.copy(notice = entry.notice.copy(status = ToolHookNoticeStatus.SKIPPED,
+                        reason = entry.notice.reason + " · Source tool is absent from current history"))
+                else entry
+            },
+            jobs = old.jobs.filterValues { it.callId in calls },
+        ) to Unit
+    }
+
+    /** Discard this delivery only; the rule and its deduplication record remain unchanged. */
+    fun discardPending(conversationId: String, noticeId: String): Boolean = transaction(conversationId) { old ->
+        val canDiscard = old.deliveries.any { it.notice.id == noticeId && it.notice.status == ToolHookNoticeStatus.PENDING }
+        old.copy(deliveries = old.deliveries.map { entry ->
+            if (canDiscard && entry.notice.id == noticeId)
+                entry.copy(notice = entry.notice.copy(status = ToolHookNoticeStatus.SKIPPED,
+                    reason = entry.notice.reason + " · Discarded by user"))
+            else entry
+        }) to canDiscard
+    }
+
     /** Runs before transport starts; a failed write aborts dispatch and preserves the outbox. */
     fun dispatched(conversationId: String, batch: HookPromptBatch, requestId: String) {
         if (batch.ids.isEmpty()) return
         transaction(conversationId) { old ->
+            val pendingIds = old.deliveries.filter { it.notice.status == ToolHookNoticeStatus.PENDING }.map { it.notice.id }.toSet()
+            if (!pendingIds.containsAll(batch.ids))
+                throw kotlinx.coroutines.CancellationException("Hook instructions changed before dispatch; prepare a new request")
             old.copy(deliveries = old.deliveries.map { entry ->
                 if (entry.notice.id in batch.ids && entry.notice.status == ToolHookNoticeStatus.PENDING)
                     entry.copy(notice = entry.notice.copy(status = ToolHookNoticeStatus.DISPATCHED, requestId = requestId), requestConfirmed = false)

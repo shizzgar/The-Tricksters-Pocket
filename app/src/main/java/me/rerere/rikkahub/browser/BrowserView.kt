@@ -7,6 +7,7 @@ import android.view.ViewGroup
 import android.webkit.ConsoleMessage
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
+import android.webkit.WebResourceResponse
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -27,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import me.rerere.rikkahub.BuildConfig
+import me.rerere.rikkahub.skills.js.SkillViewerAssets
 import java.io.File
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
@@ -63,6 +65,7 @@ fun BrowserView(
     onNavigate: (String) -> Unit,
     initialUrl: String,
     conversationId: Uuid?,
+    skillAssets: SkillViewerAssets? = null,
 ) {
     Scaffold(
         topBar = {
@@ -100,6 +103,7 @@ fun BrowserView(
                         .fillMaxWidth()
                         .weight(1f),
                     initialUrl = initialUrl,
+                    skillAssets = skillAssets,
                     onWebViewReady = onWebViewReady,
                     onUrlChange = onUrlChange,
                     onTitleChange = onTitleChange,
@@ -125,6 +129,7 @@ fun BrowserView(
 private fun WebViewHost(
     modifier: Modifier = Modifier,
     initialUrl: String,
+    skillAssets: SkillViewerAssets?,
     onWebViewReady: (WebView) -> Unit,
     onUrlChange: (String) -> Unit,
     onTitleChange: (String) -> Unit,
@@ -172,15 +177,12 @@ private fun WebViewHost(
                     view: WebView?,
                     request: WebResourceRequest?,
                 ): Boolean {
-                    // Block page/JS-initiated navigation into file:// unless the current
-                    // document is already file:// (skill webview cards moving between
-                    // their own sub-pages). App-initiated loadUrl() bypasses this
-                    // callback, so opening a skill card stays unaffected. Without this,
-                    // a browsed page (or eval'd JS) could steer the WebView into
-                    // app-private files and exfiltrate them via browser_get_text.
-                    val toFile = request?.url?.scheme.equals("file", ignoreCase = true)
-                    return toFile && view?.url?.startsWith("file:", ignoreCase = true) != true
+                    val scheme = request?.url?.scheme
+                    return scheme.equals("file", true) || scheme.equals("content", true)
                 }
+
+                override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest): WebResourceResponse? =
+                    skillAssets?.intercept(request.url)
 
                 override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                     super.onPageStarted(view, url, favicon)
@@ -252,7 +254,10 @@ private fun WebViewHost(
                 }
             }
 
-            loadUrl(initialUrl)
+            val safeInitialUrl = skillAssets?.initialUrl(initialUrl) ?: initialUrl.takeUnless {
+                it.startsWith("file:", true) || it.startsWith("content:", true)
+            } ?: "about:blank"
+            loadUrl(safeInitialUrl)
             onWebViewReady(this)
         }
     }

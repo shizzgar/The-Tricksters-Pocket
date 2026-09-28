@@ -82,11 +82,9 @@ class ChatVM(
             .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     internal val termuxJobs = TermuxJobsController(viewModelScope, request = { request ->
-        val bound = settingsStore.settingsFlow.value.getAssistantById(conversation.value.assistantId)?.workspaceId
-        val workspace = bound?.let { org.koin.java.KoinJavaComponent.getKoin().get<me.rerere.rikkahub.data.repository.WorkspaceRepository>().getById(it.toString()) }
-        val owner = if (workspace?.termuxPath != null) "workspace:${workspace.id}" else _conversationId.toString()
-        me.rerere.rikkahub.data.ai.tools.local.termuxJobRequest(context, owner, request)
+        chatService.requestTermuxJobs(_conversationId, request)
     })
+    suspend fun inspectEnvironment() = chatService.inspectEnvironment(_conversationId)
     fun resumeAgentTask() = chatService.resumeAgentTask(_conversationId)
     val generationProgress = chatService.getGenerationProgressFlow(_conversationId)
 

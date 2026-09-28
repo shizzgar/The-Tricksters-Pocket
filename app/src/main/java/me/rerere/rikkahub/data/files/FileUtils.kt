@@ -42,6 +42,18 @@ object FileUtils {
         return canonicalFile.relativeTo(canonicalFilesDir).path.replace(File.separatorChar, '/')
     }
 
+    /** Only imported chat attachments belong to chat cleanup. A file URL is not ownership. */
+    fun ownedChatAttachmentRelativePath(filesDir: File, file: File): String? {
+        val root = runCatching { filesDir.canonicalFile }.getOrNull() ?: return null
+        val upload = File(root, FileFolders.UPLOAD)
+        val canonical = runCatching { file.canonicalFile }.getOrNull() ?: return null
+        // Do not follow a replaced upload directory or a symlink to another stored file.
+        val parent = runCatching { file.parentFile?.canonicalFile }.getOrNull() ?: return null
+        if (runCatching { upload.canonicalFile }.getOrNull() != upload || canonical != File(parent, file.name)) return null
+        if (canonical.parentFile != upload || canonical.isDirectory) return null
+        return "${FileFolders.UPLOAD}/${canonical.name}"
+    }
+
     fun getFileNameFromUri(context: Context, uri: Uri): String? {
         return runCatching {
             var fileName: String? = null

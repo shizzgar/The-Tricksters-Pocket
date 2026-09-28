@@ -1,0 +1,8 @@
+<resources>
+    <string name="project_delete">Удалить проект</string>
+    <string name="project_delete_title">Удалить «%1$s»?</string>
+    <string name="project_delete_help">Будут удалены настройки проекта и связи с чатами. Чаты, содержимое Workspace и файлы останутся на устройстве. Связанные чаты перейдут на настройки Workspace своего ассистента. Активные чаты, у которых изменится Workspace, будут остановлены, их рабочие каталоги сбросятся.</string>
+    <string name="project_reference_unlink">Отвязать</string>
+    <string name="project_reference_unlink_title">Отвязать «%1$s»?</string>
+    <string name="project_reference_unlink_help">Файл исчезнет из контекста проекта. Загруженная копия останется в разделе «Файлы», исходный документ не изменится. Если копия больше не нужна, удалите её отдельно из раздела «Файлы».</string>
+</resources>

@@ -179,15 +179,9 @@ internal class ResponseApiStreamDecoder : StreamChunkDecoder {
 
     private fun parseTerminalResponse(payload: JsonObject): List<StreamChunk> {
         val response = payload["response"]?.jsonObject
-        val status = response?.get("status")?.jsonPrimitive?.contentOrNull
-            ?: payload["type"]?.jsonPrimitive?.contentOrNull?.removePrefix("response.")
-        val incompleteReason = response?.get("incomplete_details")?.jsonObjectOrNull
-            ?.get("reason")?.jsonPrimitive?.contentOrNull
-        val finishReason = if (status == "incomplete" && incompleteReason != null) {
-            "$status:$incompleteReason"
-        } else {
-            status
-        }
+        val finishReason = responseFinishReason(response,
+            fallbackStatus = payload["type"]?.jsonPrimitive?.contentOrNull?.removePrefix("response."),
+        )
 
         return buildList {
             parseUsage(response?.get("usage") as? JsonObject)?.let { add(StreamChunk.Usage(it)) }

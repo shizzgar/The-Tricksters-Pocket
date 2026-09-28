@@ -147,7 +147,7 @@ fun skillInstallFromUrlTool(
             properties = buildJsonObject {
                 put("url", buildJsonObject {
                     put("type", "string")
-                    put("description", "http(s) URL of the skill markdown or JSON. Loopback / private IPs are rejected.")
+                    put("description", "http(s) URL of the skill markdown or JSON. Loopback / unspecified addresses are rejected, including redirect destinations.")
                 })
                 put("name", buildJsonObject {
                     put("type", "string")

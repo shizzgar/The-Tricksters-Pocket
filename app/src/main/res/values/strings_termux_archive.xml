@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="termux_archive_title">Output archives</string>
+    <string name="termux_archive_manage">Manage captured output</string>
+    <string name="termux_archive_summary">%1$d archives · %2$s of %3$s</string>
+    <string name="termux_archive_description">Captured command output across all chats and workspaces. Deleting archives frees app storage; chat previews remain.</string>
+    <string name="termux_archive_select_old">Select older than 30 days</string>
+    <string name="termux_archive_empty">No archived output</string>
+    <string name="termux_archive_delete_selected">Delete selected (%1$d)</string>
+    <string name="termux_archive_delete_warning">Delete the selected output archives? Older chat output_ref links will no longer open the full output. Commands and durable jobs are unaffected.</string>
+</resources>

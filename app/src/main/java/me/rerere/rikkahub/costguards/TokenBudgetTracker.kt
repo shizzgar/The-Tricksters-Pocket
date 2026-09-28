@@ -8,8 +8,9 @@ import kotlin.uuid.Uuid
 
 /**
  * Phase 15 — pure-function token aggregator over a [Conversation]. Walks the currently-
- * selected branch (one message per node, picked via `selectIndex`), sums every
- * non-null [TokenUsage], and reports the running totals.
+ * selected branch (one message per node, picked via `selectIndex`), sums each
+ * distinct request's [TokenUsage], and reports running totals. Legacy messages
+ * without request metrics retain their message-level measurement.
  *
  * The runtime and UI share taskSnapshot: it includes the complete descendant task tree,
  * counts each stored message only once, and overlays the caller's live conversation.
@@ -42,31 +43,9 @@ object TokenBudgetTracker {
         val conversationCount: Int = 1,
     )
 
-    fun aggregate(conversation: Conversation): Totals {
-        var input = 0L
-        var output = 0L
-        var total = 0L
-        var perMax = 0L
-        var count = 0
-        for (node in conversation.messageNodes) {
-            val msg = node.messages.getOrNull(node.selectIndex) ?: continue
-            val usage = msg.usage ?: continue
-            input += usage.promptTokens.toLong()
-            output += usage.completionTokens.toLong()
-            val totalThis = (usage.totalTokens.takeIf { it > 0 }
-                ?: (usage.promptTokens + usage.completionTokens)).toLong()
-            total += totalThis
-            if (totalThis > perMax) perMax = totalThis
-            count++
-        }
-        return Totals(
-            inputTokens = input,
-            outputTokens = output,
-            totalTokens = total,
-            perMessageMax = perMax,
-            messageCount = count,
-        )
-    }
+    fun aggregate(conversation: Conversation): Totals = aggregateMessages(
+        conversation.messageNodes.mapNotNull { it.messages.getOrNull(it.selectIndex) },
+    )
 
     fun classify(totals: Totals, softCap: Int?, hardCap: Int?): BudgetStatus {
         // No budget configured → no-budget. Spec calls this "off"; tool surface shows
@@ -147,31 +126,42 @@ object TokenBudgetTracker {
     }
 
     /** Count all stored alternatives: changing the selected answer must not reset spent usage. */
-    fun aggregateTask(conversations: List<Conversation>): Totals {
+    fun aggregateTask(conversations: List<Conversation>): Totals = aggregateMessages(
+        conversations.distinctBy { it.id }.flatMap { it.messageNodes }.flatMap { it.messages },
+    )
+
+    private fun aggregateMessages(messages: List<me.rerere.ai.ui.UIMessage>): Totals {
+        val messageCopies = messages.groupBy { it.id }
+        // A tool turn can contain many requests in one UIMessage. message.usage is only
+        // its latest request (the context gauge), never the amount spent on the turn.
+        val requests = messages.flatMap { it.generationMetrics }.groupBy { it.requestId }
+        val measurements = requests.values.map { copies ->
+            copies.lastOrNull { it.usage != null }?.usage ?: copies.last().usage
+        } + messageCopies.values.filter { copies ->
+            copies.none { it.generationMetrics.isNotEmpty() } &&
+                copies.any { it.usage != null || it.role == me.rerere.ai.core.MessageRole.ASSISTANT }
+        }.map { copies -> copies.lastOrNull { it.usage != null }?.usage }
+        // Forks can retain an older snapshot with the same message ID. Union their
+        // request IDs before deduplication; never let that snapshot hide newer rounds.
         var input = 0L
         var output = 0L
         var total = 0L
         var maximum = 0L
         var count = 0
         var unknown = 0
-        val seen = mutableSetOf<Uuid>()
-        for (conversation in conversations.distinctBy { it.id }) {
-            for (message in conversation.messageNodes.flatMap { it.messages }) {
-                if (!seen.add(message.id)) continue
-                val usage = message.usage
-                if (usage == null) {
-                    if (message.role == me.rerere.ai.core.MessageRole.ASSISTANT) unknown++
-                    continue
-                }
-                val measuredInput = usage.promptTokens.coerceAtLeast(0).toLong()
-                val measuredOutput = usage.completionTokens.coerceAtLeast(0).toLong()
-                val measuredTotal = usage.totalTokens.takeIf { it > 0 }?.toLong() ?: (measuredInput + measuredOutput)
-                input += measuredInput
-                output += measuredOutput
-                total += measuredTotal
-                maximum = maxOf(maximum, measuredTotal)
-                count++
+        for (usage in measurements) {
+            if (usage == null) {
+                unknown++
+                continue
             }
+            val measuredInput = usage.promptTokens.coerceAtLeast(0).toLong()
+            val measuredOutput = usage.completionTokens.coerceAtLeast(0).toLong()
+            val measuredTotal = usage.totalTokens.takeIf { it > 0 }?.toLong() ?: (measuredInput + measuredOutput)
+            input += measuredInput
+            output += measuredOutput
+            total += measuredTotal
+            maximum = maxOf(maximum, measuredTotal)
+            count++
         }
         return Totals(input, output, total, maximum, count, unknown)
     }

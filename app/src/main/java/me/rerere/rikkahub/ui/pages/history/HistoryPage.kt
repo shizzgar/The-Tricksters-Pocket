@@ -115,16 +115,12 @@ fun HistoryPage(vm: HistoryVM = koinViewModel()) {
                     },
                     onDelete = {
                         scope.launch {
-                            // 先获取完整的对话数据（包含 messageNodes），用于撤销恢复
-                            val fullConversation = vm.getFullConversation(conversation.id) ?: conversation
-                            vm.deleteConversation(conversation)
-                            val result = snackbarHostState.showSnackbar(
-                                message = snackMessageDeleted,
-                                actionLabel = snackMessageUndo,
-                                withDismissAction = true,
-                            )
-                            if (result == SnackbarResult.ActionPerformed) {
-                                vm.restoreConversation(fullConversation)
+                            vm.deleteConversation(conversation) {
+                                snackbarHostState.showSnackbar(
+                                    message = snackMessageDeleted,
+                                    actionLabel = snackMessageUndo,
+                                    withDismissAction = true,
+                                ) == SnackbarResult.ActionPerformed
                             }
                         }
                     },

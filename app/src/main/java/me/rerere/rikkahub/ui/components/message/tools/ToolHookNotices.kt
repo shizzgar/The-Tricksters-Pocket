@@ -71,6 +71,18 @@ internal fun rememberToolHookNotices(tool: UIMessagePart.Tool, conversationId: S
 internal fun ToolHookNotices(notices: List<ToolHookNotice>, modifier: Modifier = Modifier, unavailablePendingIds: Set<String> = emptySet()) {
     if (notices.isEmpty()) return
     var expanded by remember { mutableStateOf(false) }
+    val conversationId = me.rerere.rikkahub.ui.context.LocalToolConversationId.current
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var discardError by remember { mutableStateOf(false) }
+    val discard: ((String) -> Unit)? = conversationId?.let { id -> { noticeId ->
+        scope.launch {
+            discardError = false
+            try { withContext(Dispatchers.IO) { HookRuntimeStore.at(context.filesDir).discardPending(id, noticeId) } }
+            catch (e: CancellationException) { throw e }
+            catch (_: Exception) { discardError = true }
+        }
+    } }
     Surface(
         onClick = { expanded = true },
         modifier = modifier.fillMaxWidth().testTag("tool-hook-notices"),
@@ -96,12 +108,18 @@ internal fun ToolHookNotices(notices: List<ToolHookNotice>, modifier: Modifier =
     }
     if (expanded) ModalBottomSheet(onDismissRequest = { expanded = false },
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-        ToolHookNoticeDetails(notices, unavailablePendingIds)
+        if (discardError) Text(stringResource(R.string.hook_discard_failed),
+            modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.error)
+        ToolHookNoticeDetails(notices, unavailablePendingIds, onDiscardPending = discard)
     }
 }
 
 @Composable
-internal fun ToolHookNoticeDetails(notices: List<ToolHookNotice>, unavailablePendingIds: Set<String> = emptySet()) {
+internal fun ToolHookNoticeDetails(
+    notices: List<ToolHookNotice>,
+    unavailablePendingIds: Set<String> = emptySet(),
+    onDiscardPending: ((String) -> Unit)? = null,
+) {
     LazyColumn(
         modifier = Modifier.fillMaxWidth().fillMaxHeight(.85f).testTag("tool-hook-details"),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 28.dp),
@@ -121,6 +139,13 @@ internal fun ToolHookNoticeDetails(notices: List<ToolHookNotice>, unavailablePen
                         else -> notice.status.explanation()
                     }
                     Text(stringResource(explanation), style = MaterialTheme.typography.bodySmall)
+                    if (!unavailable && notice.status == ToolHookNoticeStatus.PENDING && onDiscardPending != null) {
+                        TextButton(onClick = { onDiscardPending(notice.id) }, modifier = Modifier.testTag("hook-discard-${notice.id}")) {
+                            Text(stringResource(R.string.hook_discard_pending))
+                        }
+                        Text(stringResource(R.string.hook_discard_hint), style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                     Text(stringResource(R.string.hook_event_reason), style = MaterialTheme.typography.labelLarge)
                     SelectionContainer { Text(notice.reason, style = MaterialTheme.typography.bodyMedium) }
                     notice.source?.let { source ->

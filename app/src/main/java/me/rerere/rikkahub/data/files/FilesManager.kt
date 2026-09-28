@@ -205,12 +205,12 @@ class FilesManager(
 
     fun deleteChatFiles(uris: List<Uri>) {
         val relativePaths = mutableSetOf<String>()
-        uris.filter { it.toString().startsWith("file:") }.forEach { uri ->
-            val file = uri.toFile()
-            getRelativePathInFilesDir(file)?.let { relativePaths.add(it) }
-            if (file.exists()) {
-                file.delete()
-            }
+        uris.filter { it.scheme == "file" }.distinct().forEach { uri ->
+            val file = runCatching { uri.toFile() }.getOrNull() ?: return@forEach
+            val relativePath = FileUtils.ownedChatAttachmentRelativePath(context.filesDir, file)
+                ?: return@forEach
+            // Keep failed disk deletions indexed so the storage UI can still manage them.
+            if (!file.exists() || file.delete()) relativePaths.add(relativePath)
         }
         if (relativePaths.isNotEmpty()) {
             appScope.launch(Dispatchers.IO) {
@@ -493,9 +493,6 @@ class FilesManager(
 
     private fun buildRelativePath(folder: String, file: File): String =
         FileUtils.buildRelativePath(folder, file)
-
-    private fun getRelativePathInFilesDir(file: File): String? =
-        FileUtils.getRelativePathInFilesDir(context.filesDir, file)
 
     fun getFileNameFromUri(uri: Uri): String? =
         FileUtils.getFileNameFromUri(context, uri)

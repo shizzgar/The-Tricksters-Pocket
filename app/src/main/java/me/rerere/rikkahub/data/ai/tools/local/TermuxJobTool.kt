@@ -14,15 +14,16 @@ import java.security.MessageDigest
 import java.util.Base64
 
 /** The immutable helper stays on Termux private storage while workers are running. */
-internal suspend fun termuxJobRequest(context: Context, owner: String, request: JsonObject): JsonObject = withContext(Dispatchers.IO) {
+internal suspend fun termuxJobRequest(context: Context, owner: String, request: JsonObject, legacyOwner: String? = null): JsonObject = withContext(Dispatchers.IO) {
     val source = context.assets.open("termux/job_runtime.py").use { it.readBytes() }
     val hash = MessageDigest.getInstance("SHA-256").digest(source).joinToString("") { "%02x".format(it) }
     val base = "$TERMUX_HOME/.local/share/rikkahub-jobs/${context.packageName}"
     val helper = "$base/runtime-$hash.py"
     val encodedSource = Base64.getEncoder().encodeToString(source)
     val payload = buildJsonObject {
-        request.filterKeys { it != "platform_boot_marker" }.forEach { (key, value) -> put(key, value) }
+        request.filterKeys { it !in setOf("platform_boot_marker", "legacy_owners", "owner") }.forEach { (key, value) -> put(key, value) }
         put("owner", sessionOwner(owner))
+        if (legacyOwner != null && legacyOwner != owner) put("legacy_owners", JsonArray(listOf(JsonPrimitive(sessionOwner(legacyOwner)))))
         val bootCount = runCatching {
             android.provider.Settings.Global.getInt(context.contentResolver, android.provider.Settings.Global.BOOT_COUNT, -1)
         }.getOrDefault(-1)
@@ -58,7 +59,7 @@ internal suspend fun termuxJobRequest(context: Context, owner: String, request: 
     }
 }
 
-fun termuxJobTools(context: Context, owner: String?, defaultWorkingDir: String? = null): List<Tool> =
+fun termuxJobTools(context: Context, owner: String?, defaultWorkingDir: String? = null, legacyOwner: String? = null): List<Tool> =
     listOf("start", "read", "wait", "cancel", "list", "forget").map { action ->
         Tool(
             name = "termux_job_$action",
@@ -96,17 +97,19 @@ fun termuxJobTools(context: Context, owner: String?, defaultWorkingDir: String? 
                 if (owner == null) return@execute listOf(UIMessagePart.Text("{\"error\":\"conversation_identity_required\"}"))
                 if (action == "start") {
                     val command = input.jsonObject["command"]?.jsonPrimitive?.content.orEmpty()
+                    if (command.isBlank()) return@execute listOf(UIMessagePart.Text("{\"error\":\"command_required\"}"))
                     HardlineCommandGuard.checkCommand(command)?.let {
                         return@execute listOf(UIMessagePart.Text(buildJsonObject { put("error", "blocked_by_safety_floor"); put("reason", it) }.toString()))
                     }
                 }
                 val request = buildJsonObject {
                     input.jsonObject.forEach { (k,v) -> put(k,v) }; put("action", action)
+                    if (action == "start") put("command", termuxCommandPreamble() + input.jsonObject.getValue("command").jsonPrimitive.content)
                     if (action == "start") put("working_dir", me.rerere.rikkahub.data.ai.tools.resolveTermuxWorkingDirectory(
                         input.jsonObject["working_dir"]?.jsonPrimitive?.contentOrNull, defaultWorkingDir))
                 }
                 // Cancellation propagates to the agent loop; the external job remains observable.
-                val result = termuxJobRequest(context, owner, request)
+                val result = termuxJobRequest(context, owner, request, legacyOwner)
                 listOf(UIMessagePart.Text(result.toString()))
             },
         )

@@ -3,6 +3,7 @@ package me.rerere.rikkahub.costguards
 import me.rerere.ai.core.MessageRole
 import me.rerere.ai.core.TokenUsage
 import me.rerere.ai.ui.UIMessage
+import me.rerere.ai.provider.GenerationRequestMetrics
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.data.model.MessageNode
 import org.junit.Assert.assertEquals
@@ -11,6 +12,59 @@ import kotlinx.coroutines.runBlocking
 import kotlin.uuid.Uuid
 
 class TokenBudgetTrackerTest {
+
+    private fun request(id: String, usage: TokenUsage?) = GenerationRequestMetrics(
+        requestId = id, phase = "COMPLETED", totalMs = 10, queueMs = 0, usage = usage,
+    )
+
+    @Test fun `multiple requests merged in one assistant message all consume hard budget`() {
+        val message = mkMessage(1100, 100).copy(generationMetrics = listOf(
+            request("round-one", TokenUsage(promptTokens = 1000, completionTokens = 100)),
+            request("round-two", TokenUsage(promptTokens = 1100, completionTokens = 100)),
+        ))
+        val totals = TokenBudgetTracker.aggregateTask(listOf(mkConversation(listOf(message))))
+        assertEquals(2300L, totals.totalTokens)
+        assertEquals(2, totals.messageCount)
+        assertEquals(1200L, totals.perMessageMax)
+        assertEquals(TokenBudgetTracker.BudgetStatus.OVER_HARD, TokenBudgetTracker.classify(totals, null, 1500))
+    }
+
+    @Test fun `a request without usage stays unknown instead of reusing previous message measurement`() {
+        val message = mkMessage(1000, 100).copy(generationMetrics = listOf(
+            request("measured", TokenUsage(promptTokens = 1000, completionTokens = 100)),
+            request("unmeasured", null),
+        ))
+        val totals = TokenBudgetTracker.aggregateTask(listOf(mkConversation(listOf(message))))
+        assertEquals(1100L, totals.totalTokens)
+        assertEquals(1, totals.messageCount)
+        assertEquals(1, totals.unmeasuredMessages)
+    }
+
+    @Test fun `copied request metrics are counted once across branches with distinct message ids`() {
+        val first = mkMessage(10, 5).copy(generationMetrics = listOf(request("same-request", TokenUsage(10, 5))))
+        val fork = first.copy(id = Uuid.random())
+        val totals = TokenBudgetTracker.aggregateTask(listOf(mkConversation(listOf(first, fork))))
+        assertEquals(15L, totals.totalTokens)
+        assertEquals(1, totals.messageCount)
+    }
+
+    @Test fun `older fork snapshot with same message id cannot hide newer request rounds`() {
+        val earlier = mkMessage(10, 5).copy(generationMetrics = listOf(request("first", TokenUsage(10, 5))))
+        val later = earlier.copy(generationMetrics = earlier.generationMetrics + request("second", TokenUsage(20, 10)))
+        for (copies in listOf(listOf(earlier, later), listOf(later, earlier))) {
+            val totals = TokenBudgetTracker.aggregateTask(copies.map { mkConversation(listOf(it)) })
+            assertEquals(45L, totals.totalTokens)
+            assertEquals(2, totals.messageCount)
+        }
+    }
+
+    @Test fun `legacy snapshot of measured request does not count usage twice`() {
+        val legacy = mkMessage(10, 5)
+        val measured = legacy.copy(generationMetrics = listOf(request("first", TokenUsage(10, 5))))
+        val totals = TokenBudgetTracker.aggregateTask(listOf(mkConversation(listOf(legacy)), mkConversation(listOf(measured))))
+        assertEquals(15L, totals.totalTokens)
+        assertEquals(1, totals.messageCount)
+    }
 
     private fun mkMessage(prompt: Int, completion: Int, total: Int = 0): UIMessage {
         val effectiveTotal = if (total > 0) total else prompt + completion

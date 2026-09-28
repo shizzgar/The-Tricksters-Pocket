@@ -782,7 +782,7 @@ class LocalTools(
             tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxSessionKillTool(context, termuxOwner))
             tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxSessionListTool(context, termuxOwner))
             tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxSessionManageTool(context, termuxOwner))
-            tools.addAll(me.rerere.rikkahub.data.ai.tools.local.termuxJobTools(context, termuxOwner, termuxDirectory))
+            tools.addAll(me.rerere.rikkahub.data.ai.tools.local.termuxJobTools(context, termuxOwner, termuxDirectory, invocationContext.termuxWorkspace?.root?.let { "workspace:$it" }))
             tools.add(me.rerere.rikkahub.data.ai.tools.local.termuxOutputReadTool(context, termuxOwner))
         }
         if (availableOptions.contains(LocalToolOption.Whisper)) {

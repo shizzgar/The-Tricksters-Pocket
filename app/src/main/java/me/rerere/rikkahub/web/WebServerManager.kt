@@ -30,6 +30,7 @@ data class WebServerState(
     val port: Int = 8080,
     val serviceName: String = DEFAULT_SERVICE_NAME,
     val localhostOnly: Boolean = false,
+    val jwtEnabled: Boolean = false,
     val hostname: String? = null,
     val address: String? = null,
     val error: String? = null,
@@ -63,7 +64,7 @@ class WebServerManager(
         serviceName: String = DEFAULT_SERVICE_NAME,
         localhostOnly: Boolean = false
     ) {
-        if (server != null) {
+        if (server != null || state.value.isLoading) {
             Log.w(TAG, "Server already running")
             return
         }
@@ -72,6 +73,8 @@ class WebServerManager(
         // state.value.startId right before calling start() gets a baseline that's guaranteed
         // to differ from every state this attempt writes, regardless of coroutine scheduling.
         val startId = ++nextStartId
+        val jwtEnabled = settingsStore.settingsFlow.value.webServerJwtEnabled
+        _state.value = _state.value.copy(isLoading = true, startId = startId, jwtEnabled = jwtEnabled)
 
         appScope.launch {
             // 仅本机模式绑定回环地址
@@ -80,6 +83,7 @@ class WebServerManager(
                 port = port,
                 serviceName = serviceName,
                 localhostOnly = localhostOnly,
+                jwtEnabled = jwtEnabled,
                 startId = startId
             )
             try {
@@ -91,7 +95,7 @@ class WebServerManager(
                     return@launch
                 }
                 server = startWebServer(port = port, host = host) {
-                    configureWebApi(context, chatService, conversationRepo, folderRepo, settingsStore, filesManager)
+                    configureWebApi(context, chatService, conversationRepo, folderRepo, settingsStore, filesManager, jwtEnabled)
                 }.start(wait = false)
 
                 _state.value = baseState.copy(isRunning = true)

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="hook_discard_pending">Отменить эту инструкцию</string>
+    <string name="hook_discard_hint">Правило останется включённым. Если запрос ожидает отправки этой инструкции, он будет отменён; отправьте сообщение снова, чтобы продолжить.</string>
+    <string name="hook_discard_failed">Не удалось отменить инструкцию. Попробуйте ещё раз.</string>
+</resources>

@@ -2,17 +2,25 @@ package me.rerere.rikkahub.data.ai.tools
 
 import me.rerere.ai.core.Tool
 import me.rerere.rikkahub.data.model.Assistant
+import me.rerere.rikkahub.skills.canManageSkillPackages
 import me.rerere.rikkahub.utils.JsonInstant
 import org.junit.Assert.*
 import org.junit.Test
 
 class ToolAvailabilityTest {
-    @Test fun `no connected or resolvable skills means no skill groups or prompts`() {
+    @Test fun `first skill can be created or imported with explicit permissions but cannot run yet`() {
         val all = listOf(LocalToolOption.SkillManagement, LocalToolOption.SkillImport, LocalToolOption.JsSkills, LocalToolOption.Termux)
-        assertEquals(listOf(LocalToolOption.Termux), availableLocalOptions(all, emptySet(), setOf("installed")))
-        assertEquals(listOf(LocalToolOption.Termux), availableLocalOptions(all, setOf("deleted"), setOf("installed")))
+        assertEquals(listOf(LocalToolOption.SkillManagement, LocalToolOption.SkillImport, LocalToolOption.Termux), availableLocalOptions(all, emptySet(), setOf("installed")))
+        assertEquals(listOf(LocalToolOption.SkillManagement, LocalToolOption.SkillImport, LocalToolOption.Termux), availableLocalOptions(all, setOf("deleted"), setOf("installed")))
         assertTrue(createSkillTools(setOf("deleted"), emptyList()).isEmpty())
         assertEquals(all, availableLocalOptions(all, setOf("installed"), setOf("installed")))
+    }
+    @Test fun `first skill creation respects management and per-tool permissions`() {
+        val enabled = Assistant(localTools = listOf(LocalToolOption.SkillManagement), enabledSkills = emptySet())
+        assertTrue(canManageSkillPackages(enabled, "skill_create"))
+        assertFalse(canManageSkillPackages(enabled.copy(localTools = emptyList()), "skill_create"))
+        assertFalse(canManageSkillPackages(enabled.copy(disabledLocalTools = setOf("skill_create")), "skill_create"))
+        assertFalse(canManageSkillPackages(enabled.copy(disabledLocalTools = setOf("use_skill")), "skill_create"))
     }
     @Test fun `whisper is an explicit opt in and depends on Termux`() {
         assertEquals(listOf(LocalToolOption.Termux), availableLocalOptions(listOf(LocalToolOption.Termux), emptySet(), emptySet()))

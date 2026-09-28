@@ -133,6 +133,7 @@ import me.rerere.rikkahub.data.model.ConversationCompaction
 import me.rerere.rikkahub.data.model.MessageNode
 import me.rerere.rikkahub.data.model.AssistantAffectScope
 import me.rerere.rikkahub.data.model.localFileUrls
+import me.rerere.rikkahub.data.model.copyLocalAttachments
 import me.rerere.rikkahub.data.model.replaceRegexes
 import me.rerere.rikkahub.data.model.toMessageNode
 import me.rerere.rikkahub.data.repository.ConversationRepository
@@ -410,6 +411,7 @@ class ChatService(
         conversation: Conversation,
         assistant: Assistant,
     ): me.rerere.rikkahub.data.ai.hooks.ToolHookRuntime {
+        hookRuntimeStore.reconcileHistory(conversation.id.toString(), conversation.currentMessages)
         val settings = settingsStore.settingsFlow.value
         val ancestors = mutableSetOf<Uuid>()
         val parentAssistants = mutableSetOf<Uuid>()
@@ -1325,7 +1327,7 @@ class ChatService(
                     }
                 }
                 if (changedPendingApproval && !pendingNow) {
-                    handleMessageComplete(conversationId)
+                    handleMessageComplete(conversationId, approvalContinuation = true)
                 }
                 _generationDoneFlow.emit(conversationId)
             } catch (e: Exception) {
@@ -1561,6 +1563,7 @@ class ChatService(
         conversation: Conversation,
         model: Model,
         settings: Settings,
+        includeDisabled: Boolean = false,
     ): List<Tool> = buildList {
         ensureReviewPolicy(conversationId)
         val effectiveAssistant = projectRepository?.effectiveAssistant(conversationId, assistant, settings) ?: assistant
@@ -1575,10 +1578,11 @@ class ChatService(
             modelCanSeeImages = Modality.IMAGE in model.inputModalities,
             termuxWorkspace = effectiveAssistant.workspaceId?.let { workspaceRepository.getById(it.toString()) }?.termuxContext(conversation.workspaceCwd),
         )
-        addAll(localTools.getTools(effectiveAssistant.localTools, invocationCtx))
+        addAll(localTools.getTools(effectiveAssistant.localTools, invocationCtx, includeDisabled = includeDisabled))
         addAll(createWorkspaceToolsIfReady(effectiveAssistant.workspaceId?.toString(), conversation.workspaceCwd))
         addAll(me.rerere.rikkahub.data.ai.tools.TaskArtifactTools.create(conversationId, effectiveAssistant,
             workspaceRepository, me.rerere.rikkahub.data.task.TaskArtifactStore.at(context.filesDir)))
+        projectRepository?.let { addAll(me.rerere.rikkahub.data.ai.tools.ProjectReferenceTools.create(conversationId, it, context.filesDir)) }
         mcpManager.getAllAvailableTools().forEach { (serverId, serverName, mcpTool) ->
             if (serverName.isEmpty() || !serverName.all { it in 'a'..'z' || it in 'A'..'Z' || it in '0'..'9' }) return@forEach
             val mcpToolName = me.rerere.rikkahub.data.ai.mcp.buildMcpToolName(serverId, serverName, mcpTool.name)
@@ -1595,7 +1599,89 @@ class ChatService(
                 )
             )
         }
-    }.let { me.rerere.rikkahub.data.ai.AgentToolPolicy.filter(it, conversationId.toString(), assistant.readOnlyTools) }
+    }.let { tools ->
+        if (includeDisabled) tools else me.rerere.rikkahub.data.ai.AgentToolPolicy.filter(
+            me.rerere.rikkahub.data.ai.tools.filterLocalTools(tools, assistant.disabledLocalTools),
+            conversationId.toString(), assistant.readOnlyTools,
+        )
+    }
+
+    /** Chat Jobs uses the same inherited workspace and durable owner as the assistant's tools. */
+    suspend fun requestTermuxJobs(conversationId: Uuid, request: JsonObject): JsonObject {
+        ensureReviewPolicy(conversationId)
+        val settings = settingsStore.settingsFlow.value
+        val chat = getConversationFlow(conversationId).value
+        val configured = settings.getAssistantById(chat.assistantId) ?: settings.getCurrentAssistant()
+        val assistant = projectRepository?.effectiveEnvironment(conversationId, configured, settings, chat)?.assistant ?: configured
+        val workspace = assistant.workspaceId?.let { workspaceRepository.getById(it.toString()) }
+        val termux = workspace?.termuxContext(chat.workspaceCwd)
+        return me.rerere.rikkahub.data.ai.tools.local.termuxJobRequest(
+            context, termux?.owner ?: conversationId.toString(), request,
+            legacyOwner = termux?.root?.let { "workspace:$it" },
+        )
+    }
+
+    /** Builds declarations only: this inspection never executes a tool or probes a remote backend. */
+    suspend fun inspectEnvironment(conversationId: Uuid): me.rerere.rikkahub.data.model.ChatEnvironmentSnapshot {
+        ensureReviewPolicy(conversationId)
+        val settings = settingsStore.settingsFlow.value
+        val chat = getConversationFlow(conversationId).value
+        val configured = settings.getAssistantById(chat.assistantId) ?: settings.getCurrentAssistant()
+        val environment = projectRepository?.effectiveEnvironment(conversationId, configured, settings, chat)
+            ?: me.rerere.rikkahub.data.repository.EffectiveChatEnvironment(
+                configured,
+                if (configured.workspaceId == null) me.rerere.rikkahub.data.repository.WorkspaceSource.NONE
+                else me.rerere.rikkahub.data.repository.WorkspaceSource.ASSISTANT,
+                null, null, configured.readOnlyTools,
+            )
+        val assistant = environment.assistant
+        val workspace = environment.workspaceId?.let { workspaceRepository.getById(it.toString()) }
+        val installed = skillManager.listSkills().map { it.name }.toSet()
+        val model = settings.findModelById(chat.chatModelId ?: assistant.chatModelId ?: settings.chatModelId)
+        var readiness = me.rerere.rikkahub.data.model.assistantReadiness(
+            assistant.copy(chatModelId = chat.chatModelId ?: assistant.chatModelId, readOnlyTools = environment.readOnly),
+            settings, listOfNotNull(workspace), installed,
+        )
+        val declaredTools = if (model == null) emptyList() else buildToolsForRerun(
+            assistant, conversationId, chat, model, settings, includeDisabled = true,
+        )
+        // Memory is added by GenerationLoop immediately before filtering the request's tools.
+        // Reuse its declarations without binding any executable repository operation here.
+        val memoryTools = if (!assistant.enableMemory) emptyList() else
+            me.rerere.rikkahub.data.ai.tools.buildMemoryTools(
+                json = me.rerere.rikkahub.utils.JsonInstant,
+                onCreation = { error("Inspection only") },
+                onUpdate = { _, _ -> error("Inspection only") },
+                onDelete = { error("Inspection only") },
+            )
+        val catalog = declaredTools + memoryTools
+        if (catalog.isNotEmpty() && model != null && ModelAbility.TOOL !in model.abilities &&
+            me.rerere.rikkahub.data.model.AssistantReadinessIssue.MODEL_TOOLS !in readiness.issues) {
+            readiness = readiness.copy(issues = readiness.issues + me.rerere.rikkahub.data.model.AssistantReadinessIssue.MODEL_TOOLS)
+        }
+        val policyBlocked = catalog.filterNot {
+            me.rerere.rikkahub.data.ai.AgentToolPolicy.permits(it.name, conversationId.toString(), environment.readOnly)
+        }.map { it.name }.distinct().sorted()
+        val modelReady = model != null && ModelAbility.TOOL in model.abilities && readiness.issues.none { it in setOf(
+            me.rerere.rikkahub.data.model.AssistantReadinessIssue.MODEL_MISSING,
+            me.rerere.rikkahub.data.model.AssistantReadinessIssue.MODEL_DISABLED,
+            me.rerere.rikkahub.data.model.AssistantReadinessIssue.MODEL_NOT_CHAT,
+            me.rerere.rikkahub.data.model.AssistantReadinessIssue.MODEL_TOOLS,
+        ) }
+        val tools = if (!modelReady) emptyList() else me.rerere.rikkahub.data.ai.AgentToolPolicy.filter(
+            me.rerere.rikkahub.data.ai.tools.filterLocalTools(catalog, assistant.disabledLocalTools),
+            conversationId.toString(), environment.readOnly,
+        ).map { it.name }.distinct().sorted()
+        val cwd = workspace?.termuxContext(chat.workspaceCwd)?.workingDirectory ?: workspace?.let {
+            val relative = chat.workspaceCwd.orEmpty().removePrefix("/workspace/").removePrefix("/workspace")
+            me.rerere.workspace.rootfsWorkingDirectory(relative)
+        } ?: if (me.rerere.rikkahub.data.ai.tools.LocalToolOption.Termux in assistant.localTools)
+            me.rerere.rikkahub.data.ai.tools.resolveTermuxWorkingDirectory(null) else null
+        return me.rerere.rikkahub.data.model.ChatEnvironmentSnapshot(
+            environment, readiness, cwd, tools, assistant.disabledLocalTools.sorted(), policyBlocked,
+            (assistant.enabledSkills intersect installed).sorted(), "use_skill" in tools,
+        )
+    }
 
     private suspend fun ensureReviewPolicy(id: Uuid, resumeStopped: Boolean = false) {
         val scope = me.rerere.rikkahub.data.task.TaskArtifactStore.at(context.filesDir).reviewScope(id.toString()) ?: return
@@ -1669,6 +1755,7 @@ class ChatService(
         messageRange: ClosedRange<Int>? = null,
         allowContextRetry: Boolean = true,
         resumed: AgentTaskRecord? = null,
+        approvalContinuation: Boolean = false,
     ) {
         val config = settingsStore.settingsFlow.first().networkSetting.generationRuntime.normalized()
         val headless = me.rerere.rikkahub.data.ai.tools.HeadlessConversations.isHeadless(conversationId)
@@ -1692,6 +1779,7 @@ class ChatService(
             activeAgentTasks[conversationId] = task
         }
         var networkFailures = 0
+        var preserveApprovalBatch = approvalContinuation
         val cycleState = AgentTaskCycleState(task.loopGuardTrips)
         try {
             if (taskOwnsUi) generationLoop.beginTaskUi()
@@ -1707,6 +1795,7 @@ class ChatService(
                 val before = conversationCheckpoint(getConversationFlow(conversationId).value.currentMessages)
                 val result = runGenerationSlice(conversationId, messageRange, allowContextRetry, autonomous, cycleState,
                     manageUiLifecycle = !taskOwnsUi,
+                    approvalContinuation = preserveApprovalBatch,
                     claimSteeringInput = { boundary ->
                         if (!steeringEnabled) false else synchronized(session) {
                             check(reservedInput.isEmpty())
@@ -1716,6 +1805,7 @@ class ChatService(
                         }
                     },
                 )
+                preserveApprovalBatch = false
                 val steered = result.reason == GenerationStopReason.USER_MESSAGE && reservedInput.isNotEmpty()
                 if (steered) {
                     applySteeringInput(session, reservedInput, task.runId, steeringBoundary)
@@ -1784,6 +1874,7 @@ class ChatService(
         autonomousCycle: Boolean = false,
         cycleState: AgentTaskCycleState = AgentTaskCycleState(),
         manageUiLifecycle: Boolean = !autonomousCycle,
+        approvalContinuation: Boolean = false,
         claimSteeringInput: suspend (String) -> Boolean = { false },
     ): GenerationSliceOutcome {
         ensureReviewPolicy(conversationId)
@@ -1849,7 +1940,7 @@ class ChatService(
             }
 
             // check invalid messages
-            checkInvalidMessages(conversationId)
+            checkInvalidMessages(conversationId, approvalContinuation)
             val conversation = getConversationFlow(conversationId).value
 
             try {
@@ -2066,6 +2157,7 @@ class ChatService(
                     addAll(createWorkspaceToolsIfReady(assistant.workspaceId?.toString(), conversation.workspaceCwd))
         addAll(me.rerere.rikkahub.data.ai.tools.TaskArtifactTools.create(conversationId, assistant,
             workspaceRepository, me.rerere.rikkahub.data.task.TaskArtifactStore.at(context.filesDir)))
+        projectRepository?.let { addAll(me.rerere.rikkahub.data.ai.tools.ProjectReferenceTools.create(conversationId, it, context.filesDir)) }
                     mcpManager.getAllAvailableTools().also { allTools ->
                         // Upstream name validation: a server name that isn't pure
                         // English+digits would produce an invalid `mcp__<name>__tool`
@@ -2120,7 +2212,7 @@ class ChatService(
                             )
                         )
                     }
-                },
+                }.let { me.rerere.rikkahub.data.ai.tools.filterLocalTools(it, assistant.disabledLocalTools) },
             ).onCompletion { completionCause ->
                 // 取消 Live Update 通知
                 cancelLiveUpdateNotification(conversationId)
@@ -2353,7 +2445,7 @@ class ChatService(
 
     // ---- 检查无效消息 ----
 
-    private suspend fun checkInvalidMessages(conversationId: Uuid) {
+    private suspend fun checkInvalidMessages(conversationId: Uuid, approvalContinuation: Boolean = false) {
         val conversation = getConversationFlow(conversationId).value
         var messagesNodes = conversation.messageNodes
 
@@ -2364,13 +2456,14 @@ class ChatService(
         // are handled by GenerationLoop's normal replay path.
         messagesNodes = messagesNodes.map { node ->
             val currentMessage = node.currentMessage
-            val hasUnresumableTool = currentMessage.getTools().any {
-                !it.isExecuted && !it.approvalState.canResumeToolExecution()
-            }
-            if (!hasUnresumableTool) {
+            val repairedMessage = repairInterruptedToolBatch(
+                currentMessage,
+                approvalContinuation = approvalContinuation && node.id == messagesNodes.lastOrNull()?.id,
+                cancelTool = ::cancelToolByRecovery,
+            )
+            if (repairedMessage == currentMessage) {
                 node
             } else {
-                val repairedMessage = currentMessage.finishPendingTools(::cancelToolByRecovery)
                 node.copy(
                     messages = node.messages.map { message ->
                         if (message.id == currentMessage.id) repairedMessage else message
@@ -3124,8 +3217,9 @@ class ChatService(
                 }
 
                 me.rerere.rikkahub.costguards.AuxiliaryTokenUsageStore.record(conversation.id.toString(), Uuid.random().toString(), result.usage ?: result.message.usage)
-                if (attempt == 0 && result.finishReason in setOf("length", "max_tokens")) return@repeat
-                check(result.finishReason !in setOf("length", "max_tokens", "content_filter")) {
+                val finishKind = me.rerere.ai.provider.classifyGenerationFinish(result.finishReason)
+                if (attempt == 0 && finishKind == me.rerere.ai.provider.GenerationFinishKind.OUTPUT_LIMIT) return@repeat
+                check(finishKind == me.rerere.ai.provider.GenerationFinishKind.COMPLETE) {
                     "Compaction answer was cut off (${result.finishReason}); original context has been preserved"
                 }
                 return result.message.toText().trim()
@@ -3506,18 +3600,26 @@ class ChatService(
     }
 
     private fun checkFilesDelete(newConversation: Conversation, oldConversation: Conversation) {
-        val session = sessions[newConversation.id]
-        val queuedFiles = (session?.messageQueue?.state?.value?.messages.orEmpty() +
-                listOfNotNull(session?.submittingMessage))
-            .flatMap { it.parts }.localFileUrls().map { it.toUri() }
-        val newFiles = newConversation.files + queuedFiles
-        val oldFiles = oldConversation.files
-        val deletedFiles = oldFiles.filter { file ->
-            newFiles.none { it == file }
-        }
-        if (deletedFiles.isNotEmpty()) {
-            filesManager.deleteChatFiles(deletedFiles)
-            Log.w(TAG, "checkFilesDelete: $deletedFiles")
+        val candidates = oldConversation.files.toSet() - newConversation.files.toSet()
+        if (candidates.isEmpty()) return
+        appScope.launch {
+            try {
+                val persistedReferences = candidates.filter {
+                    conversationRepo.hasFileReference(it.toString(), excludingConversationId = newConversation.id)
+                }.toSet()
+                // Re-read after the database suspension: edits, forks and queued sends may
+                // have acquired a reference while we were checking unopened conversations.
+                val currentSessions = sessions.values.toList()
+                val liveReferences = currentSessions.flatMap { session ->
+                    session.state.value.files + (session.messageQueue.state.value.messages +
+                        listOfNotNull(session.submittingMessage)).flatMap { it.parts }
+                        .localFileUrls().map { it.toUri() }
+                }.toSet()
+                filesManager.deleteChatFiles((candidates - persistedReferences - liveReferences).toList())
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                Log.w(TAG, "Failed to check removed attachment references; retaining files", e)
+            }
         }
     }
 
@@ -3738,6 +3840,65 @@ class ChatService(
         saveConversation(conversationId, currentConversation.copy(messageNodes = updatedNodes))
     }
 
+    private val projectContextMutex = Mutex()
+
+    suspend fun saveProjectContext(project: me.rerere.rikkahub.data.repository.PocketProject) = changeProjectContext(
+        roots = { it.firstOrNull { saved -> saved.id == project.id }?.conversationIds.orEmpty().map(Uuid::parse) },
+        preview = { current ->
+            require(project.name.isNotBlank()) { "Project name is required" }
+            val existing = current.firstOrNull { it.id == project.id }
+            current.filterNot { it.id == project.id } + project.copy(conversationIds = existing?.conversationIds ?: project.conversationIds)
+        },
+        apply = { it.save(project) },
+    )
+
+    suspend fun removeProjectContext(projectId: String) = changeProjectContext(
+        roots = { it.firstOrNull { saved -> saved.id == projectId }?.conversationIds.orEmpty().map(Uuid::parse) },
+        preview = { current -> current.filterNot { it.id == projectId } },
+        apply = { it.remove(projectId) },
+    )
+
+    suspend fun bindProjectContext(projectId: String?, conversationId: Uuid) = changeProjectContext(
+        roots = { listOf(conversationId) },
+        preview = { current ->
+            require(projectId == null || current.any { it.id == projectId }) { "Project no longer exists" }
+            current.map { it.copy(conversationIds = if (it.id == projectId) it.conversationIds + conversationId.toString() else it.conversationIds - conversationId.toString()) }
+        },
+        apply = { it.bindConversation(projectId, conversationId) },
+    )
+
+    /** Explicit project changes stop only chats whose effective workspace changes. */
+    private suspend fun changeProjectContext(
+        roots: (List<me.rerere.rikkahub.data.repository.PocketProject>) -> List<Uuid>,
+        preview: (List<me.rerere.rikkahub.data.repository.PocketProject>) -> List<me.rerere.rikkahub.data.repository.PocketProject>,
+        apply: suspend (me.rerere.rikkahub.data.repository.ProjectRepository) -> Unit,
+    ) = projectContextMutex.withLock {
+        val projects = requireNotNull(projectRepository)
+        val before = projects.projects.value
+        val after = preview(before)
+        val settings = settingsStore.settingsFlow.first()
+        val visited = mutableSetOf<Uuid>()
+        suspend fun prepare(id: Uuid) {
+            if (!visited.add(id)) return
+            val chat = sessions[id]?.state?.value ?: conversationRepo.getConversationById(id)
+            if (chat != null) {
+                val assistant = settings.getAssistantById(chat.assistantId) ?: settings.getCurrentAssistant()
+                val previous = projects.effectiveEnvironment(id, assistant, settings, chat, before).workspaceId
+                val next = projects.effectiveEnvironment(id, assistant, settings, chat, after).workspaceId
+                if (previous != next) {
+                    if (sessions[id]?.getJob() != null || chat.currentMessages.any { message -> message.parts.any { it is UIMessagePart.Tool && it.isPending } }) {
+                        stopGeneration(id)
+                    }
+                    val latest = sessions[id]?.state?.value ?: conversationRepo.getConversationById(id)
+                    if (latest?.workspaceCwd != null) saveConversation(id, latest.copy(workspaceCwd = null))
+                }
+            }
+            conversationRepo.observeChildConversations(id).first().forEach { prepare(it.id) }
+        }
+        roots(before).forEach { prepare(it) }
+        apply(projects)
+    }
+
     suspend fun forkConversationAtMessage(
         conversationId: Uuid,
         messageId: Uuid
@@ -3769,7 +3930,8 @@ class ChatService(
             .getConversationsOfAssistant(currentConversation.assistantId)
             .first()
             .mapTo(mutableSetOf()) { it.title }
-        val forkConversation = createForkConversation(currentConversation, copiedNodes, existingTitles)
+        var forkConversation = createForkConversation(currentConversation, copiedNodes, existingTitles)
+        projectRepository?.inheritProject(conversationId, forkConversation.id)
 
         val taskStore = me.rerere.rikkahub.data.task.TaskArtifactStore.at(context.filesDir)
         taskStore.reviewScope(conversationId.toString())?.let { scope ->
@@ -3780,6 +3942,16 @@ class ChatService(
                 me.rerere.rikkahub.data.ai.AgentTaskPolicy.get(conversationId.toString())?.let {
                     me.rerere.rikkahub.data.ai.AgentTaskPolicy.set(forkConversation.id.toString(), it)
                 }
+            }
+        }
+        if (forkConversation.workspaceCwd != null && projectRepository != null) {
+            val settings = settingsStore.settingsFlow.first()
+            val configured = settings.getAssistantById(currentConversation.assistantId)
+                ?: settings.getCurrentAssistant()
+            val sourceWorkspace = projectRepository.effectiveEnvironment(conversationId, configured, settings, currentConversation).workspaceId
+            val forkWorkspace = projectRepository.effectiveEnvironment(forkConversation.id, configured, settings, forkConversation).workspaceId
+            if (forkWorkspace == null || sourceWorkspace != forkWorkspace) {
+                forkConversation = forkConversation.copy(workspaceCwd = null)
             }
         }
         saveConversation(forkConversation.id, forkConversation)
@@ -3887,18 +4059,9 @@ class ChatService(
     }
 
     private fun UIMessagePart.copyWithForkedFileUrl(): UIMessagePart {
-        fun copyLocalFileIfNeeded(url: String): String {
-            if (!url.startsWith("file:")) return url
+        return copyLocalAttachments { url ->
             val copied = filesManager.createChatFilesByContents(listOf(url.toUri())).firstOrNull()
-            return copied?.toString() ?: url
-        }
-
-        return when (this) {
-            is UIMessagePart.Image -> copy(url = copyLocalFileIfNeeded(url))
-            is UIMessagePart.Document -> copy(url = copyLocalFileIfNeeded(url))
-            is UIMessagePart.Video -> copy(url = copyLocalFileIfNeeded(url))
-            is UIMessagePart.Audio -> copy(url = copyLocalFileIfNeeded(url))
-            else -> this
+            checkNotNull(copied) { "Cannot copy attachment for fork: $url" }.toString()
         }
     }
 

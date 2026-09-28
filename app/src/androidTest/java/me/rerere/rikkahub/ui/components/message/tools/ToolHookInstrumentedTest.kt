@@ -128,4 +128,19 @@ class ToolHookInstrumentedTest {
             assertFalse(rule.enabled)
         } finally { runBlocking { repository.deleteConversation(conversation) } }
     }
+
+    @Test fun pendingInstructionCanBeDiscardedIndividually() {
+        val first = ToolHookNotice("first", "rule", "First help", "Exit 2", "First prompt")
+        val second = first.copy(id = "second", name = "Second help")
+        var notices by mutableStateOf(listOf(first, second))
+        compose.setContent { Content {
+            ToolHookNoticeDetails(notices, onDiscardPending = { id ->
+                notices = notices.map { if (it.id == id) it.copy(status = ToolHookNoticeStatus.SKIPPED) else it }
+            })
+        } }
+        compose.onNodeWithTag("hook-discard-first").performScrollTo().performClick()
+        compose.onNodeWithTag("hook-discard-first").assertDoesNotExist()
+        compose.onNodeWithTag("hook-discard-second").assertExists()
+    }
+
 }

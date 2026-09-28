@@ -13,7 +13,7 @@ import java.util.UUID
 /** Capture output is archived before the LLM preview cap, independently of workspace tools. */
 internal object TermuxOutputArchive {
     private const val STREAM_LIMIT = 8 * 1024 * 1024
-    private const val STORE_LIMIT = 128L * 1024 * 1024
+    internal const val STORE_LIMIT = 128L * 1024 * 1024
     private fun root(context: Context) = File(context.filesDir, "termux-output")
     private fun ownerRoot(context: Context, owner: String) = File(root(context), sessionOwner(owner))
 
@@ -23,7 +23,7 @@ internal object TermuxOutputArchive {
         val out = takeFirstUtf8Bytes(stdout, STREAM_LIMIT)
         val err = takeFirstUtf8Bytes(stderr, STREAM_LIMIT)
         if (used + out.toByteArray().size + err.toByteArray().size > STORE_LIMIT) {
-            buildJsonObject { put("archive_error", "private_output_quota_exhausted"); put("archive_limit_bytes", STORE_LIMIT) }
+            buildJsonObject { put("archive_error", "private_output_quota_exhausted"); put("archive_limit_bytes", STORE_LIMIT); put("recovery", "Manage captured output in Settings > Termux > Output archives to reclaim space.") }
         } else {
             val id = UUID.randomUUID().toString()
             val dir = File(ownerRoot(context, owner), id).apply { mkdirs() }
@@ -31,6 +31,7 @@ internal object TermuxOutputArchive {
             File(dir, "stderr.txt").writeText(err)
             val result = buildJsonObject {
                 put("output_ref", id)
+                put("created_at_ms", System.currentTimeMillis())
                 put("archive_truncated", out.length < stdout.length || err.length < stderr.length)
                 put("stdout_total_bytes", stdout.toByteArray().size)
                 put("stderr_total_bytes", stderr.toByteArray().size)
@@ -43,6 +44,14 @@ internal object TermuxOutputArchive {
         buildJsonObject { put("archive_error", "write_failed"); put("archive_reason", e.message.orEmpty()) }
     }
 
+    @Synchronized
+    fun list(context: Context): List<TermuxArchiveEntry> = TermuxArchiveFiles(root(context)).list()
+
+    @Synchronized
+    fun delete(context: Context, entries: List<TermuxArchiveEntry>): Int =
+        TermuxArchiveFiles(root(context)).delete(entries)
+
+    @Synchronized
     fun read(context: Context, owner: String, input: JsonObject): JsonObject {
         val ref = input["output_ref"]?.jsonPrimitive?.content.orEmpty()
         require(ref.matches(Regex("[a-f0-9-]{36}"))) { "Invalid output_ref" }

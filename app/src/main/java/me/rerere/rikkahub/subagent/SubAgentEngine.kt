@@ -227,6 +227,7 @@ class SubAgentEngine(
      * risk: AgentRunRepository depends only on its DAO.
      */
     private val agentRunRepo: AgentRunRepository,
+    private val projectRepository: me.rerere.rikkahub.data.repository.ProjectRepository,
 ) {
 
     /**
@@ -499,10 +500,11 @@ class SubAgentEngine(
             subAgentRunId = runId,
             parentToolCallId = registry.get(runId)?.parentToolCallId,
             customSystemPrompt = request.systemPrompt?.takeIf { it.isNotBlank() },
-            workspaceCwd = parentConversation?.workspaceCwd?.takeIf {
-                executionAssistant.workspaceId == parentAssistant?.workspaceId
-            },
-        )
+        ).let { child ->
+            child.copy(workspaceCwd = if (parentConversation != null && parentAssistant != null) {
+                projectRepository.inheritedWorkingDirectory(parentConversation, child, parentAssistant, executionAssistant, settings)
+            } else null)
+        }
         try {
         conversationRepo.insertConversation(conv)
         chatService.initializeConversation(conv.id, selectAssistant = false)
@@ -669,10 +671,11 @@ class SubAgentEngine(
     }
 
     private fun executionUsage(child: Conversation): me.rerere.rikkahub.costguards.TokenBudgetTracker.Totals {
-        val history = me.rerere.rikkahub.costguards.TokenBudgetTracker.aggregate(child)
+        val history = me.rerere.rikkahub.costguards.TokenBudgetTracker.aggregateTask(listOf(child))
         val aux = me.rerere.rikkahub.costguards.AuxiliaryTokenUsageStore.totals(child.id.toString())
         return history.copy(inputTokens = history.inputTokens + aux.inputTokens,
             outputTokens = history.outputTokens + aux.outputTokens, totalTokens = history.totalTokens + aux.totalTokens,
+            perMessageMax = maxOf(history.perMessageMax, aux.perMessageMax),
             messageCount = history.messageCount + aux.messageCount, unmeasuredMessages = history.unmeasuredMessages + aux.unmeasuredMessages)
     }
 

@@ -40,10 +40,12 @@ internal fun toolHookPastCalls(tools: List<UIMessagePart.Tool>): List<ToolHookPa
             val observations = ToolHookRuntime.observations(tool.output)
             observations.forEachIndexed { index, observation ->
                 val initial = ToolHookEventNormalizer.normalize(tool.toolName, arguments, observation, tool.toolCallId)
-                if (initial.jobId != null && ToolHookRuntime.isJobLaunchTool(tool.toolName)) {
+                val confirmedLaunch = ToolHookRuntime.confirmsJobLaunch(tool.toolName, observation)
+                if (initial.jobId != null && confirmedLaunch) {
                     origins[initial.jobId] = ToolHookJobOrigin(tool.toolName, arguments, tool.toolCallId)
                 }
-                val origin = initial.jobId?.let(origins::get)
+                val origin = if (ToolHookRuntime.isJobLaunchTool(tool.toolName) && !confirmedLaunch) null
+                    else initial.jobId?.let(origins::get)
                 val event = if (origin == null) initial else ToolHookEventNormalizer.normalize(
                     tool.toolName, arguments, observation, tool.toolCallId, origin,
                 )

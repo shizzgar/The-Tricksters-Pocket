@@ -148,8 +148,8 @@ class TermuxWorkspaceBridge(private val context: Context, private val preference
         }
     }
 
-    suspend fun jobs(workspaceId: String, payload: JsonObject): JsonObject =
-        checked(termuxJobRequest(context, "workspace:$workspaceId", payload))
+    suspend fun jobs(workspaceId: String, payload: JsonObject, legacyRoot: String? = null): JsonObject =
+        checked(termuxJobRequest(context, "workspace:$workspaceId", payload, legacyRoot?.let { "workspace:$it" }))
 
     suspend fun start(workspaceId: String, root: String, command: String, cwd: String, timeoutSeconds: Long = 3600, aptWrapEnabled: Boolean? = null): JsonObject {
         val preamble = termuxCommandPreamble(aptWrapEnabled ?: preferences.snapshot().aptWrapEnabled)
@@ -159,7 +159,7 @@ class TermuxWorkspaceBridge(private val context: Context, private val preference
             put("action", "start"); put("operation_id", Uuid.random().toString()); put("command", preamble + command)
             put("working_dir", if (relative.isBlank()) root else "${root.trimEnd('/')}/$relative")
             put("execution_timeout_seconds", timeoutSeconds.coerceIn(1, 86400))
-        })
+        }, root)
     }
 
     suspend fun execute(workspaceId: String, root: String, command: String, cwd: String, timeoutMillis: Long?): WorkspaceCommandResult {
@@ -195,25 +195,25 @@ class TermuxWorkspaceBridge(private val context: Context, private val preference
         }
     }
 
-    suspend fun background(workspaceId: String, jobId: String): BackgroundStatus {
-        val result = jobs(workspaceId, buildJsonObject { put("action", "wait"); put("job_id", jobId); put("timeout_seconds", 1) })
+    suspend fun background(workspaceId: String, jobId: String, legacyRoot: String? = null): BackgroundStatus {
+        val result = jobs(workspaceId, buildJsonObject { put("action", "wait"); put("job_id", jobId); put("timeout_seconds", 1) }, legacyRoot)
         return backgroundStatus(result)
     }
 
-    suspend fun listBackground(workspaceId: String): List<BackgroundStatus> {
+    suspend fun listBackground(workspaceId: String, legacyRoot: String? = null): List<BackgroundStatus> {
         val statuses = mutableListOf<BackgroundStatus>()
         var cursor = 0
         do {
-            val result = jobs(workspaceId, buildJsonObject { put("action", "list"); put("cursor", cursor) })
+            val result = jobs(workspaceId, buildJsonObject { put("action", "list"); put("cursor", cursor) }, legacyRoot)
             statuses += result.getValue("jobs").jsonArray.map { backgroundStatus(it.jsonObject) }
             cursor = result["next_cursor"]?.jsonPrimitive?.intOrNull ?: break
         } while (result["has_more"]?.jsonPrimitive?.booleanOrNull == true)
         return statuses
     }
 
-    suspend fun cancel(workspaceId: String, jobId: String): Boolean = jobs(workspaceId, buildJsonObject {
+    suspend fun cancel(workspaceId: String, jobId: String, legacyRoot: String? = null): Boolean = jobs(workspaceId, buildJsonObject {
         put("action", "cancel"); put("job_id", jobId); put("timeout_seconds", 5)
-    })["cancel_confirmed"]?.jsonPrimitive?.booleanOrNull == true
+    }, legacyRoot)["cancel_confirmed"]?.jsonPrimitive?.booleanOrNull == true
 
     private fun backgroundStatus(value: JsonObject) = BackgroundStatus(
         id = value.getValue("job_id").jsonPrimitive.content, command = value.string("command").orEmpty(),

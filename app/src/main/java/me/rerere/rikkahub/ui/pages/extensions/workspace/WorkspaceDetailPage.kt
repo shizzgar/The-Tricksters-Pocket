@@ -115,7 +115,7 @@ fun WorkspaceDetailPage(id: String) {
     val settingsError by vm.settingsError.collectAsStateWithLifecycle()
     val pagerState = rememberPagerState { 2 }
     val scope = rememberCoroutineScope()
-    var deleteTarget by remember { mutableStateOf<WorkspaceFileEntry?>(null) }
+    var deleteTarget by remember { mutableStateOf<WorkspaceFileTarget?>(null) }
     var showInstallDialog by remember { mutableStateOf(false) }
     var previewImageUri by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
@@ -132,23 +132,23 @@ fun WorkspaceDetailPage(id: String) {
         val inputStream = context.contentResolver.openInputStream(uri) ?: return@rememberLauncherForActivityResult
         vm.importFile(inputStream, fileName)
     }
-    var exportTarget by remember { mutableStateOf<WorkspaceFileEntry?>(null) }
+    var exportTarget by remember { mutableStateOf<WorkspaceFileTarget?>(null) }
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("*/*"),
     ) { uri ->
         val entry = exportTarget.also { exportTarget = null } ?: return@rememberLauncherForActivityResult
         if (uri == null) return@rememberLauncherForActivityResult
         val outputStream = context.contentResolver.openOutputStream(uri) ?: return@rememberLauncherForActivityResult
-        vm.exportFile(entry, outputStream)
+        vm.exportFile(entry.entry, outputStream, entry.area)
     }
-    var folderExportTarget by remember { mutableStateOf<WorkspaceFileEntry?>(null) }
+    var folderExportTarget by remember { mutableStateOf<WorkspaceFileTarget?>(null) }
     val folderExportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
     ) { uri ->
         val entry = folderExportTarget.also { folderExportTarget = null } ?: return@rememberLauncherForActivityResult
         if (uri == null) return@rememberLauncherForActivityResult
         val destinationTree = DocumentFile.fromTreeUri(context, uri) ?: return@rememberLauncherForActivityResult
-        vm.exportFolder(entry, destinationTree) { docUri -> context.contentResolver.openOutputStream(docUri) }
+        vm.exportFolder(entry.entry, destinationTree, entry.area) { docUri -> context.contentResolver.openOutputStream(docUri) }
     }
 
     BackHandler(enabled = pagerState.currentPage == 1 && state.path.isNotBlank()) {
@@ -291,13 +291,13 @@ fun WorkspaceDetailPage(id: String) {
                             }
                         }
                     },
-                    onDelete = { deleteTarget = it },
+                    onDelete = { deleteTarget = WorkspaceFileTarget(it, state.area) },
                     onExport = { entry ->
                         if (entry.isDirectory) {
-                            folderExportTarget = entry
+                            folderExportTarget = WorkspaceFileTarget(entry, state.area)
                             folderExportLauncher.launch(null)
                         } else {
-                            exportTarget = entry
+                            exportTarget = WorkspaceFileTarget(entry, state.area)
                             exportLauncher.launch(entry.name)
                         }
                     },
@@ -392,14 +392,15 @@ fun WorkspaceDetailPage(id: String) {
         )
     }
 
-    deleteTarget?.let { entry ->
+    deleteTarget?.let { target ->
+        val entry = target.entry
         RikkaConfirmDialog(
             show = true,
             title = if (entry.isDirectory) stringResource(R.string.workspace_detail_delete_directory) else stringResource(R.string.workspace_detail_delete_file),
             confirmText = stringResource(R.string.common_delete),
             dismissText = stringResource(R.string.common_cancel),
             onConfirm = {
-                vm.delete(entry)
+                vm.delete(entry, target.area)
                 deleteTarget = null
             },
             onDismiss = { deleteTarget = null },
